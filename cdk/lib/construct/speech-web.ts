@@ -8,6 +8,7 @@ import { DatabaseConstruct } from "./datebase";
 
 export interface SpeechControlWebConstructProps {
   readonly database: DatabaseConstruct;
+  readonly mcpServerUrl: string;
 }
 
 export class SpeechControlWebConstruct extends Construct {
@@ -53,6 +54,7 @@ export class SpeechControlWebConstruct extends Construct {
             IsInCloud: "yes",
             AWS_BEDROCK_REGION: "us-east-1",
             RobotTable: props.database.robotTable.tableName,
+            McpServerUrl: props.mcpServerUrl,
           },
         },
         asset: imageAsset,

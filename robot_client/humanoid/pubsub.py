@@ -1,6 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0.
 
+import configparser
 import json
 import logging
 import os
@@ -220,9 +221,29 @@ def main():
         settings = format_settings(settings, robot_name, base_path)
         if not settings.get("aws_access_key_id"):
             settings["aws_access_key_id"] = os.environ.get("IoTRobotAccessKeyId", "")
+        if not settings["aws_access_key_id"]:
+            settings["aws_access_key_id"] = os.environ.get("AWS_ACCESS_KEY_ID", "")
+        if not settings["aws_access_key_id"]:
+            # Try to read from AWS CLI config (~/.aws/credentials)
+            aws_creds_path = os.path.expanduser("~/.aws/credentials")
+            if os.path.exists(aws_creds_path):
+                config = configparser.ConfigParser()
+                config.read(aws_creds_path)
+                profile = os.environ.get("AWS_PROFILE", "default")
+                if config.has_section(profile):
+                    settings["aws_access_key_id"] = config.get(
+                        profile, "aws_access_key_id", fallback=""
+                    )
+                    settings["aws_secret_access_key"] = config.get(
+                        profile, "aws_secret_access_key", fallback=""
+                    )
         if not settings.get("aws_secret_access_key"):
             settings["aws_secret_access_key"] = os.environ.get(
                 "IoTRobotSecretAccessKey", ""
+            )
+        if not settings["aws_secret_access_key"]:
+            settings["aws_secret_access_key"] = os.environ.get(
+                "AWS_SECRET_ACCESS_KEY", ""
             )
         print("Settings loaded successfully:", json.dumps(settings, indent=2))
 

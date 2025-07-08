@@ -8,11 +8,11 @@ import { DatabaseConstruct } from "./datebase";
 
 export interface TextControlWebConstructProps {
   readonly database: DatabaseConstruct;
+  readonly mcpServerUrl: string;
 }
 
 export class TextControlWebConstruct extends Construct {
   public readonly serviceUrl: string;
-  private readonly database: Construct;
 
   constructor(
     scope: Construct,
@@ -47,6 +47,7 @@ export class TextControlWebConstruct extends Construct {
       environment: {
         AWS_BEDROCK_REGION: "us-east-1",
         RobotTable: props.database.robotTable.tableName,
+        McpServerUrl: props.mcpServerUrl,
       },
     });
 

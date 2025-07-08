@@ -5,10 +5,16 @@ import { SpeechControlWebConstruct } from "./construct/speech-web";
 import { TextControlWebConstruct } from "./construct/text-web";
 import { RobotSsmConstruct } from "./construct/robot-ssm";
 import { DatabaseConstruct } from "./construct/datebase";
+import { LambdaMcpServerConstruct } from "./construct/mcp-server";
 
 export class AmazonNovaRoboticCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    const mcpServerConstruct = new LambdaMcpServerConstruct(
+      this,
+      "LambdaMcpServerConstruct"
+    );
 
     const numberOfRobots = 9; // Number of robots
     const thingNames = Array.from(
@@ -25,6 +31,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
 
     const webConstruct = new SpeechControlWebConstruct(this, "WebConstruct", {
       database: databaseConstruct,
+      mcpServerUrl: mcpServerConstruct.functionUrl.url,
     });
 
     const textControlWebConstruct = new TextControlWebConstruct(
@@ -32,6 +39,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       "TextControlWebConstruct",
       {
         database: databaseConstruct,
+        mcpServerUrl: mcpServerConstruct.functionUrl.url,
       }
     );
 
@@ -57,6 +65,11 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, "RobotDataBucketName", {
       value: roboticConstruct.bucket.bucketName,
       description: "The name of the S3 bucket for storing robot data",
+    });
+
+    new cdk.CfnOutput(this, "mcpServerUrl", {
+      value: mcpServerConstruct.functionUrl.url,
+      description: "The URL of the MCP Server Lambda Function",
     });
   }
 }

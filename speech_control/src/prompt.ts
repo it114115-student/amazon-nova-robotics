@@ -99,7 +99,7 @@ export class ToolProcessor {
         `MCP tools: ${mcpTools.map((t) => t.toolSpec.name).join(", ")}`
       );
     }
-    return [...robotTools, ...mcpTools];
+    return mcpTools; //[...robotTools, ...mcpTools];
   }
 
   /**

@@ -165,3 +165,4 @@ build/
 # Robot client specific
 robot_client/venv/
 robot_client/__pycache__/
+**/*.venv

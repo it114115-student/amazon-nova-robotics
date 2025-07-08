@@ -1,19 +1,9 @@
 {
   "mcpServers": {
-    "github.com/executeautomation/mcp-playwright": {
-      "disabled": false,
-      "command": "npx",
-      "args": ["-y", "@executeautomation/playwright-mcp-server"]
-    },
-    "github.com/modelcontextprotocol/servers/tree/main/src/filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/workspaces/amazon-nova-robotics"
-      ],
-      "disabled": false,
-      "autoApprove": []
+    "robot-mcpServers": {
+      "type": "streamable-http",
+      "url": "https://bseb2x7nywnubp2zz4sqltywv40zjfuw.lambda-url.us-east-1.on.aws/",
+      "note": "For Streamable HTTP connections, add this URL directly in your MCP Client"
     }
   }
 }
