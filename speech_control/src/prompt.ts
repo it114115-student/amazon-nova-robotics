@@ -1,11 +1,9 @@
-import { Actions, toolList } from "./consts";
 import { ToolHandler } from "./services/tools";
 
 export class ToolProcessor {
   private readonly mcpToolHandler: ToolHandler;
 
   constructor(mcpToolHandler?: ToolHandler) {
-    // this.robots = [];
     this.mcpToolHandler = mcpToolHandler || new ToolHandler();
   }
 
@@ -34,34 +32,22 @@ export class ToolProcessor {
       );
     }
 
-    // If not an MCP tool, handle as robot action
-    if (!Object.keys(Actions).includes(toolName.toLowerCase())) {
-      // Try MCP tool handler first
-      try {
-        return await this.mcpToolHandler.processToolUse(
-          toolName,
-          toolUseContent
-        );
-      } catch (error) {
-        console.log(`Tool ${toolName} not found in MCP tools or robot actions`);
-        return {
-          success: true,
-          message: `Tool ${toolName} is not in action list but assume ok!`,
-        };
-      }
+    // Try MCP tool handler
+    try {
+      return await this.mcpToolHandler.processToolUse(toolName, toolUseContent);
+    } catch (error) {
+      console.log(`Tool ${toolName} not found in MCP tools or robot actions`);
+      return {
+        success: true,
+        message: `Tool ${toolName} is not in action list but assume ok!`,
+      };
     }
-
-    return {
-      success: true,
-      message: `Tool ${toolName} processed successfully.`,
-    };
   }
 
   /**
    * Get all available tools (robot actions + MCP tools)
    */
   public getAllAvailableTools(): any[] {
-    const robotTools = tools;
     const mcpTools = Array.from(this.mcpToolHandler.getMcpTools().values()).map(
       (toolInfo) => ({
         toolSpec: {
@@ -72,15 +58,13 @@ export class ToolProcessor {
       })
     );
 
-    console.log(
-      `Available tools: ${robotTools.length} robot tools, ${mcpTools.length} MCP tools`
-    );
+    console.log(`Available tools: ${mcpTools.length} MCP tools`);
     if (mcpTools.length > 0) {
       console.log(
         `MCP tools: ${mcpTools.map((t) => t.toolSpec.name).join(", ")}`
       );
     }
-    return mcpTools; //[...robotTools, ...mcpTools];
+    return mcpTools;
   }
 
   /**
@@ -89,28 +73,6 @@ export class ToolProcessor {
   public getMcpToolHandler(): ToolHandler {
     return this.mcpToolHandler;
   }
-}
-
-export const DefaultToolSchema = JSON.stringify({
-  type: "object",
-  properties: {},
-  required: [],
-});
-
-export const tools = toolList.map(({ name, description }) => ({
-  toolSpec: {
-    name,
-    description,
-    inputSchema: { json: DefaultToolSchema },
-  },
-}));
-
-function getToolsPrompt(
-  toolList: { name: string; description: string }[]
-): string {
-  return toolList
-    .map((tool) => `- ${tool.name}: ${tool.description}`)
-    .join("\n");
 }
 
 export const DefaultSystemPrompt = `
@@ -124,6 +86,4 @@ For example, if the user asks you to "make the robot stand up", you should respo
 
 <background></background>
 
-Available tools:
-${getToolsPrompt(toolList)}
 `;

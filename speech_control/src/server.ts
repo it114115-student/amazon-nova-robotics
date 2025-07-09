@@ -10,7 +10,6 @@ import getUuid from "uuid-by-string";
 import { ToolHandler } from "./services/tools";
 import { McpManager } from "./services/mcp-manager";
 import { ToolProcessor } from "./prompt";
-import { Actions } from "./consts";
 
 // Configure AWS credentials
 const AWS_PROFILE_NAME = process.env.AWS_PROFILE || "default";
@@ -420,21 +419,8 @@ app.get("/api/debug/tools", (req, res) => {
     res.json({
       status: "ok",
       totalTools: allTools.length,
-      robotTools: allTools.filter((t: any) => !t.toolSpec.name.includes("/"))
+      mcpTools: allTools.filter((t: any) => t.toolSpec.name.includes("/"))
         .length,
-      mcpTools: allTools.filter(
-        (t: any) =>
-          t.toolSpec.name.includes("/") ||
-          !Object.keys(Actions).includes(t.toolSpec.name.toLowerCase())
-      ).length,
-      tools: allTools.map((tool: any) => ({
-        name: tool.toolSpec.name,
-        description: tool.toolSpec.description,
-        hasInputSchema: !!tool.toolSpec.inputSchema,
-        type: Object.keys(Actions).includes(tool.toolSpec.name.toLowerCase())
-          ? "robot"
-          : "mcp",
-      })),
     });
   } catch (error) {
     res.status(500).json({

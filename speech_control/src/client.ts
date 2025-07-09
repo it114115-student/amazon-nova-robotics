@@ -22,7 +22,7 @@ import {
 import { DefaultSystemPrompt } from "./prompt";
 import { StreamSession } from "./streamSession";
 import { InferenceConfig } from "./types";
-import { ToolProcessor, tools } from "./prompt";
+import { ToolProcessor } from "./prompt";
 import { Database } from "./database";
 import { ToolHandler } from "./services/tools";
 
