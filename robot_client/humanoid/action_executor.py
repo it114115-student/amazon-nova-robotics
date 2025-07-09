@@ -101,7 +101,7 @@ class ActionExecutor:
         self._send_to_simulator(
             action_name=action_name,
             log_success_msg=f"Action {action_name} sent to simulator.",
-            log_error_msg=f"Error sending action r{action_name} to simulator:",
+            log_error_msg=f"Error sending action {action_name} to simulator:",
         )
 
         return self._send_request(

@@ -72,7 +72,8 @@ source /workspaces/amazon-nova-robotics/load_cdkstack_env.sh
 ## Download AWS IoT Certifications
 
 ```
-aws s3 sync s3://<CdkStack.RobotDataBucketName> robot_client/certificates/
+source load_cdkstack_env.sh
+aws s3 sync s3://$RobotDataBucketName robot_client/certificates/
 ```
 
 # Robot Deployment

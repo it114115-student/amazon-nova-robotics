@@ -2,13 +2,12 @@
 Robot service - Handles robot action execution
 """
 
+import json
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep
-from typing import Any, Dict, List
+from typing import Dict
 
 import boto3
 from botocore.config import Config
-from models.actions import ACTIONS
 
 # Initialize AWS clients with retry configuration
 iot_client = boto3.client(
@@ -55,22 +54,21 @@ def execute_robot_action(message: str, selected_robot: str) -> bool:
             return False
 
 
-def process_actions(
-    actions_to_execute: List[str], selected_robot: str
-) -> List[Dict[str, Any]]:
-    """Process a list of actions sequentially"""
-    results = []
+def execute_drone_action(message: Dict) -> bool:
+    """Execute a robot action by publishing to the appropriate IoT topic"""
 
-    for action in actions_to_execute:
-        if action in ACTIONS:
-            success = execute_robot_action(action, selected_robot)
-            results.append(
-                {"action": action, "success": success, "name": ACTIONS[action]["name"]}
-            )
-            sleep(0.1)
-        # else:
-        #     results.append(
-        #         {"action": action, "success": False, "error": "Invalid action"}
-        #     )
-    print(f"results: {results}")
-    return results
+    message = json.dumps(message)
+
+    topic = "drone_1/topic"
+    try:
+        iot_client.publish(
+            topic=topic,
+            qos=0,
+            retain=False,
+            payload=bytes(message, "utf-8"),
+        )
+        print(f"Published to {topic}: {message}")
+        return True
+    except Exception as e:
+        print(f"Error publishing to {topic}: {e}")
+        return False

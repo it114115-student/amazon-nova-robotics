@@ -1,7 +1,8 @@
 from enum import Enum
+from typing import Dict
 
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
-from services.robot_service import execute_robot_action
+from services.robot_service import execute_drone_action, execute_robot_action
 
 mcp = MCPLambdaHandler(name="robotics-mcp-server", version="1.0.0")
 
@@ -20,19 +21,198 @@ class RobotID(str, Enum):
     ROBOT_10 = "robot_10"
 
 
+class DroneID(str, Enum):
+    ALL = "all"
+    DRONE_1 = "drone_1"
+    DRONE_2 = "drone_2"
+
+
+class Direction(str, Enum):
+    UP = "up"
+    DOWN = "down"
+    LEFT = "left"
+    RIGHT = "right"
+    FORWARD = "forward"
+    BACK = "back"
+
+
 class RobotExecutor:
     """Robot command executor that wraps the robot service"""
 
+    def execute_drone_action(self, robot_id: str, action: str, parameters: Dict = None):
+        if parameters is None:
+            parameters = {}
+        message = {
+            "DroneID": robot_id.lower(),
+            "action": action,
+            "parameters": parameters,
+        }
+        return execute_drone_action(message)
+
     def execute_action(self, robot_id: str, action: str) -> bool:
         """Execute a robot action"""
-        return execute_robot_action(action.lower(), robot_id.lower())
+        return execute_robot_action(action, robot_id.lower())
 
 
-executor = RobotExecutor()
+robot_executor = RobotExecutor()
 
 
 @mcp.tool()
-def back_fast(robot_id: RobotID) -> str:
+def drone_takeoff(drone_id: DroneID) -> str:
+    """Command the drone to take off.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is taking off.
+    """
+    robot_executor.execute_drone_action(drone_id, "takeoff")
+    return "The drone is taking off."
+
+
+@mcp.tool()
+def drone_move(drone_id: DroneID, direction: Direction, x: int) -> str:
+    """Command the drone to move in a specified direction.
+
+    Args:
+        drone_id (DroneID): Drone ID
+        direction (Direction): Direction to move
+
+    Returns:
+        str: The drone is moving in the specified direction.
+    """
+    robot_executor.execute_drone_action(drone_id, f"move_{direction.value}", {"x": x})
+    return f"The drone is moving {direction.value} for {x}."
+
+
+@mcp.tool()
+def drone_rotate_clockwise(drone_id: DroneID, x: int) -> str:
+    """Command the drone to rotate clockwise by a specified angle.
+
+    Args:
+        drone_id (DroneID): Drone ID
+        x (int): Angle in degrees to rotate clockwise
+
+    Returns:
+        str: The drone is rotating clockwise.
+    """
+    robot_executor.execute_drone_action(drone_id, "rotate_clockwise", {"x": x})
+    return f"The drone is rotating clockwise by {x} degrees."
+
+
+@mcp.tool()
+def drone_rotate_right(drone_id: DroneID) -> str:
+    """Command the drone to rotate right by a 90 degree angle.
+
+    Args:
+        drone_id (DroneID): Drone ID
+    Returns:
+        str: The drone is rotating right.
+    """
+    robot_executor.execute_drone_action(drone_id, "rotate_clockwise", {"x": 90})
+    return "The drone is rotating right by 90 degrees."
+
+
+@mcp.tool()
+def drone_rotate_left(drone_id: DroneID) -> str:
+    """Command the drone to rotate left by a 90 degree angle.
+
+    Args:
+        drone_id (DroneID): Drone ID
+    Returns:
+        str: The drone is rotating left.
+    """
+    robot_executor.execute_drone_action(drone_id, "rotate_counterclockwise", {"x": 90})
+    return "The drone is rotating left by 90 degrees."
+
+
+@mcp.tool()
+def drone_rotate_counterclockwise(drone_id: DroneID, x: int) -> str:
+    """Command the drone to rotate counterclockwise by a specified angle.
+
+    Args:
+        drone_id (DroneID): Drone ID
+        x (int): Angle in degrees to rotate counterclockwise
+    Returns:
+        str: The drone is rotating counterclockwise.
+    """
+    robot_executor.execute_drone_action(drone_id, "rotate_counterclockwise", {"x": x})
+    return f"The drone is rotating counterclockwise by {x} degrees."
+
+
+@mcp.tool()
+def drone_flip_left(drone_id: DroneID) -> str:
+    """Command the drone to flip to the left.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is flipping to the left.
+    """
+    robot_executor.execute_drone_action(drone_id, "flip", {"direction": "l"})
+    return "The drone is flipping to the left."
+
+
+@mcp.tool()
+def drone_flip_right(drone_id: DroneID) -> str:
+    """Command the drone to flip to the right.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is flipping to the right.
+    """
+    robot_executor.execute_drone_action(drone_id, "flip", {"direction": "r"})
+    return "The drone is flipping to the right."
+
+
+@mcp.tool()
+def drone_flip_forward(drone_id: DroneID) -> str:
+    """Command the drone to flip forward.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is flipping forward.
+    """
+    robot_executor.execute_drone_action(drone_id, "flip", {"direction": "f"})
+    return "The drone is flipping forward."
+
+
+@mcp.tool()
+def drone_flip_back(drone_id: DroneID) -> str:
+    """Command the drone to flip backward.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is flipping backward.
+    """
+    robot_executor.execute_drone_action(drone_id, "flip", {"direction": "b"})
+    return "The drone is flipping backward."
+
+
+@mcp.tool()
+def drone_land(drone_id: DroneID) -> str:
+    """Command the drone to land.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is landing.
+    """
+    robot_executor.execute_drone_action(drone_id, "land")
+    return "The drone is landing."
+
+
+@mcp.tool()
+def robot_back_fast(robot_id: RobotID) -> str:
     """Command the robot to move backward quickly.
 
     Args:
@@ -41,12 +221,12 @@ def back_fast(robot_id: RobotID) -> str:
     Returns:
         str: The robot is moving backward quickly.
     """
-    executor.execute_action(robot_id, "back_fast")
+    robot_executor.execute_action(robot_id, "back_fast")
     return "The robot is moving backward quickly."
 
 
 @mcp.tool()
-def bow(robot_id: RobotID) -> str:
+def robot_bow(robot_id: RobotID) -> str:
     """Command the robot to bow.
 
     Args:
@@ -55,12 +235,12 @@ def bow(robot_id: RobotID) -> str:
     Returns:
         str: The robot is bowing.
     """
-    executor.execute_action(robot_id, "bow")
+    robot_executor.execute_action(robot_id, "bow")
     return "The robot is bowing."
 
 
 @mcp.tool()
-def chest(robot_id: RobotID) -> str:
+def robot_chest(robot_id: RobotID) -> str:
     """Command the robot to perform chest exercises.
 
     Args:
@@ -69,12 +249,12 @@ def chest(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing chest exercises.
     """
-    executor.execute_action(robot_id, "chest")
+    robot_executor.execute_action(robot_id, "chest")
     return "The robot is performing chest exercises."
 
 
 @mcp.tool()
-def dance_eight(robot_id: RobotID) -> str:
+def robot_dance_eight(robot_id: RobotID) -> str:
     """Command the robot to perform dance eight.
 
     Args:
@@ -83,12 +263,12 @@ def dance_eight(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance eight.
     """
-    executor.execute_action(robot_id, "dance_eight")
+    robot_executor.execute_action(robot_id, "dance_eight")
     return "The robot is performing dance eight."
 
 
 @mcp.tool()
-def dance_five(robot_id: RobotID) -> str:
+def robot_dance_five(robot_id: RobotID) -> str:
     """Command the robot to perform dance five.
 
     Args:
@@ -97,12 +277,12 @@ def dance_five(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance five.
     """
-    executor.execute_action(robot_id, "dance_five")
+    robot_executor.execute_action(robot_id, "dance_five")
     return "The robot is performing dance five."
 
 
 @mcp.tool()
-def dance_four(robot_id: RobotID) -> str:
+def robot_dance_four(robot_id: RobotID) -> str:
     """Command the robot to perform dance four.
 
     Args:
@@ -111,12 +291,12 @@ def dance_four(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance four.
     """
-    executor.execute_action(robot_id, "dance_four")
+    robot_executor.execute_action(robot_id, "dance_four")
     return "The robot is performing dance four."
 
 
 @mcp.tool()
-def dance_nine(robot_id: RobotID) -> str:
+def robot_dance_nine(robot_id: RobotID) -> str:
     """Command the robot to perform dance nine.
 
     Args:
@@ -125,12 +305,12 @@ def dance_nine(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance nine.
     """
-    executor.execute_action(robot_id, "dance_nine")
+    robot_executor.execute_action(robot_id, "dance_nine")
     return "The robot is performing dance nine."
 
 
 @mcp.tool()
-def dance_seven(robot_id: RobotID) -> str:
+def robot_dance_seven(robot_id: RobotID) -> str:
     """Command the robot to perform dance seven.
 
     Args:
@@ -139,12 +319,12 @@ def dance_seven(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance seven.
     """
-    executor.execute_action(robot_id, "dance_seven")
+    robot_executor.execute_action(robot_id, "dance_seven")
     return "The robot is performing dance seven."
 
 
 @mcp.tool()
-def dance_six(robot_id: RobotID) -> str:
+def robot_dance_six(robot_id: RobotID) -> str:
     """Command the robot to perform dance six.
 
     Args:
@@ -153,12 +333,12 @@ def dance_six(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance six.
     """
-    executor.execute_action(robot_id, "dance_six")
+    robot_executor.execute_action(robot_id, "dance_six")
     return "The robot is performing dance six."
 
 
 @mcp.tool()
-def dance_ten(robot_id: RobotID) -> str:
+def robot_dance_ten(robot_id: RobotID) -> str:
     """Command the robot to perform dance ten.
 
     Args:
@@ -167,12 +347,12 @@ def dance_ten(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance ten.
     """
-    executor.execute_action(robot_id, "dance_ten")
+    robot_executor.execute_action(robot_id, "dance_ten")
     return "The robot is performing dance ten."
 
 
 @mcp.tool()
-def dance_three(robot_id: RobotID) -> str:
+def robot_dance_three(robot_id: RobotID) -> str:
     """Command the robot to perform dance three.
 
     Args:
@@ -181,12 +361,12 @@ def dance_three(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance three.
     """
-    executor.execute_action(robot_id, "dance_three")
+    robot_executor.execute_action(robot_id, "dance_three")
     return "The robot is performing dance three."
 
 
 @mcp.tool()
-def dance_two(robot_id: RobotID) -> str:
+def robot_dance_two(robot_id: RobotID) -> str:
     """Command the robot to perform dance two.
 
     Args:
@@ -195,12 +375,12 @@ def dance_two(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing dance two.
     """
-    executor.execute_action(robot_id, "dance_two")
+    robot_executor.execute_action(robot_id, "dance_two")
     return "The robot is performing dance two."
 
 
 @mcp.tool()
-def go_forward(robot_id: RobotID) -> str:
+def robot_go_forward(robot_id: RobotID) -> str:
     """Command the robot to move forward in the direction it is currently facing.
 
     Args:
@@ -209,12 +389,12 @@ def go_forward(robot_id: RobotID) -> str:
     Returns:
         str: The robot is moving forward.
     """
-    executor.execute_action(robot_id, "go_forward")
+    robot_executor.execute_action(robot_id, "go_forward")
     return "The robot is moving forward."
 
 
 @mcp.tool()
-def kung_fu(robot_id: RobotID) -> str:
+def robot_kung_fu(robot_id: RobotID) -> str:
     """Command the robot to perform kung fu moves.
 
     Args:
@@ -223,12 +403,12 @@ def kung_fu(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing kung fu moves.
     """
-    executor.execute_action(robot_id, "kung_fu")
+    robot_executor.execute_action(robot_id, "kung_fu")
     return "The robot is performing kung fu moves."
 
 
 @mcp.tool()
-def left_kick(robot_id: RobotID) -> str:
+def robot_left_kick(robot_id: RobotID) -> str:
     """Command the robot to perform a left kick.
 
     Args:
@@ -237,12 +417,12 @@ def left_kick(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing a left kick.
     """
-    executor.execute_action(robot_id, "left_kick")
+    robot_executor.execute_action(robot_id, "left_kick")
     return "The robot is performing a left kick."
 
 
 @mcp.tool()
-def left_move_fast(robot_id: RobotID) -> str:
+def robot_left_move_fast(robot_id: RobotID) -> str:
     """Command the robot to move left quickly.
 
     Args:
@@ -251,12 +431,12 @@ def left_move_fast(robot_id: RobotID) -> str:
     Returns:
         str: The robot is moving left quickly.
     """
-    executor.execute_action(robot_id, "left_move_fast")
+    robot_executor.execute_action(robot_id, "left_move_fast")
     return "The robot is moving left quickly."
 
 
 @mcp.tool()
-def left_shot_fast(robot_id: RobotID) -> str:
+def robot_left_shot_fast(robot_id: RobotID) -> str:
     """Command the robot to perform a fast left punch.
 
     Args:
@@ -265,12 +445,12 @@ def left_shot_fast(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing a fast left punch.
     """
-    executor.execute_action(robot_id, "left_shot_fast")
+    robot_executor.execute_action(robot_id, "left_shot_fast")
     return "The robot is performing a fast left punch."
 
 
 @mcp.tool()
-def left_uppercut(robot_id: RobotID) -> str:
+def robot_left_uppercut(robot_id: RobotID) -> str:
     """Command the robot to perform a left uppercut.
 
     Args:
@@ -279,12 +459,12 @@ def left_uppercut(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing a left uppercut.
     """
-    executor.execute_action(robot_id, "left_uppercut")
+    robot_executor.execute_action(robot_id, "left_uppercut")
     return "The robot is performing a left uppercut."
 
 
 @mcp.tool()
-def push_ups(robot_id: RobotID) -> str:
+def robot_push_ups(robot_id: RobotID) -> str:
     """Command the robot to perform push-ups.
 
     Args:
@@ -293,12 +473,12 @@ def push_ups(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing push-ups.
     """
-    executor.execute_action(robot_id, "push_ups")
+    robot_executor.execute_action(robot_id, "push_ups")
     return "The robot is performing push-ups."
 
 
 @mcp.tool()
-def right_kick(robot_id: RobotID) -> str:
+def robot_right_kick(robot_id: RobotID) -> str:
     """Command the robot to perform a right kick.
 
     Args:
@@ -307,12 +487,12 @@ def right_kick(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing a right kick.
     """
-    executor.execute_action(robot_id, "right_kick")
+    robot_executor.execute_action(robot_id, "right_kick")
     return "The robot is performing a right kick."
 
 
 @mcp.tool()
-def right_move_fast(robot_id: RobotID) -> str:
+def robot_right_move_fast(robot_id: RobotID) -> str:
     """Command the robot to move right quickly.
 
     Args:
@@ -321,12 +501,12 @@ def right_move_fast(robot_id: RobotID) -> str:
     Returns:
         str: The robot is moving right quickly.
     """
-    executor.execute_action(robot_id, "right_move_fast")
+    robot_executor.execute_action(robot_id, "right_move_fast")
     return "The robot is moving right quickly."
 
 
 @mcp.tool()
-def right_shot_fast(robot_id: RobotID) -> str:
+def robot_right_shot_fast(robot_id: RobotID) -> str:
     """Command the robot to perform a fast right punch.
 
     Args:
@@ -335,12 +515,12 @@ def right_shot_fast(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing a fast right punch.
     """
-    executor.execute_action(robot_id, "right_shot_fast")
+    robot_executor.execute_action(robot_id, "right_shot_fast")
     return "The robot is performing a fast right punch."
 
 
 @mcp.tool()
-def right_uppercut(robot_id: RobotID) -> str:
+def robot_right_uppercut(robot_id: RobotID) -> str:
     """Command the robot to perform a right uppercut.
 
     Args:
@@ -349,12 +529,12 @@ def right_uppercut(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing a right uppercut.
     """
-    executor.execute_action(robot_id, "right_uppercut")
+    robot_executor.execute_action(robot_id, "right_uppercut")
     return "The robot is performing a right uppercut."
 
 
 @mcp.tool()
-def sit_ups(robot_id: RobotID) -> str:
+def robot_sit_ups(robot_id: RobotID) -> str:
     """Command the robot to perform sit-ups.
 
     Args:
@@ -363,12 +543,12 @@ def sit_ups(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing sit-ups.
     """
-    executor.execute_action(robot_id, "sit_ups")
+    robot_executor.execute_action(robot_id, "sit_ups")
     return "The robot is performing sit-ups."
 
 
 @mcp.tool()
-def squat(robot_id: RobotID) -> str:
+def robot_squat(robot_id: RobotID) -> str:
     """Command the robot to squat down.
 
     Args:
@@ -377,12 +557,12 @@ def squat(robot_id: RobotID) -> str:
     Returns:
         str: The robot is squatting down.
     """
-    executor.execute_action(robot_id, "squat")
+    robot_executor.execute_action(robot_id, "squat")
     return "The robot is squatting down."
 
 
 @mcp.tool()
-def squat_up(robot_id: RobotID) -> str:
+def robot_squat_up(robot_id: RobotID) -> str:
     """Command the robot to stand up from a squat.
 
     Args:
@@ -391,12 +571,12 @@ def squat_up(robot_id: RobotID) -> str:
     Returns:
         str: The robot is standing up from a squat.
     """
-    executor.execute_action(robot_id, "squat_up")
+    robot_executor.execute_action(robot_id, "squat_up")
     return "The robot is standing up from a squat."
 
 
 @mcp.tool()
-def stand(robot_id: RobotID) -> str:
+def robot_stand(robot_id: RobotID) -> str:
     """Command the robot to stand up and maintain a standing position.
 
     Args:
@@ -405,12 +585,12 @@ def stand(robot_id: RobotID) -> str:
     Returns:
         str: The robot is standing up.
     """
-    executor.execute_action(robot_id, "stand")
+    robot_executor.execute_action(robot_id, "stand")
     return "The robot is standing up."
 
 
 @mcp.tool()
-def stand_up_back(robot_id: RobotID) -> str:
+def robot_stand_up_back(robot_id: RobotID) -> str:
     """Command the robot to stand up from the back.
 
     Args:
@@ -419,12 +599,12 @@ def stand_up_back(robot_id: RobotID) -> str:
     Returns:
         str: The robot is standing up from the back.
     """
-    executor.execute_action(robot_id, "stand_up_back")
+    robot_executor.execute_action(robot_id, "stand_up_back")
     return "The robot is standing up from the back."
 
 
 @mcp.tool()
-def stand_up_front(robot_id: RobotID) -> str:
+def robot_stand_up_front(robot_id: RobotID) -> str:
     """Command the robot to stand up from the front.
 
     Args:
@@ -433,12 +613,12 @@ def stand_up_front(robot_id: RobotID) -> str:
     Returns:
         str: The robot is standing up from the front.
     """
-    executor.execute_action(robot_id, "stand_up_front")
+    robot_executor.execute_action(robot_id, "stand_up_front")
     return "The robot is standing up from the front."
 
 
 @mcp.tool()
-def stepping(robot_id: RobotID) -> str:
+def robot_stepping(robot_id: RobotID) -> str:
     """Command the robot to perform stepping motions.
 
     Args:
@@ -447,12 +627,12 @@ def stepping(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing stepping motions.
     """
-    executor.execute_action(robot_id, "stepping")
+    robot_executor.execute_action(robot_id, "stepping")
     return "The robot is performing stepping motions."
 
 
 @mcp.tool()
-def stop(robot_id: RobotID) -> str:
+def robot_stop(robot_id: RobotID) -> str:
     """Command the robot to perform stopping motions.
 
     Args:
@@ -461,12 +641,12 @@ def stop(robot_id: RobotID) -> str:
     Returns:
         str: The robot is stopping.
     """
-    executor.execute_action(robot_id, "stop")
+    robot_executor.execute_action(robot_id, "stop")
     return "The robot is stopping."
 
 
 @mcp.tool()
-def turn_left(robot_id: RobotID) -> str:
+def robot_turn_left(robot_id: RobotID) -> str:
     """Command the robot to turn left.
 
     Args:
@@ -475,12 +655,12 @@ def turn_left(robot_id: RobotID) -> str:
     Returns:
         str: The robot is turning left.
     """
-    executor.execute_action(robot_id, "turn_left")
+    robot_executor.execute_action(robot_id, "turn_left")
     return "The robot is turning left."
 
 
 @mcp.tool()
-def turn_right(robot_id: RobotID) -> str:
+def robot_turn_right(robot_id: RobotID) -> str:
     """Command the robot to turn right.
 
     Args:
@@ -489,12 +669,12 @@ def turn_right(robot_id: RobotID) -> str:
     Returns:
         str: The robot is turning right.
     """
-    executor.execute_action(robot_id, "turn_right")
+    robot_executor.execute_action(robot_id, "turn_right")
     return "The robot is turning right."
 
 
 @mcp.tool()
-def twist(robot_id: RobotID) -> str:
+def robot_twist(robot_id: RobotID) -> str:
     """Command the robot to twist its body.
 
     Args:
@@ -503,12 +683,12 @@ def twist(robot_id: RobotID) -> str:
     Returns:
         str: The robot is twisting its body.
     """
-    executor.execute_action(robot_id, "twist")
+    robot_executor.execute_action(robot_id, "twist")
     return "The robot is twisting its body."
 
 
 @mcp.tool()
-def wave(robot_id: RobotID) -> str:
+def robot_wave(robot_id: RobotID) -> str:
     """Command the robot to wave its hand.
 
     Args:
@@ -517,12 +697,12 @@ def wave(robot_id: RobotID) -> str:
     Returns:
         str: The robot is waving its hand.
     """
-    executor.execute_action(robot_id, "wave")
+    robot_executor.execute_action(robot_id, "wave")
     return "The robot is waving its hand."
 
 
 @mcp.tool()
-def weightlifting(robot_id: RobotID) -> str:
+def robot_weightlifting(robot_id: RobotID) -> str:
     """Command the robot to perform weightlifting.
 
     Args:
@@ -531,12 +711,12 @@ def weightlifting(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing weightlifting.
     """
-    executor.execute_action(robot_id, "weightlifting")
+    robot_executor.execute_action(robot_id, "weightlifting")
     return "The robot is performing weightlifting."
 
 
 @mcp.tool()
-def wing_chun(robot_id: RobotID) -> str:
+def robot_wing_chun(robot_id: RobotID) -> str:
     """Command the robot to perform Wing Chun moves.
 
     Args:
@@ -545,7 +725,7 @@ def wing_chun(robot_id: RobotID) -> str:
     Returns:
         str: The robot is performing Wing Chun moves.
     """
-    executor.execute_action(robot_id, "wing_chun")
+    robot_executor.execute_action(robot_id, "wing_chun")
     return "The robot is performing Wing Chun moves."
 
 
