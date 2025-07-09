@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "robot-mcpServers": {
+      "command": "restful",
       "type": "streamable-http",
-      "url": "https://bseb2x7nywnubp2zz4sqltywv40zjfuw.lambda-url.us-east-1.on.aws/",
-      "note": "For Streamable HTTP connections, add this URL directly in your MCP Client"
+      "baseUrl": "McpServerUrl"
     }
   }
 }

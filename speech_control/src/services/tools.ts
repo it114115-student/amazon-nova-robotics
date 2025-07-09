@@ -37,7 +37,16 @@ export class ToolHandler {
       const toolInfo = this.mcpTools.get(toolName);
       if (toolInfo) {
         try {
-          return await toolInfo.handler(toolUseContent);
+          let content = (toolUseContent as { content: any }).content;
+          if (typeof content === "string") {
+            try {
+              content = JSON.parse(content);
+            } catch (e) {
+              throw new Error(`Failed to parse content as JSON: ${content}`);
+            }
+          }
+          console.log(content);
+          return await toolInfo.handler(content);
         } catch (error) {
           console.error(`MCP tool ${toolName} call failed:`, String(error));
           throw new Error(
@@ -49,19 +58,10 @@ export class ToolHandler {
       }
     }
 
-    // Handle built-in tools (weather, etc.)
-    switch (toolName) {
-      case "get_weather":
-        return this.handleWeatherTool(toolUseContent);
-      case "search_web":
-        return this.handleWebSearchTool(toolUseContent);
-      default:
-        console.warn(`Unknown tool: ${toolName}`);
-        return {
-          success: false,
-          error: `Unknown tool: ${toolName}`,
-        };
-    }
+    return {
+      success: false,
+      error: `Unknown tool: ${toolName}`,
+    };
   }
 
   /**
@@ -99,86 +99,6 @@ export class ToolHandler {
   public isToolAutoApproved(toolName: string): boolean {
     const toolInfo = this.mcpTools.get(toolName);
     return toolInfo?.isAutoApproved ?? false;
-  }
-
-  /**
-   * Handle weather tool (built-in example)
-   */
-  private async handleWeatherTool(toolUseContent: any): Promise<any> {
-    try {
-      console.log("Processing weather tool request:", toolUseContent);
-
-      const { location } = toolUseContent;
-      if (!location) {
-        return {
-          success: false,
-          error: "Location parameter is required",
-        };
-      }
-
-      // Mock weather data - in real implementation, call actual weather API
-      const mockWeatherData = {
-        location,
-        temperature: "22°C",
-        condition: "Sunny",
-        humidity: "65%",
-        windSpeed: "10 km/h",
-      };
-
-      return {
-        success: true,
-        data: mockWeatherData,
-        message: `Weather information for ${location}`,
-      };
-    } catch (error) {
-      console.error("Weather tool error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  /**
-   * Handle web search tool (built-in example)
-   */
-  private async handleWebSearchTool(toolUseContent: any): Promise<any> {
-    try {
-      console.log("Processing web search tool request:", toolUseContent);
-
-      const { query, maxResults = 5 } = toolUseContent;
-      if (!query) {
-        return {
-          success: false,
-          error: "Query parameter is required",
-        };
-      }
-
-      // Mock search results - in real implementation, call actual search API
-      const mockSearchResults = [
-        {
-          title: `Search result for "${query}"`,
-          url: `https://example.com/search?q=${encodeURIComponent(query)}`,
-          snippet: `This is a mock search result for the query: ${query}`,
-        },
-      ];
-
-      return {
-        success: true,
-        data: {
-          query,
-          results: mockSearchResults.slice(0, maxResults),
-          totalResults: mockSearchResults.length,
-        },
-        message: `Found ${mockSearchResults.length} results for "${query}"`,
-      };
-    } catch (error) {
-      console.error("Web search tool error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
   }
 
   /**

@@ -1,14 +1,11 @@
-import { IoTPublisher } from "./iot";
 import { Actions, toolList } from "./consts";
 import { ToolHandler } from "./services/tools";
 
 export class ToolProcessor {
-  private readonly iotPublisher: IoTPublisher;
   private readonly mcpToolHandler: ToolHandler;
 
   constructor(mcpToolHandler?: ToolHandler) {
     // this.robots = [];
-    this.iotPublisher = new IoTPublisher("us-east-1");
     this.mcpToolHandler = mcpToolHandler || new ToolHandler();
   }
 
@@ -53,22 +50,6 @@ export class ToolProcessor {
         };
       }
     }
-
-    console.log("Processing directionTool with toolName:", toolName);
-    console.log("robots:", robots);
-
-    // If "all" is selected, send to all robots 1-9
-    let targetRobots = robots.includes("all")
-      ? Array.from({ length: 9 }, (_, i) => `robot_${i + 1}`)
-      : robots;
-    targetRobots.forEach((robotId) => {
-      this.iotPublisher
-        .publishToRobot(
-          `${robotId}/topic`,
-          JSON.stringify({ toolName: toolName })
-        )
-        .catch(console.error);
-    });
 
     return {
       success: true,

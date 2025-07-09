@@ -82,6 +82,15 @@ export class McpManager {
           throw new Error("baseUrl must be provided when using restful mode");
         }
 
+        if (config.baseUrl === "McpServerUrl") {
+          // Use environment variable for baseUrl
+          const baseUrl = process.env.McpServerUrl;
+          if (!baseUrl) {
+            throw new Error("McpServerUrl environment variable is not set");
+          }
+          config.baseUrl = baseUrl;
+        }
+
         const sessionId = randomUUID();
         transport = new StreamableHTTPClientTransport(new URL(config.baseUrl), {
           sessionId: sessionId,

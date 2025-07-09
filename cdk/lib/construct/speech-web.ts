@@ -77,13 +77,6 @@ export class SpeechControlWebConstruct extends Construct {
         resources: ["*"],
       })
     );
-    service.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["iot:Publish"],
-        resources: ["arn:aws:iot:*:*:topic/robot_*/topic"],
-      })
-    );
 
     this.serviceUrl = service.serviceUrl;
   }

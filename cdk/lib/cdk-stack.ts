@@ -67,7 +67,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       description: "The name of the S3 bucket for storing robot data",
     });
 
-    new cdk.CfnOutput(this, "mcpServerUrl", {
+    new cdk.CfnOutput(this, "McpServerUrl", {
       value: mcpServerConstruct.functionUrl.url,
       description: "The URL of the MCP Server Lambda Function",
     });
