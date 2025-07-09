@@ -28,6 +28,7 @@ export class ToolHandler {
    * @param toolUseContent Tool use content
    */
   public async processToolUse(
+    robots: string[],
     toolName: string,
     toolUseContent: object
   ): Promise<Object> {
@@ -46,6 +47,30 @@ export class ToolHandler {
             }
           }
           console.log(content);
+
+          if (robots.length === 1 && robots[0] === "all") {
+            // Call as usual
+            // No changes needed to content
+            return await toolInfo.handler(content);
+          } else if (robots.length > 0) {
+            // For each robot, override robot_id in content and call handler
+            const results = await Promise.all(
+              robots.map(async (robotId) => {
+                const contentCopy = { ...content, robot_id: robotId };
+                try {
+                  return await toolInfo.handler(contentCopy);
+                } catch (err) {
+                  return {
+                    success: false,
+                    error: String(err),
+                    robot_id: robotId,
+                  };
+                }
+              })
+            );
+            return results.map((r) => JSON.stringify(r)).join("\n");
+          }
+
           return await toolInfo.handler(content);
         } catch (error) {
           console.error(`MCP tool ${toolName} call failed:`, String(error));

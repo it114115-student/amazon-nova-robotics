@@ -16,9 +16,9 @@ export class ToolProcessor {
     console.log(`Processing tool use: ${toolName}`);
     console.log(`Tool use content:`, toolUseContent);
 
-    // First, check if it's an MCP tool
     try {
       const mcpResult: any = await this.mcpToolHandler.processToolUse(
+        robots,
         toolName,
         toolUseContent
       );
@@ -30,17 +30,6 @@ export class ToolProcessor {
       console.log(
         `Tool ${toolName} not found in MCP tools, trying robot actions...`
       );
-    }
-
-    // Try MCP tool handler
-    try {
-      return await this.mcpToolHandler.processToolUse(toolName, toolUseContent);
-    } catch (error) {
-      console.log(`Tool ${toolName} not found in MCP tools or robot actions`);
-      return {
-        success: true,
-        message: `Tool ${toolName} is not in action list but assume ok!`,
-      };
     }
   }
 
@@ -85,5 +74,7 @@ When the user asks you to perform a task, respond with the name of the tool that
 For example, if the user asks you to "make the robot stand up", you should respond with "stand".
 
 <background></background>
+
+Available tools:
 
 `;
