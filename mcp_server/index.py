@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Dict
 
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
-from services.robot_service import execute_drone_action, execute_robot_action
+from services.iot_service import execute_drone_action, execute_robot_action
 
 mcp = MCPLambdaHandler(name="robotics-mcp-server", version="1.0.0")
 
@@ -39,13 +39,35 @@ class Direction(str, Enum):
 class RobotExecutor:
     """Robot command executor that wraps the robot service"""
 
-    def execute_drone_action(self, robot_id: str, action: str, parameters: Dict = None):
+    def execute_drone_action(self, drone_id: str, action: str, parameters: Dict = None):
         if parameters is None:
             parameters = {}
+        # Map high-level actions to Tello SDK commands
+        sdk_action = None
+        sdk_params = None
+        if action.startswith("move_"):
+            direction = action.replace("move_", "")
+            sdk_action = direction  # up, down, left, right, forward, back
+            sdk_params = {"distance": parameters.get("x")}
+        elif action == "rotate_clockwise":
+            sdk_action = "cw"
+            sdk_params = {"angle": parameters.get("x")}
+        elif action == "rotate_counterclockwise":
+            sdk_action = "ccw"
+            sdk_params = {"angle": parameters.get("x")}
+        elif action == "flip":
+            sdk_action = "flip"
+            sdk_params = {"direction": parameters.get("direction")}
+        elif action in ["takeoff", "land"]:
+            sdk_action = action
+            sdk_params = {}
+        else:
+            sdk_action = action
+            sdk_params = parameters
         message = {
-            "DroneID": robot_id.lower(),
-            "action": action,
-            "parameters": parameters,
+            "droneID": drone_id.lower(),
+            "action": sdk_action,
+            "parameters": sdk_params,
         }
         return execute_drone_action(message)
 
@@ -71,74 +93,144 @@ def drone_takeoff(drone_id: DroneID) -> str:
     return "The drone is taking off."
 
 
+# Default distance for drone move commands (in cm)
+DRONE_MOVE_DISTANCE_CM = 50
+
+
 @mcp.tool()
-def drone_move(drone_id: DroneID, direction: Direction, x: int) -> str:
-    """Command the drone to move in a specified direction.
+def drone_move_up(drone_id: DroneID) -> str:
+    """Command the drone to move up for DRONE_MOVE_DISTANCE_CM cm.
 
     Args:
         drone_id (DroneID): Drone ID
-        direction (Direction): Direction to move
 
     Returns:
-        str: The drone is moving in the specified direction.
+        str: The drone is moving up.
     """
-    robot_executor.execute_drone_action(drone_id, f"move_{direction.value}", {"x": x})
-    return f"The drone is moving {direction.value} for {x}."
+    robot_executor.execute_drone_action(
+        drone_id, "move_up", {"x": DRONE_MOVE_DISTANCE_CM}
+    )
+    return f"The drone is moving up for {DRONE_MOVE_DISTANCE_CM} cm."
 
 
 @mcp.tool()
-def drone_rotate_clockwise(drone_id: DroneID, x: int) -> str:
-    """Command the drone to rotate clockwise by a specified angle.
+def drone_move_down(drone_id: DroneID) -> str:
+    """Command the drone to move down for DRONE_MOVE_DISTANCE_CM cm.
 
     Args:
         drone_id (DroneID): Drone ID
-        x (int): Angle in degrees to rotate clockwise
 
     Returns:
-        str: The drone is rotating clockwise.
+        str: The drone is moving down.
     """
-    robot_executor.execute_drone_action(drone_id, "rotate_clockwise", {"x": x})
-    return f"The drone is rotating clockwise by {x} degrees."
+    robot_executor.execute_drone_action(
+        drone_id, "move_down", {"x": DRONE_MOVE_DISTANCE_CM}
+    )
+    return f"The drone is moving down for {DRONE_MOVE_DISTANCE_CM} cm."
 
 
 @mcp.tool()
-def drone_rotate_right(drone_id: DroneID) -> str:
-    """Command the drone to rotate right by a 90 degree angle.
+def drone_move_left(drone_id: DroneID) -> str:
+    """Command the drone to move left for DRONE_MOVE_DISTANCE_CM cm.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is moving left.
+    """
+    robot_executor.execute_drone_action(
+        drone_id, "move_left", {"x": DRONE_MOVE_DISTANCE_CM}
+    )
+    return f"The drone is moving left for {DRONE_MOVE_DISTANCE_CM} cm."
+
+
+@mcp.tool()
+def drone_move_right(drone_id: DroneID) -> str:
+    """Command the drone to move right for DRONE_MOVE_DISTANCE_CM cm.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is moving right.
+    """
+    robot_executor.execute_drone_action(
+        drone_id, "move_right", {"x": DRONE_MOVE_DISTANCE_CM}
+    )
+    return f"The drone is moving right for {DRONE_MOVE_DISTANCE_CM} cm."
+
+
+@mcp.tool()
+def drone_move_forward(drone_id: DroneID) -> str:
+    """Command the drone to move forward for DRONE_MOVE_DISTANCE_CM cm.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is moving forward.
+    """
+    robot_executor.execute_drone_action(
+        drone_id, "move_forward", {"x": DRONE_MOVE_DISTANCE_CM}
+    )
+    return f"The drone is moving forward for {DRONE_MOVE_DISTANCE_CM} cm."
+
+
+@mcp.tool()
+def drone_move_back(drone_id: DroneID) -> str:
+    """Command the drone to move back for DRONE_MOVE_DISTANCE_CM cm.
+
+    Args:
+        drone_id (DroneID): Drone ID
+
+    Returns:
+        str: The drone is moving back.
+    """
+    robot_executor.execute_drone_action(
+        drone_id, "move_back", {"x": DRONE_MOVE_DISTANCE_CM}
+    )
+    return f"The drone is moving back for {DRONE_MOVE_DISTANCE_CM} cm."
+
+
+@mcp.tool()
+def drone_turn_right(drone_id: DroneID) -> str:
+    """Command the drone to turn right by a 90 degree angle.
 
     Args:
         drone_id (DroneID): Drone ID
     Returns:
-        str: The drone is rotating right.
+        str: The drone is turning right.
     """
     robot_executor.execute_drone_action(drone_id, "rotate_clockwise", {"x": 90})
-    return "The drone is rotating right by 90 degrees."
+    return "The drone is turning right by 90 degrees."
 
 
 @mcp.tool()
-def drone_rotate_left(drone_id: DroneID) -> str:
-    """Command the drone to rotate left by a 90 degree angle.
+def drone_turn_left(drone_id: DroneID) -> str:
+    """Command the drone to turn left by a 90 degree angle.
 
     Args:
         drone_id (DroneID): Drone ID
     Returns:
-        str: The drone is rotating left.
+        str: The drone is turning left.
     """
     robot_executor.execute_drone_action(drone_id, "rotate_counterclockwise", {"x": 90})
-    return "The drone is rotating left by 90 degrees."
+    return "The drone is turning left by 90 degrees."
 
 
 @mcp.tool()
-def drone_rotate_counterclockwise(drone_id: DroneID, x: int) -> str:
-    """Command the drone to rotate counterclockwise by a specified angle.
+def drone_turn_back(drone_id: DroneID) -> str:
+    """Command the drone to turn back by 180 degrees.
 
     Args:
         drone_id (DroneID): Drone ID
-        x (int): Angle in degrees to rotate counterclockwise
+
     Returns:
-        str: The drone is rotating counterclockwise.
+        str: The drone is turning back.
     """
-    robot_executor.execute_drone_action(drone_id, "rotate_counterclockwise", {"x": x})
-    return f"The drone is rotating counterclockwise by {x} degrees."
+    robot_executor.execute_drone_action(drone_id, "rotate_clockwise", {"x": 180})
+    return "The drone is turning back by 180 degrees."
 
 
 @mcp.tool()

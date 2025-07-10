@@ -56,7 +56,10 @@ export class ToolHandler {
             // For each robot, override robot_id in content and call handler
             const results = await Promise.all(
               robots.map(async (robotId) => {
-                const contentCopy = { ...content, robot_id: robotId };
+                const contentCopy =
+                  "robot_id" in content
+                    ? { ...content, robot_id: robotId }
+                    : { ...content }; // the drone case.
                 try {
                   return await toolInfo.handler(contentCopy);
                 } catch (err) {
