@@ -1,31 +1,35 @@
 import atexit
 
-try:
-    import awsgi2
-    from config import DEBUG
-    from flask import Flask
-    from mcp_client import cleanup_mcp_client, init_mcp_client
-
-    # Initialize the Flask application
-    app = Flask(__name__)
-
-    # Initialize the MCP client when the app starts
-    with app.app_context():
-        init_mcp_client()
-except ImportError as e:
-    print(f"Error importing required modules: {e}")
-    print(
-        "Please install all required dependencies with: pip install -r requirements.txt"
-    )
-    import sys
-
-    sys.exit(1)
-
+import awsgi2
+from config import DEBUG
 from errors import register_error_handlers
+from flask import Flask
+from flask_caching import Cache
+from mcp_client import cleanup_mcp_client, init_mcp_client
 
 # Import and register blueprints after app is created to avoid circular imports
 from routes.api import api_bp
 from routes.ui import ui_bp
+
+config = {
+    "DEBUG": DEBUG,  # some Flask specific configs
+    "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
+    "CACHE_DEFAULT_TIMEOUT": 300,
+}
+
+# Initialize the Flask application
+app = Flask(__name__)
+
+app.config.from_mapping(config)
+cache = Cache(app)
+
+# Make cache available as app attribute for easy access
+app.cache = cache
+
+# Initialize the MCP client when the app starts
+with app.app_context():
+    init_mcp_client()
+
 
 # Register the blueprints
 app.register_blueprint(api_bp)

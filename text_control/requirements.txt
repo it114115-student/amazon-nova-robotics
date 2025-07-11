@@ -3,3 +3,4 @@ boto3
 awsgi2
 fastmcp
 Flask[async]
+Flask-Caching
