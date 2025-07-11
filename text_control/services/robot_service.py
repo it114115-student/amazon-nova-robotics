@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 import boto3
 from botocore.config import Config
-from models.actions import ACTIONS
+from models.actions import get_available_actions
 
 # Initialize AWS clients with retry configuration
 iot_client = boto3.client(
@@ -55,22 +55,18 @@ def execute_robot_action(message: str, selected_robot: str) -> bool:
             return False
 
 
-def process_actions(
+async def process_actions(
     actions_to_execute: List[str], selected_robot: str
 ) -> List[Dict[str, Any]]:
     """Process a list of actions sequentially"""
     results = []
 
+    actions = await get_available_actions()
     for action in actions_to_execute:
-        if action in ACTIONS:
+        if action in actions:
             success = execute_robot_action(action, selected_robot)
-            results.append(
-                {"action": action, "success": success, "name": ACTIONS[action]["name"]}
-            )
+            results.append({"action": action, "success": success})
             sleep(0.1)
-        # else:
-        #     results.append(
-        #         {"action": action, "success": False, "error": "Invalid action"}
-        #     )
+
     print(f"results: {results}")
     return results

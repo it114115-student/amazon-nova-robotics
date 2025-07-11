@@ -1,5 +1,5 @@
 import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
-import { Duration } from "aws-cdk-lib";
+import { Duration, IgnoreMode } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import { Construct } from "constructs";
 import path = require("path");
@@ -30,7 +30,8 @@ export class TextControlWebConstruct extends Construct {
       code: lambda.Code.fromAsset(
         path.join(__dirname, "../../../text_control"),
         {
-          exclude: ["venv", "**/__pycache__"], // Exclude venv and all __pycache__ folders
+          // exclude: ["venv/**", "**/__pycache__"], // Exclude venv and all __pycache__ folders
+          ignoreMode: IgnoreMode.DOCKER,
           bundling: {
             image: lambda.Runtime.PYTHON_3_13.bundlingImage,
             command: [

@@ -1,10 +1,17 @@
+import atexit
+
 try:
     import awsgi2
     from config import DEBUG
     from flask import Flask
+    from mcp_client import cleanup_mcp_client, init_mcp_client
 
     # Initialize the Flask application
     app = Flask(__name__)
+
+    # Initialize the MCP client when the app starts
+    with app.app_context():
+        init_mcp_client()
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print(
@@ -27,6 +34,9 @@ app.register_blueprint(ui_bp)
 # Register error handlers
 register_error_handlers(app)
 
+# Register cleanup function to run at exit
+atexit.register(cleanup_mcp_client)
+
 
 def handler(event, context):
     """AWS Lambda handler for the Flask application"""
@@ -35,4 +45,4 @@ def handler(event, context):
 
 if __name__ == "__main__":
     # app.run(debug=DEBUG)
-    app.run(host="0.0.0.0", ebug=DEBUG)
+    app.run(host="0.0.0.0", debug=DEBUG)

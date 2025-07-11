@@ -1,8 +1,6 @@
-import os
-
 import boto3
+from config import ROBOT_TABLE
 
-ROBOT_TABLE = os.getenv("RobotTable", "")
 dynamodb = boto3.resource("dynamodb")
 robot_table = dynamodb.Table(ROBOT_TABLE)
 

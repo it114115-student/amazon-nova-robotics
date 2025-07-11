@@ -14,7 +14,7 @@ api_bp = Blueprint("api", __name__)
 
 
 @api_bp.route("/chat", methods=["POST"])
-def chat():
+async def chat():
     """Handle chat requests with Nova Chatbot integration"""
     user_message = request.json.get("message")
     selected_robots = request.json.get("robots")
@@ -26,14 +26,14 @@ def chat():
 
     # Get response from Nova chatbot (use first robot for context, or None)
     context_robot = selected_robots[0] if selected_robots else None
-    response_data = get_chat_response(user_message, context_robot, session_id)
+    response_data = await get_chat_response(user_message, context_robot, session_id)
 
     if "error" in response_data:
         return jsonify(response_data), 500
 
     # Extract actions to execute
     bot_response = response_data["response"]
-    actions_to_execute = extract_actions_from_response(bot_response, user_message)
+    actions_to_execute = await extract_actions_from_response(bot_response, user_message)
 
     print(f"Actions to execute: {actions_to_execute}")
 
@@ -46,7 +46,7 @@ def chat():
 
     for robot in robots_to_use:
         if actions_to_execute:
-            execution_results = process_actions(actions_to_execute, robot)
+            execution_results = await process_actions(actions_to_execute, robot)
             actions_executed.append({"robot": robot, "results": execution_results})
 
     if actions_executed:
@@ -93,7 +93,7 @@ def robot_delete(robot_id):
 
 
 @api_bp.route("/run_action/<robot_id>", methods=["GET", "POST"])
-def run_action(robot_id):
+async def run_action(robot_id):
     """Run process_actions with provided action and robot"""
     data = request.json
     robot = robot_id or data.get("robot")
@@ -107,9 +107,9 @@ def run_action(robot_id):
         return jsonify({"error": "Missing robot or method or params."}), 400
 
     if method == "RunAction":
-        results = process_actions([action], robot)
+        results = await process_actions([action], robot)
         return jsonify({"results": results})
     if method == "StopAction":
-        results = process_actions(["stop"], robot)
+        results = await process_actions(["stop"], robot)
         return jsonify({"results": results})
     return jsonify({"error": "Invalid method"}), 400

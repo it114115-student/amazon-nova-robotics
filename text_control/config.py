@@ -10,3 +10,5 @@ NOVA_MODEL_ID = "us.amazon.nova-pro-v1:0"
 
 # Application settings
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+MCP_SERVER_URL = os.getenv("McpServerUrl", None)
+ROBOT_TABLE = os.getenv("RobotTable", "")
