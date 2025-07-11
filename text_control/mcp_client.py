@@ -16,7 +16,7 @@ def init_mcp_client() -> Client:
     """Initialize MCP client"""
     global _mcp_client
     if _mcp_client is None:
-        config = {"mcpServers": {"my_server": {"url": MCP_SERVER_URL}}}
+        config = {"mcpServers": {"robot_server": {"url": MCP_SERVER_URL}}}
         _mcp_client = Client(config)
     return _mcp_client
 

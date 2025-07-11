@@ -7,7 +7,7 @@ import uuid
 from flask import Blueprint, jsonify, request
 from services.chat_service import extract_actions_from_response, get_chat_response
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
-from services.robot_service import process_actions
+from services.robot_service import robot_service
 
 # Create a blueprint for the API routes
 api_bp = Blueprint("api", __name__)
@@ -46,7 +46,9 @@ async def chat():
 
     for robot in robots_to_use:
         if actions_to_execute:
-            execution_results = await process_actions(actions_to_execute, robot)
+            execution_results = await robot_service.process_actions(
+                actions_to_execute, robot
+            )
             actions_executed.append({"robot": robot, "results": execution_results})
 
     if actions_executed:
@@ -107,9 +109,9 @@ async def run_action(robot_id):
         return jsonify({"error": "Missing robot or method or params."}), 400
 
     if method == "RunAction":
-        results = await process_actions([action], robot)
+        results = await robot_service.process_actions([action], robot)
         return jsonify({"results": results})
     if method == "StopAction":
-        results = await process_actions(["stop"], robot)
+        results = await robot_service.process_actions(["stop"], robot)
         return jsonify({"results": results})
     return jsonify({"error": "Invalid method"}), 400
