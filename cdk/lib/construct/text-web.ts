@@ -1,6 +1,7 @@
 import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
 import { Duration, IgnoreMode } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Construct } from "constructs";
 import path = require("path");
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -26,29 +27,24 @@ export class TextControlWebConstruct extends Construct {
       description: "API for Text Control Robot Web",
     });
 
-    const flaskLambda = new lambda.Function(this, "TextControlLambda", {
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "../../../text_control"),
-        {
-          // exclude: ["venv/**", "**/__pycache__"], // Exclude venv and all __pycache__ folders
-          ignoreMode: IgnoreMode.DOCKER,
-          bundling: {
-            image: lambda.Runtime.PYTHON_3_13.bundlingImage,
-            command: [
-              "bash",
-              "-c",
-              "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
-            ],
-          },
-        }
-      ),
-      handler: "app.handler",
-      timeout: Duration.seconds(30),
+    const flaskLambda = new PythonFunction(this, "TextControlLambda", {
+      entry: path.join(__dirname, "../../../text_control"),
       runtime: lambda.Runtime.PYTHON_3_13,
+      index: "app.py",
+      handler: "handler",
+      timeout: Duration.seconds(30),
       environment: {
         AWS_BEDROCK_REGION: "us-east-1",
         RobotTable: props.database.robotTable.tableName,
         McpServerUrl: props.mcpServerUrl,
+      },
+      bundling: {
+        assetExcludes: [
+          ".venv",
+          "create_virtual_env.sh",
+          ".dockerignore",
+          "Dockerfile",
+        ],
       },
     });
 
