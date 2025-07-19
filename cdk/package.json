@@ -12,8 +12,8 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "@types/node": "24.0.12",
-    "aws-cdk": "2.1020.2",
+    "@types/node": "24.0.15",
+    "aws-cdk": "2.1021.0",
     "jest": "^30.0.4",
     "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2",
@@ -21,15 +21,15 @@
   },
   "dependencies": {
     "@aws-cdk/aws-apigateway": "^1.204.0",
-    "@aws-cdk/aws-apprunner-alpha": "^2.204.0-alpha.0",
+    "@aws-cdk/aws-apprunner-alpha": "^2.206.0-alpha.0",
     "@aws-cdk/aws-ecr-assets": "^1.204.0",
     "@aws-cdk/aws-iam": "^1.204.0",
     "@aws-cdk/aws-iot": "^1.204.0",
     "@aws-cdk/aws-lambda": "^1.204.0",
-    "@aws-cdk/aws-lambda-python-alpha": "^2.204.0-alpha.0",
+    "@aws-cdk/aws-lambda-python-alpha": "^2.206.0-alpha.0",
     "@aws-cdk/aws-s3": "^1.204.0",
     "@aws-cdk/aws-s3-deployment": "^1.204.0",
-    "aws-cdk-lib": "^2.204.0",
+    "aws-cdk-lib": "^2.206.0",
     "cdk-iot-core-certificates-v3": "^0.0.14",
     "constructs": "^10.4.2"
   }
