@@ -6,6 +6,7 @@ import { TextControlWebConstruct } from "./construct/text-web";
 import { RobotSsmConstruct } from "./construct/robot-ssm";
 import { DatabaseConstruct } from "./construct/datebase";
 import { LambdaMcpServerConstruct } from "./construct/mcp-server";
+import { RobotSimulatorConstruct } from "./construct/robot-simulator";
 
 export class AmazonNovaRoboticCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -34,6 +35,12 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       mcpServerUrl: mcpServerConstruct.functionUrl.url,
     });
 
+    const humanoidRobotSimulatorConstruct = new RobotSimulatorConstruct(
+      this,
+      "RobotSimulatorConstruct",
+      {}
+    );
+
     const textControlWebConstruct = new TextControlWebConstruct(
       this,
       "TextControlWebConstruct",
@@ -60,6 +67,11 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, "textUrl", {
       description: "The URL of the Text Control Web",
       value: textControlWebConstruct.serviceUrl,
+    });
+
+    new cdk.CfnOutput(this, "humanoidRobotSimulatorUrl", {
+      description: "The URL of the Humanoid Robot Simulator",
+      value: "https://" + humanoidRobotSimulatorConstruct.serviceUrl,
     });
 
     new cdk.CfnOutput(this, "RobotDataBucketName", {
