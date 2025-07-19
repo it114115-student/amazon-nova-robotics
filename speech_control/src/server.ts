@@ -127,6 +127,11 @@ setInterval(() => {
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "../public")));
 
+// Explicitly serve favicon.ico from the public directory
+app.get("/favicon.ico", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/favicon.ico"));
+});
+
 // Socket.IO connection handler
 io.on("connection", (socket) => {
   console.log("New client connected:", socket.id);
