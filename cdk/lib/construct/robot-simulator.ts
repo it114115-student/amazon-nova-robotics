@@ -3,11 +3,15 @@ import { Construct } from "constructs";
 import * as assets from "aws-cdk-lib/aws-ecr-assets";
 import * as apprunner from "@aws-cdk/aws-apprunner-alpha";
 import * as path from "path";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import { RemovalPolicy } from "aws-cdk-lib";
+import { PolicyStatement, AnyPrincipal } from "aws-cdk-lib/aws-iam";
 
 export interface RobotSimulatorConstructProps {}
 
 export class RobotSimulatorConstruct extends Construct {
   public readonly serviceUrl: string;
+  songWebsiteBucket: s3.Bucket;
 
   constructor(
     scope: Construct,
@@ -61,6 +65,33 @@ export class RobotSimulatorConstruct extends Construct {
       observabilityConfiguration,
       autoScalingConfiguration,
     });
+
+    const websiteBucket = new s3.Bucket(this, "RobotSimulatorWebsiteBucket", {
+      websiteIndexDocument: "index.html",
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      publicReadAccess: true,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS_ONLY,
+      cors: [
+        {
+          allowedHeaders: ["*"],
+          allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+          allowedOrigins: ["*"], // You can restrict this to specific origins if needed
+          exposedHeaders: ["Date", "ETag", "x-amz-request-id"],
+          maxAge: 3000,
+        },
+      ],
+    });
+
+    websiteBucket.addToResourcePolicy(
+      new PolicyStatement({
+        actions: ["s3:GetObject"],
+        resources: [websiteBucket.arnForObjects("*")],
+        principals: [new AnyPrincipal()],
+      })
+    );
+
+    this.songWebsiteBucket = websiteBucket;
 
     this.serviceUrl = service.serviceUrl;
   }

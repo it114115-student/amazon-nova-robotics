@@ -74,6 +74,16 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       value: "https://" + humanoidRobotSimulatorConstruct.serviceUrl,
     });
 
+    new cdk.CfnOutput(this, "SongWebsiteBucket", {
+      value: humanoidRobotSimulatorConstruct.songWebsiteBucket.bucketName,
+      description: "The name of the S3 bucket for the Humanoid Robot Simulator",
+    });
+    new cdk.CfnOutput(this, "SongWebsiteBucketUrl", {
+      value: humanoidRobotSimulatorConstruct.songWebsiteBucket.bucketWebsiteUrl,
+      description:
+        "The website URL of the S3 bucket for the Humanoid Robot Simulator",
+    });
+
     new cdk.CfnOutput(this, "RobotDataBucketName", {
       value: roboticConstruct.bucket.bucketName,
       description: "The name of the S3 bucket for storing robot data",
