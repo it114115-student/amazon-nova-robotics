@@ -1,0 +1,3 @@
+[submodule "humanoid-robot-simulator"]
+	path = humanoid-robot-simulator
+	url = https://github.com/wongcyrus/humanoid-robot-simulator
