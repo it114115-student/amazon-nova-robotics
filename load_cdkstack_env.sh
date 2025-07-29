@@ -1,7 +1,8 @@
 #!/bin/bash
 # Load CdkStack dict from output.json into environment variables
 
-json_file="/workspaces/amazon-nova-robotics/cdk/output.json"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+json_file="$script_dir/cdk/output.json"
 
 if ! command -v jq &> /dev/null; then
   echo "Error: jq is not installed. Please install jq to use this script."

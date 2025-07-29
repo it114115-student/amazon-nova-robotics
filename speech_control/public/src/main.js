@@ -2,13 +2,254 @@
 import { AudioPlayer } from './lib/play/AudioPlayer.js';
 import { ChatHistoryManager } from "./lib/util/ChatHistoryManager.js";
 import { setupRobotModal } from './robotModal.js';
+
 // Setup robot modal popup on page load
 document.addEventListener('DOMContentLoaded', () => {
-  setupRobotModal();
+    setupRobotModal();
+
+    // Wait for authentication before initializing the app
+    waitForAuthentication();
 });
 
-// Connect to the server
-const socket = io();
+// Wait for authentication to complete
+async function waitForAuthentication() {
+    // Check if auth is available
+    if (typeof CognitoAuth === 'undefined') {
+        console.log('Authentication not available, proceeding without auth');
+        initializeApp();
+        return;
+    }
+
+    // Wait for authentication to complete
+    const maxRetries = 50; // 5 seconds max
+    let retries = 0;
+
+    const checkAuth = async () => {
+        try {
+            const isAuth = await CognitoAuth.isAuthenticated();
+            if (isAuth) {
+                console.log('User authenticated, initializing app');
+                initializeApp();
+                return;
+            }
+
+            // Check if modal is shown (user needs to login)
+            const authModal = document.getElementById('auth-modal');
+            if (authModal && authModal.style.display !== 'none') {
+                // User needs to login, wait
+                setTimeout(checkAuth, 1000);
+                return;
+            }
+
+            retries++;
+            if (retries < maxRetries) {
+                setTimeout(checkAuth, 100);
+            } else {
+                console.log('Authentication timeout, proceeding without auth');
+                initializeApp();
+            }
+        } catch (error) {
+            console.error('Authentication check error:', error);
+            initializeApp();
+        }
+    };
+
+    checkAuth();
+}
+
+// Initialize the main application
+function initializeApp() {
+    // Connect to the server with authentication if available
+    connectToServer();
+}
+
+// Socket connection with authentication
+let socket = null;
+
+function connectToServer() {
+    // Prepare socket options
+    const socketOptions = {
+        transports: ['websocket', 'polling'],
+    };
+
+    // Add authentication if available
+    if (typeof CognitoAuth !== 'undefined') {
+        CognitoAuth.getAccessToken().then(token => {
+            if (token) {
+                socketOptions.auth = {
+                    token: token
+                };
+                socketOptions.extraHeaders = {
+                    'Authorization': `Bearer ${token}`
+                };
+            }
+
+            // Create socket connection
+            socket = io(socketOptions);
+            setupSocketHandlers();
+        }).catch(error => {
+            console.error('Error getting access token:', error);
+            // Proceed without authentication
+            socket = io(socketOptions);
+            setupSocketHandlers();
+        });
+    } else {
+        // No authentication available
+        socket = io(socketOptions);
+        setupSocketHandlers();
+    }
+}
+
+function setupSocketHandlers() {
+    // Socket event handlers
+    socket.on('connect', () => {
+        console.log('Connected to server');
+        statusElement.textContent = "Connected to server. Requesting microphone access...";
+        statusElement.className = "connecting";
+        initAudio();
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Disconnected from server');
+        statusElement.textContent = "Disconnected from server";
+        statusElement.className = "disconnected";
+        startButton.disabled = true;
+        stopButton.disabled = true;
+        sessionInitialized = false;
+        hideUserThinkingIndicator();
+        hideAssistantThinkingIndicator();
+    });
+
+    // Handle content start from the server
+    socket.on('contentStart', (data) => {
+        console.log('Content start received:', data);
+
+        if (data.type === 'TEXT') {
+            // Below update will be enabled when role is moved to the contentStart
+            role = data.role;
+            if (data.role === 'USER') {
+                // When user's text content starts, hide user thinking indicator
+                hideUserThinkingIndicator();
+            }
+            else if (data.role === 'ASSISTANT') {
+                // When assistant's text content starts, hide assistant thinking indicator
+                hideAssistantThinkingIndicator();
+                let isSpeculative = false;
+                try {
+                    if (data.additionalModelFields) {
+                        const additionalFields = JSON.parse(data.additionalModelFields);
+                        isSpeculative = additionalFields.generationStage === "SPECULATIVE";
+                        if (isSpeculative) {
+                            console.log("Received speculative content");
+                            displayAssistantText = true;
+                        }
+                        else {
+                            displayAssistantText = false;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error parsing additionalModelFields:", e);
+                }
+            }
+        }
+        else if (data.type === 'AUDIO') {
+            // When audio content starts, we may need to show user thinking indicator
+            if (isStreaming) {
+                showUserThinkingIndicator();
+            }
+        }
+    });
+
+    // Handle text output from the server
+    socket.on('textOutput', (data) => {
+        console.log('Received text output:', data);
+
+        if (role === 'USER') {
+            // When user text is received, show thinking indicator for assistant response
+            transcriptionReceived = true;
+            //hideUserThinkingIndicator();
+
+            // Add user message to chat
+            handleTextOutput({
+                role: data.role,
+                content: data.content
+            });
+
+            // Show assistant thinking indicator after user text appears
+            showAssistantThinkingIndicator();
+        }
+        else if (role === 'ASSISTANT') {
+            //hideAssistantThinkingIndicator();
+            if (displayAssistantText) {
+                handleTextOutput({
+                    role: data.role,
+                    content: data.content
+                });
+            }
+        }
+    });
+
+    // Handle audio output
+    socket.on('audioOutput', (data) => {
+        if (data.content) {
+            try {
+                const audioData = base64ToFloat32Array(data.content);
+                audioPlayer.playAudio(audioData);
+            } catch (error) {
+                console.error('Error processing audio data:', error);
+            }
+        }
+    });
+
+    // Handle content end events
+    socket.on('contentEnd', (data) => {
+        console.log('Content end received:', data);
+
+        if (data.type === 'TEXT') {
+            if (role === 'USER') {
+                // When user's text content ends, make sure assistant thinking is shown
+                hideUserThinkingIndicator();
+                showAssistantThinkingIndicator();
+            }
+            else if (role === 'ASSISTANT') {
+                // When assistant's text content ends, prepare for user input in next turn
+                hideAssistantThinkingIndicator();
+            }
+
+            // Handle stop reasons
+            if (data.stopReason && data.stopReason.toUpperCase() === 'END_TURN') {
+                chatHistoryManager.endTurn();
+            } else if (data.stopReason && data.stopReason.toUpperCase() === 'INTERRUPTED') {
+                console.log("Interrupted by user");
+                audioPlayer.bargeIn();
+            }
+        }
+        else if (data.type === 'AUDIO') {
+            // When audio content ends, we may need to show user thinking indicator
+            if (isStreaming) {
+                showUserThinkingIndicator();
+            }
+        }
+    });
+
+    // Stream completion event
+    socket.on('streamComplete', () => {
+        if (isStreaming) {
+            stopStreaming();
+        }
+        statusElement.textContent = "Ready";
+        statusElement.className = "ready";
+    });
+
+    // Handle errors
+    socket.on('error', (error) => {
+        console.error("Server error:", error);
+        statusElement.textContent = "Error: " + (error.message || JSON.stringify(error).substring(0, 100));
+        statusElement.className = "error";
+        hideUserThinkingIndicator();
+        hideAssistantThinkingIndicator();
+    });
+}
 
 // DOM elements
 const startButton = document.getElementById('start');
@@ -113,11 +354,11 @@ async function initializeSession() {
         // Send events in sequence 
         const robots = getSelectedRobots();
         socket.emit('robot', robots);
-        await new Promise(resolve => setTimeout(resolve, 250));        
+        await new Promise(resolve => setTimeout(resolve, 250));
         socket.emit('promptStart');
         socket.emit('systemPrompt');
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         socket.emit('audioStart');
 
         // Mark session as initialized
@@ -200,13 +441,13 @@ function getQueryParams() {
     const params = {};
     const queryString = window.location.search.substring(1);
     const pairs = queryString.split('&');
-    
+
     for (let i = 0; i < pairs.length; i++) {
         if (!pairs[i]) continue;
         const pair = pairs[i].split('=');
         params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
     }
-    
+
     return params;
 }
 
@@ -404,153 +645,6 @@ function hideAssistantThinkingIndicator() {
 // EVENT HANDLERS
 // --------------
 
-// Handle content start from the server
-socket.on('contentStart', (data) => {
-    console.log('Content start received:', data);
-
-    if (data.type === 'TEXT') {
-        // Below update will be enabled when role is moved to the contentStart
-        role = data.role;
-        if (data.role === 'USER') {
-            // When user's text content starts, hide user thinking indicator
-            hideUserThinkingIndicator();
-        }
-        else if (data.role === 'ASSISTANT') {
-            // When assistant's text content starts, hide assistant thinking indicator
-            hideAssistantThinkingIndicator();
-            let isSpeculative = false;
-            try {
-                if (data.additionalModelFields) {
-                    const additionalFields = JSON.parse(data.additionalModelFields);
-                    isSpeculative = additionalFields.generationStage === "SPECULATIVE";
-                    if (isSpeculative) {
-                        console.log("Received speculative content");
-                        displayAssistantText = true;
-                    }
-                    else {
-                        displayAssistantText = false;
-                    }
-                }
-            } catch (e) {
-                console.error("Error parsing additionalModelFields:", e);
-            }
-        }
-    }
-    else if (data.type === 'AUDIO') {
-        // When audio content starts, we may need to show user thinking indicator
-        if (isStreaming) {
-            showUserThinkingIndicator();
-        }
-    }
-});
-
-// Handle text output from the server
-socket.on('textOutput', (data) => {
-    console.log('Received text output:', data);
-
-    if (role === 'USER') {
-        // When user text is received, show thinking indicator for assistant response
-        transcriptionReceived = true;
-        //hideUserThinkingIndicator();
-
-        // Add user message to chat
-        handleTextOutput({
-            role: data.role,
-            content: data.content
-        });
-
-        // Show assistant thinking indicator after user text appears
-        showAssistantThinkingIndicator();
-    }
-    else if (role === 'ASSISTANT') {
-        //hideAssistantThinkingIndicator();
-        if (displayAssistantText) {
-            handleTextOutput({
-                role: data.role,
-                content: data.content
-            });
-        }
-    }
-});
-
-// Handle audio output
-socket.on('audioOutput', (data) => {
-    if (data.content) {
-        try {
-            const audioData = base64ToFloat32Array(data.content);
-            audioPlayer.playAudio(audioData);
-        } catch (error) {
-            console.error('Error processing audio data:', error);
-        }
-    }
-});
-
-// Handle content end events
-socket.on('contentEnd', (data) => {
-    console.log('Content end received:', data);
-
-    if (data.type === 'TEXT') {
-        if (role === 'USER') {
-            // When user's text content ends, make sure assistant thinking is shown
-            hideUserThinkingIndicator();
-            showAssistantThinkingIndicator();
-        }
-        else if (role === 'ASSISTANT') {
-            // When assistant's text content ends, prepare for user input in next turn
-            hideAssistantThinkingIndicator();
-        }
-
-        // Handle stop reasons
-        if (data.stopReason && data.stopReason.toUpperCase() === 'END_TURN') {
-            chatHistoryManager.endTurn();
-        } else if (data.stopReason && data.stopReason.toUpperCase() === 'INTERRUPTED') {
-            console.log("Interrupted by user");
-            audioPlayer.bargeIn();
-        }
-    }
-    else if (data.type === 'AUDIO') {
-        // When audio content ends, we may need to show user thinking indicator
-        if (isStreaming) {
-            showUserThinkingIndicator();
-        }
-    }
-});
-
-// Stream completion event
-socket.on('streamComplete', () => {
-    if (isStreaming) {
-        stopStreaming();
-    }
-    statusElement.textContent = "Ready";
-    statusElement.className = "ready";
-});
-
-// Handle connection status updates
-socket.on('connect', () => {
-    statusElement.textContent = "Connected to server";
-    statusElement.className = "connected";
-    sessionInitialized = false;
-});
-
-socket.on('disconnect', () => {
-    statusElement.textContent = "Disconnected from server";
-    statusElement.className = "disconnected";
-    startButton.disabled = true;
-    stopButton.disabled = true;
-    sessionInitialized = false;
-    hideUserThinkingIndicator();
-    hideAssistantThinkingIndicator();
-});
-
-// Handle errors
-socket.on('error', (error) => {
-    console.error("Server error:", error);
-    statusElement.textContent = "Error: " + (error.message || JSON.stringify(error).substring(0, 100));
-    statusElement.className = "error";
-    hideUserThinkingIndicator();
-    hideAssistantThinkingIndicator();
-});
-
 // Button event listeners
 startButton.addEventListener('click', startStreaming);
 stopButton.addEventListener('click', stopStreaming);
@@ -558,7 +652,7 @@ stopButton.addEventListener('click', stopStreaming);
 // Initialize the app when the page loads
 document.addEventListener('DOMContentLoaded', async () => {
     await initAudio();
-    
+
     // Check for robot parameter in URL
     const params = getQueryParams();
     if (params.robot) {
@@ -567,7 +661,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (robotSelect.querySelector(`option[value="${robotValue}"]`)) {
             robotSelect.value = robotValue;
             console.log(`Auto-selected robot: ${robotValue} from URL parameter`);
-            
+
             // Start streaming after a short delay
             setTimeout(() => {
                 console.log("Auto-starting streaming...");

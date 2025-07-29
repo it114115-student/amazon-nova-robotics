@@ -37,6 +37,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       database: databaseConstruct,
       mcpServerUrl: mcpServerConstruct.functionUrl.url,
       userPool: authenticator.userPool,
+      userPoolClient: authenticator.userPoolClient,
     });
 
     const humanoidRobotSimulatorConstruct = new RobotSimulatorConstruct(

@@ -5,12 +5,14 @@ import * as apprunner from "@aws-cdk/aws-apprunner-alpha";
 import * as path from "path";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { DatabaseConstruct } from "./datebase";
-import { UserPool } from "aws-cdk-lib/aws-cognito";
+import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
+import { Stack } from "aws-cdk-lib";
 
 export interface SpeechControlWebConstructProps {
   readonly database: DatabaseConstruct;
   readonly mcpServerUrl: string;
   readonly userPool: UserPool;
+  readonly userPoolClient: UserPoolClient;
 }
 
 export class SpeechControlWebConstruct extends Construct {
@@ -57,6 +59,9 @@ export class SpeechControlWebConstruct extends Construct {
             AWS_BEDROCK_REGION: "us-east-1",
             RobotTable: props.database.robotTable.tableName,
             McpServerUrl: props.mcpServerUrl,
+            COGNITO_USER_POOL_ID: props.userPool.userPoolId,
+            COGNITO_CLIENT_ID: props.userPoolClient.userPoolClientId,
+            COGNITO_REGION: Stack.of(this).region,
           },
         },
         asset: imageAsset,

@@ -34,6 +34,7 @@ export class Authenticator extends Construct {
       authFlows: {
         userPassword: true,
         adminUserPassword: true,
+        userSrp: true,
       },
     });
   }

@@ -10,6 +10,9 @@ import getUuid from "uuid-by-string";
 import { ToolHandler } from "./services/tools";
 import { McpManager } from "./services/mcp-manager";
 import { ToolProcessor } from "./prompt";
+import { CognitoAuthService } from "./services/auth";
+import { AuthMiddleware } from "./services/auth-middleware";
+import { createAuthRoutes } from "./routes/auth";
 
 // Configure AWS credentials
 const AWS_PROFILE_NAME = process.env.AWS_PROFILE || "default";
@@ -17,6 +20,20 @@ const isInCloud = process.env.IsInCloud || false;
 
 // Create Express app and HTTP server
 const app = express();
+
+// Add JSON parsing middleware
+app.use(express.json());
+
+// Initialize Cognito Auth Service
+const cognitoConfig = {
+  userPoolId: process.env.COGNITO_USER_POOL_ID || "",
+  clientId: process.env.COGNITO_CLIENT_ID || "",
+  region:
+    process.env.COGNITO_REGION || process.env.AWS_BEDROCK_REGION || "us-east-1",
+};
+
+const authService = new CognitoAuthService(cognitoConfig);
+const authMiddleware = new AuthMiddleware(authService);
 
 // Enable CORS with specific options
 const corsOptions = {
@@ -43,6 +60,10 @@ app.use(cors(corsOptions));
 
 // Handle OPTIONS preflight requests
 app.options("*", cors(corsOptions));
+
+// Add authentication routes
+app.use("/api/auth", createAuthRoutes(authService, authMiddleware));
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -132,9 +153,35 @@ app.get("/favicon.ico", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/favicon.ico"));
 });
 
-// Socket.IO connection handler
-io.on("connection", (socket) => {
+// Socket.IO connection handler with authentication
+io.on("connection", async (socket) => {
   console.log("New client connected:", socket.id);
+
+  // Check for authentication token
+  const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '');
+
+  if (token) {
+    try {
+      // Verify the token
+      await authService.verifyToken(token);
+      const user = await authService.getUser(token);
+      console.log(`Authenticated user connected: ${user.username} (${socket.id})`);
+
+      // Store user info in socket for later use
+      socket.data.user = user;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown authentication error';
+      console.error(`Authentication failed for socket ${socket.id}:`, errorMessage);
+      socket.emit('error', { message: 'Authentication failed' });
+      socket.disconnect();
+      return;
+    }
+  } else {
+    console.log(`Unauthenticated connection from ${socket.id} - rejecting`);
+    socket.emit('error', { message: 'Authentication required' });
+    socket.disconnect();
+    return;
+  }
 
   // Create a unique session ID for this client
   const sessionId = getUuid(socket.id);
