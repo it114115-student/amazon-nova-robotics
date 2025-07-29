@@ -4,3 +4,6 @@ awsgi2
 fastmcp
 Flask[async]
 Flask-Caching
+PyJWT[crypto]
+requests
+cryptography

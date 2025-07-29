@@ -5,15 +5,17 @@ API routes - Handles all API endpoints
 import uuid
 
 from flask import Blueprint, jsonify, request
+from middleware import require_hybrid_auth
 from services.chat_service import extract_actions_from_response, get_chat_response
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
 from services.robot_service import robot_service
 
 # Create a blueprint for the API routes
-api_bp = Blueprint("api", __name__)
+api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
 @api_bp.route("/chat", methods=["POST"])
+@require_hybrid_auth
 async def chat():
     """Handle chat requests with Nova Chatbot integration"""
     user_message = request.json.get("message")
@@ -58,13 +60,15 @@ async def chat():
 
 
 @api_bp.route("/robots", methods=["GET"])
-def robots_list():
+@require_hybrid_auth
+def get_robots():
     robots = list_robots()
     return jsonify(robots)
 
 
 @api_bp.route("/robots/<robot_id>", methods=["GET"])
-def robot_get(robot_id):
+@require_hybrid_auth
+def get_robot_by_id(robot_id):
     robot = get_robot(robot_id)
     if robot:
         return jsonify(robot)
@@ -72,7 +76,8 @@ def robot_get(robot_id):
 
 
 @api_bp.route("/robots", methods=["POST"])
-def robot_create():
+@require_hybrid_auth
+def create_robot():
     data = request.json
     robot_id = data.get("id")
     if not robot_id:
@@ -82,6 +87,7 @@ def robot_create():
 
 
 @api_bp.route("/robots/<robot_id>", methods=["PUT"])
+@require_hybrid_auth
 def robot_update(robot_id):
     data = request.json
     robot = upsert_robot(robot_id, data)
@@ -89,12 +95,14 @@ def robot_update(robot_id):
 
 
 @api_bp.route("/robots/<robot_id>", methods=["DELETE"])
+@require_hybrid_auth
 def robot_delete(robot_id):
     delete_robot(robot_id)
     return jsonify({"deleted": True})
 
 
 @api_bp.route("/run_action/<robot_id>", methods=["GET", "POST"])
+@require_hybrid_auth
 async def run_action(robot_id):
     """Run process_actions with provided action and robot"""
     data = request.json

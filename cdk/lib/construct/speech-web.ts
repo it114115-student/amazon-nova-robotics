@@ -5,10 +5,12 @@ import * as apprunner from "@aws-cdk/aws-apprunner-alpha";
 import * as path from "path";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { DatabaseConstruct } from "./datebase";
+import { UserPool } from "aws-cdk-lib/aws-cognito";
 
 export interface SpeechControlWebConstructProps {
   readonly database: DatabaseConstruct;
   readonly mcpServerUrl: string;
+  readonly userPool: UserPool;
 }
 
 export class SpeechControlWebConstruct extends Construct {

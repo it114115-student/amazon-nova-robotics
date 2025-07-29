@@ -66,18 +66,40 @@ async function sendMessage() {
   robotSelect.disabled = true;
 
   try {
-    let endPoint = window.location.href.includes("prod") ? "/prod/chat" : "/chat";
-    const response = await fetch(endPoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message,
-        robots: selectedRobots,
-        session_id: Math.floor(Math.random() * 1000000),
-      }),
-    });
+    // Determine the correct API endpoint based on current URL
+    const pathParts = window.location.pathname.split('/');
+    const basePath = (pathParts.length > 1 && pathParts[1] === 'prod') ? '/prod' : '';
+    let endPoint = basePath + "/api/chat";
+    
+    // Use authenticated request if authManager is available
+    let response;
+    if (window.authManager && window.authManager.getAuthToken()) {
+      response = await window.authManager.makeAuthenticatedRequest(endPoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message,
+          robots: selectedRobots,
+          session_id: Math.floor(Math.random() * 1000000),
+        }),
+      });
+    } else {
+      // Fallback to regular request for non-authenticated endpoints
+      response = await fetch(endPoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message,
+          robots: selectedRobots,
+          session_id: Math.floor(Math.random() * 1000000),
+        }),
+      });
+    }
+    
     const data = await response.json();
     const messagesDiv = document.getElementById("messages");
 

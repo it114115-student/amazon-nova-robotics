@@ -7,10 +7,13 @@ import { RobotSsmConstruct } from "./construct/robot-ssm";
 import { DatabaseConstruct } from "./construct/datebase";
 import { LambdaMcpServerConstruct } from "./construct/mcp-server";
 import { RobotSimulatorConstruct } from "./construct/robot-simulator";
+import { Authenticator } from "./construct/authenticator";
 
 export class AmazonNovaRoboticCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    const authenticator = new Authenticator(this, "Authenticator");
 
     const mcpServerConstruct = new LambdaMcpServerConstruct(
       this,
@@ -33,6 +36,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     const webConstruct = new SpeechControlWebConstruct(this, "WebConstruct", {
       database: databaseConstruct,
       mcpServerUrl: mcpServerConstruct.functionUrl.url,
+      userPool: authenticator.userPool,
     });
 
     const humanoidRobotSimulatorConstruct = new RobotSimulatorConstruct(
@@ -47,6 +51,8 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       {
         database: databaseConstruct,
         mcpServerUrl: mcpServerConstruct.functionUrl.url,
+        userPool: authenticator.userPool,
+        userPoolClient: authenticator.userPoolClient,
       }
     );
 
@@ -92,6 +98,21 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, "McpServerUrl", {
       value: mcpServerConstruct.functionUrl.url,
       description: "The URL of the MCP Server Lambda Function",
+    });
+
+    new cdk.CfnOutput(this, "CognitoUserPoolId", {
+      value: authenticator.userPool.userPoolId,
+      description: "Cognito User Pool ID for authentication",
+    });
+
+    new cdk.CfnOutput(this, "CognitoUserPoolClientId", {
+      value: authenticator.userPoolClient.userPoolClientId,
+      description: "Cognito User Pool Client ID for authentication",
+    });
+
+    new cdk.CfnOutput(this, "CognitoUserPoolDomain", {
+      value: `https://cognito-idp.${this.region}.amazonaws.com/${authenticator.userPool.userPoolId}`,
+      description: "Cognito User Pool domain for JWKS",
     });
   }
 }

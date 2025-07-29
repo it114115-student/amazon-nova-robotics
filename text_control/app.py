@@ -1,4 +1,5 @@
 import atexit
+import os
 
 import awsgi2
 from config import DEBUG
@@ -9,12 +10,16 @@ from mcp_client import cleanup_mcp_client, init_mcp_client
 
 # Import and register blueprints after app is created to avoid circular imports
 from routes.api import api_bp
+from routes.auth import auth_bp
 from routes.ui import ui_bp
 
 config = {
     "DEBUG": DEBUG,  # some Flask specific configs
     "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
     "CACHE_DEFAULT_TIMEOUT": 300,
+    "SECRET_KEY": os.getenv(
+        "FLASK_SECRET_KEY", "fallback-secret-key-for-lambda-sessions-12345"
+    ),  # Required for sessions - use a consistent fallback for Lambda
 }
 
 # Initialize the Flask application
@@ -26,6 +31,16 @@ cache = Cache(app)
 # Make cache available as app attribute for easy access
 app.cache = cache
 
+
+# Add CORS headers for API Gateway
+@app.after_request
+def after_request(response):
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
+    return response
+
+
 # Initialize the MCP client when the app starts
 with app.app_context():
     init_mcp_client()
@@ -34,6 +49,7 @@ with app.app_context():
 # Register the blueprints
 app.register_blueprint(api_bp)
 app.register_blueprint(ui_bp)
+app.register_blueprint(auth_bp)
 
 # Register error handlers
 register_error_handlers(app)

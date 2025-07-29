@@ -21,5 +21,6 @@
     "--disable=C0411"
   ],
   "editor.formatOnSave": true,
-  "files.autoSave": "onFocusChange"
+  "files.autoSave": "onFocusChange",
+  "python-envs.pythonProjects": []
 }

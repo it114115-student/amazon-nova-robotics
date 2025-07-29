@@ -123,10 +123,10 @@
           // For AWS API Gateway URLs
           const origin = window.location.origin;
           // Find the stage name (prod, dev, etc.)
-          return `${origin}/prod`;
+          return `${origin}/prod/api`;
         }
         // Default: use relative URLs for local development
-        return "";
+        return "/api";
       }
 
       const baseUrl = getBaseApiUrl();
