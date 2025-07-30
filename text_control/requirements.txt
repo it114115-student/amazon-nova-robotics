@@ -7,3 +7,4 @@ Flask-Caching
 PyJWT[crypto]
 requests
 cryptography
+requests-auth-aws-sigv4

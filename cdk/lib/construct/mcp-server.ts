@@ -9,7 +9,7 @@ import { Construct } from "constructs";
 import { Duration } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 
-const path = require("path");
+import path = require("path");
 
 export class LambdaMcpServerConstruct extends Construct {
   public readonly mcpFunction: PythonFunction;
@@ -41,7 +41,7 @@ export class LambdaMcpServerConstruct extends Construct {
 
     // Enable Function URL
     this.functionUrl = this.mcpFunction.addFunctionUrl({
-      authType: FunctionUrlAuthType.NONE,
+      authType: FunctionUrlAuthType.AWS_IAM,
       cors: {
         allowedOrigins: ["*"],
         allowedMethods: [HttpMethod.ALL],
