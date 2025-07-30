@@ -1,10 +1,14 @@
 {
   "python.defaultInterpreterPath": "/workspaces/amazon-nova-robotic/robot_client/venv/bin/python",
-  "flake8.args": ["--max-line-length=120"],
+  "flake8.args": [
+    "--max-line-length=120"
+  ],
   "python.testing.pytestArgs": [],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "python.analysis.extraPaths": ["./amazon-nova-robotic/robot_client"],
+  "python.analysis.extraPaths": [
+    "./amazon-nova-robotic/robot_client"
+  ],
   "pylint.importStrategy": "useBundled",
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter",
@@ -13,7 +17,10 @@
       "source.organizeImports": "explicit"
     }
   },
-  "isort.args": ["--profile", "black"],
+  "isort.args": [
+    "--profile",
+    "black"
+  ],
   "pylint.args": [
     "--disable=C0114",
     "--disable=C0115",
