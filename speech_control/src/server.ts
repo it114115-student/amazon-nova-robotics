@@ -3,7 +3,7 @@ import http from "http";
 import path from "path";
 import { Server } from "socket.io";
 import { fromContainerMetadata, fromIni } from "@aws-sdk/credential-providers";
-import cors from "cors";
+
 import { NovaSonicBidirectionalStreamClient } from "./client";
 import { Buffer } from "node:buffer";
 import getUuid from "uuid-by-string";
@@ -18,45 +18,9 @@ const isInCloud = process.env.IsInCloud || false;
 // Create Express app and HTTP server
 const app = express();
 
-// Enable CORS with specific options
-const corsOptions = {
-  origin: "http://localhost:3001",
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-    "Accept",
-    "Origin",
-    "Access-Control-Allow-Origin",
-    "Access-Control-Allow-Headers",
-    "Access-Control-Allow-Methods",
-    "Access-Control-Allow-Credentials",
-  ],
-  exposedHeaders: ["Access-Control-Allow-Origin"],
-  preflightContinue: false,
-  optionsSuccessStatus: 204,
-};
 
-app.use(cors(corsOptions));
-
-// Handle OPTIONS preflight requests
-app.options("*", cors(corsOptions));
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3001",
-    methods: ["GET", "POST", "OPTIONS"],
-    credentials: true,
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Requested-With",
-      "Accept",
-      "Origin",
-    ],
-  },
   allowEIO3: true,
   transports: ["websocket", "polling"],
 });
