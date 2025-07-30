@@ -4,11 +4,16 @@ import { ChatHistoryManager } from "./lib/util/ChatHistoryManager.js";
 import { setupRobotModal } from './robotModal.js';
 // Setup robot modal popup on page load
 document.addEventListener('DOMContentLoaded', () => {
-  setupRobotModal();
+    setupRobotModal();
 });
 
-// Connect to the server
-const socket = io();
+// Connect to the server with authentication
+const accessToken = localStorage.getItem('accessToken');
+const socket = io({
+    auth: {
+        token: accessToken
+    }
+});
 
 // DOM elements
 const startButton = document.getElementById('start');
@@ -113,11 +118,11 @@ async function initializeSession() {
         // Send events in sequence 
         const robots = getSelectedRobots();
         socket.emit('robot', robots);
-        await new Promise(resolve => setTimeout(resolve, 250));        
+        await new Promise(resolve => setTimeout(resolve, 250));
         socket.emit('promptStart');
         socket.emit('systemPrompt');
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         socket.emit('audioStart');
 
         // Mark session as initialized
@@ -200,13 +205,13 @@ function getQueryParams() {
     const params = {};
     const queryString = window.location.search.substring(1);
     const pairs = queryString.split('&');
-    
+
     for (let i = 0; i < pairs.length; i++) {
         if (!pairs[i]) continue;
         const pair = pairs[i].split('=');
         params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
     }
-    
+
     return params;
 }
 
@@ -542,6 +547,18 @@ socket.on('disconnect', () => {
     hideAssistantThinkingIndicator();
 });
 
+socket.on('connect_error', (error) => {
+    console.error("Connection error:", error);
+    if (error.message.includes('Authentication error')) {
+        // Authentication failed, redirect to login
+        localStorage.clear();
+        window.location.href = '/login.html';
+    } else {
+        statusElement.textContent = "Connection error: " + error.message;
+        statusElement.className = "error";
+    }
+});
+
 // Handle errors
 socket.on('error', (error) => {
     console.error("Server error:", error);
@@ -558,7 +575,7 @@ stopButton.addEventListener('click', stopStreaming);
 // Initialize the app when the page loads
 document.addEventListener('DOMContentLoaded', async () => {
     await initAudio();
-    
+
     // Check for robot parameter in URL
     const params = getQueryParams();
     if (params.robot) {
@@ -567,7 +584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (robotSelect.querySelector(`option[value="${robotValue}"]`)) {
             robotSelect.value = robotValue;
             console.log(`Auto-selected robot: ${robotValue} from URL parameter`);
-            
+
             // Start streaming after a short delay
             setTimeout(() => {
                 console.log("Auto-starting streaming...");

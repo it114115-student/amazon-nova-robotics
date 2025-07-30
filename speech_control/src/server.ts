@@ -3,7 +3,7 @@ import http from "http";
 import path from "path";
 import { Server } from "socket.io";
 import { fromContainerMetadata, fromIni } from "@aws-sdk/credential-providers";
-
+import { CognitoIdentityProviderClient, GetUserCommand, InitiateAuthCommand } from "@aws-sdk/client-cognito-identity-provider";
 import { NovaSonicBidirectionalStreamClient } from "./client";
 import { Buffer } from "node:buffer";
 import getUuid from "uuid-by-string";
@@ -11,12 +11,35 @@ import { ToolHandler } from "./services/tools";
 import { McpManager } from "./services/mcp-manager";
 import { ToolProcessor } from "./prompt";
 
+// Extend Socket.IO types to include user property
+declare module "socket.io" {
+  interface Socket {
+    user?: any;
+  }
+}
+
 // Configure AWS credentials
 const AWS_PROFILE_NAME = process.env.AWS_PROFILE || "default";
 const isInCloud = process.env.IsInCloud || false;
 
+// Cognito configuration
+const COGNITO_USER_POOL_ID = process.env.CognitoUserPoolId;
+const COGNITO_CLIENT_ID = process.env.CognitoUserPoolClientId;
+const COGNITO_REGION = process.env.CognitoRegion || "us-east-1";
+
 // Create Express app and HTTP server
 const app = express();
+
+// Add JSON parsing middleware
+app.use(express.json());
+
+// Create Cognito client
+const cognitoClient = new CognitoIdentityProviderClient({
+  region: COGNITO_REGION,
+  credentials: isInCloud
+    ? fromContainerMetadata()
+    : fromIni({ profile: AWS_PROFILE_NAME }),
+});
 
 
 const server = http.createServer(app);
@@ -88,17 +111,125 @@ setInterval(() => {
   });
 }, 60000);
 
+// Authentication middleware
+async function authenticateToken(req: any, res: any, next: any) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.sendStatus(401);
+  }
+
+  try {
+    // Verify token with Cognito
+    const command = new GetUserCommand({
+      AccessToken: token
+    });
+
+    const user = await cognitoClient.send(command);
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return res.sendStatus(403);
+  }
+}
+
+// Authentication endpoints
+app.get("/api/auth/config", (_req, res) => {
+  res.json({
+    userPoolId: COGNITO_USER_POOL_ID,
+    clientId: COGNITO_CLIENT_ID,
+    region: COGNITO_REGION
+  });
+});
+
+// Login endpoint
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
+
+    // Authenticate with Cognito
+    const command = new InitiateAuthCommand({
+      AuthFlow: 'USER_PASSWORD_AUTH',
+      ClientId: COGNITO_CLIENT_ID,
+      AuthParameters: {
+        USERNAME: username,
+        PASSWORD: password,
+      },
+    });
+
+    const response = await cognitoClient.send(command);
+
+    if (response.AuthenticationResult) {
+      res.json({
+        accessToken: response.AuthenticationResult.AccessToken,
+        idToken: response.AuthenticationResult.IdToken,
+        refreshToken: response.AuthenticationResult.RefreshToken,
+      });
+    } else {
+      res.status(401).json({ message: 'Authentication failed' });
+    }
+  } catch (error: any) {
+    console.error('Login error:', error);
+
+    let message = 'Authentication failed';
+    if (error.name) {
+      message = error.name;
+    }
+
+    res.status(401).json({ message });
+  }
+});
+
+// Serve login page without authentication
+app.get("/login.html", (_req, res) => {
+  res.sendFile(path.join(__dirname, "../public/login.html"));
+});
+
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "../public")));
 
 // Explicitly serve favicon.ico from the public directory
-app.get("/favicon.ico", (req, res) => {
+app.get("/favicon.ico", (_req, res) => {
   res.sendFile(path.join(__dirname, "../public/favicon.ico"));
+});
+
+// Protect the main application
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "../public/index.html"));
+});
+
+// Socket.IO authentication middleware
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+
+    if (!token) {
+      return next(new Error('Authentication error: No token provided'));
+    }
+
+    // Verify token with Cognito
+    const command = new GetUserCommand({
+      AccessToken: token
+    });
+
+    const user = await cognitoClient.send(command);
+    socket.user = user;
+    next();
+  } catch (error) {
+    console.error('Socket authentication failed:', error);
+    next(new Error('Authentication error: Invalid token'));
+  }
 });
 
 // Socket.IO connection handler
 io.on("connection", (socket) => {
-  console.log("New client connected:", socket.id);
+  console.log("New authenticated client connected:", socket.id);
 
   // Create a unique session ID for this client
   const sessionId = getUuid(socket.id);
@@ -196,7 +327,7 @@ io.on("connection", (socket) => {
       }
     });
 
-    socket.on("systemPrompt", async (data) => {
+    socket.on("systemPrompt", async (_data) => {
       try {
         console.log("System prompt received");
         await session.setupSystemPrompt(undefined, undefined);
@@ -217,9 +348,9 @@ io.on("connection", (socket) => {
       socket.emit("robot received", robots);
     });
 
-    socket.on("audioStart", async (data) => {
+    socket.on("audioStart", async (_data) => {
       try {
-        console.log("Audio start received", data);
+        console.log("Audio start received");
         await session.setupStartAudio();
       } catch (error) {
         console.error("Error processing audio start:", error);
@@ -313,12 +444,12 @@ io.on("connection", (socket) => {
 });
 
 // Health check endpoint
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // MCP management endpoints
-app.get("/api/mcp/status", (req, res) => {
+app.get("/api/mcp/status", (_req, res) => {
   try {
     const status = mcpManager.getServerStatus();
     const connectedServers = mcpManager.getConnectedServers();
@@ -343,7 +474,7 @@ app.get("/api/mcp/status", (req, res) => {
   }
 });
 
-app.post("/api/mcp/reload", async (req, res) => {
+app.post("/api/mcp/reload", async (_req, res) => {
   try {
     await mcpManager.reloadConfiguration();
     res.json({
@@ -358,7 +489,7 @@ app.post("/api/mcp/reload", async (req, res) => {
   }
 });
 
-app.get("/api/tools", (req, res) => {
+app.get("/api/tools", (_req, res) => {
   try {
     const mcpTools = Array.from(toolHandler.getMcpTools().values());
     res.json({
@@ -379,7 +510,7 @@ app.get("/api/tools", (req, res) => {
 });
 
 // Debug endpoint to check available tools for AI model
-app.get("/api/debug/tools", (req, res) => {
+app.get("/api/debug/tools", (_req, res) => {
   try {
     // Create a temporary tool processor to get available tools
     const tempToolProcessor = new ToolProcessor(toolHandler);
