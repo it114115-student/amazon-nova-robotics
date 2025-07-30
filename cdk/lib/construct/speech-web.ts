@@ -86,8 +86,8 @@ export class SpeechControlWebConstruct extends Construct {
       })
     );
 
-    // Grant permission to invoke the MCP server Lambda function
-    props.mcpServerConstruct.mcpFunction.grantInvoke(service);
+    // Grant permission to invoke the MCP server Lambda function URL
+    props.mcpServerConstruct.functionUrl.grantInvokeUrl(service);
 
     this.serviceUrl = service.serviceUrl;
   }

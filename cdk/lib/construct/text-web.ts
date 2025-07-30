@@ -101,8 +101,8 @@ export class TextControlWebConstruct extends Construct {
       })
     );
 
-    // Grant permission to invoke the MCP server Lambda function
-    props.mcpServerConstruct.mcpFunction.grantInvoke(flaskLambda);
+    // Grant permission to invoke the MCP server Lambda function URL
+    props.mcpServerConstruct.functionUrl.grantInvokeUrl(flaskLambda);
 
     const rootResource = restApi.root;
 

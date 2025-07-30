@@ -8,7 +8,8 @@ import { NovaSonicBidirectionalStreamClient } from "./client";
 import { Buffer } from "node:buffer";
 import getUuid from "uuid-by-string";
 import { ToolHandler } from "./services/tools";
-import { McpManager } from "./services/mcp-manager";
+// AWS Secure MCP Manager - supports both standard and AWS IAM authenticated MCP servers
+import { McpManager } from "./services/mcp-manager-secure";
 import { ToolProcessor } from "./prompt";
 
 // Extend Socket.IO types to include user property
@@ -56,6 +57,10 @@ const mcpManager = new McpManager(toolHandler);
 
 // Track MCP initialization status
 let mcpInitialized = false;
+
+// Enable AWS SigV4 authentication for MCP Lambda Function URLs
+// This allows secure communication with IAM-protected Lambda Function URLs
+process.env.MCP_USE_AWS_AUTH = 'true';
 
 // Initialize MCP servers asynchronously
 (async () => {
