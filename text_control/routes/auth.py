@@ -7,6 +7,7 @@ import os
 import boto3
 import jwt
 from botocore.exceptions import ClientError
+from config import COGNITO_CLIENT_ID, COGNITO_USER_POOL_ID
 from flask import Blueprint, jsonify, request, session
 
 # Create a blueprint for the auth routes
@@ -14,11 +15,8 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 # Initialize Cognito client
 cognito_client = boto3.client(
-    "cognito-idp", region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+    "cognito-idp", region_name=os.getenv("CognitoRegion", "us-east-1")
 )
-
-COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
-COGNITO_CLIENT_ID = os.getenv("COGNITO_CLIENT_ID")
 
 
 @auth_bp.route("/login", methods=["POST"])

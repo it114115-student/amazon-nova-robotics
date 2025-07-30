@@ -18,7 +18,7 @@ config = {
     "CACHE_TYPE": "SimpleCache",  # Flask-Caching related configs
     "CACHE_DEFAULT_TIMEOUT": 300,
     "SECRET_KEY": os.getenv(
-        "FLASK_SECRET_KEY", "fallback-secret-key-for-lambda-sessions-12345"
+        "FlaskSecretKey", "fallback-secret-key-for-lambda-sessions-12345"
     ),  # Required for sessions - use a consistent fallback for Lambda
 }
 

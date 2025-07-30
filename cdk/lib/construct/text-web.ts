@@ -11,10 +11,11 @@ import path = require("path");
 import * as iam from "aws-cdk-lib/aws-iam";
 import { DatabaseConstruct } from "./datebase";
 import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
+import { LambdaMcpServerConstruct } from "./mcp-server";
 
 export interface TextControlWebConstructProps {
   readonly database: DatabaseConstruct;
-  readonly mcpServerUrl: string;
+  readonly mcpServerConstruct: LambdaMcpServerConstruct;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
 }
@@ -41,17 +42,17 @@ export class TextControlWebConstruct extends Construct {
 
     const flaskLambda = new PythonFunction(this, "TextControlLambda", {
       entry: path.join(__dirname, "../../../text_control"),
-      runtime: lambda.Runtime.PYTHON_3_13,
+      runtime: lambda.Runtime.PYTHON_3_12,
       index: "app.py",
       handler: "handler",
       timeout: Duration.seconds(30),
       environment: {
         AWS_BEDROCK_REGION: "us-east-1",
         RobotTable: props.database.robotTable.tableName,
-        McpServerUrl: props.mcpServerUrl,
-        COGNITO_USER_POOL_ID: props.userPool.userPoolId,
-        COGNITO_CLIENT_ID: props.userPoolClient.userPoolClientId,
-        FLASK_SECRET_KEY: "aws-lambda-session-key-robot-control-2025",
+        McpServerUrl: props.mcpServerConstruct.functionUrl.url,
+        CognitoUserPoolId: props.userPool.userPoolId,
+        CognitoUserPoolClientId: props.userPoolClient.userPoolClientId,
+        FlaskSecretKey: "aws-lambda-session-key-robot-control-2025",
       },
       bundling: {
         assetExcludes: [
@@ -99,6 +100,9 @@ export class TextControlWebConstruct extends Construct {
         resources: [props.userPool.userPoolArn],
       })
     );
+
+    // Grant permission to invoke the MCP server Lambda function
+    props.mcpServerConstruct.mcpFunction.grantInvoke(flaskLambda);
 
     const rootResource = restApi.root;
 

@@ -7,10 +7,11 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import { DatabaseConstruct } from "./datebase";
 import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
 import { Stack } from "aws-cdk-lib";
+import { LambdaMcpServerConstruct } from "./mcp-server";
 
 export interface SpeechControlWebConstructProps {
   readonly database: DatabaseConstruct;
-  readonly mcpServerUrl: string;
+  readonly mcpServerConstruct: LambdaMcpServerConstruct;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
 }
@@ -58,10 +59,10 @@ export class SpeechControlWebConstruct extends Construct {
             IsInCloud: "yes",
             AWS_BEDROCK_REGION: "us-east-1",
             RobotTable: props.database.robotTable.tableName,
-            McpServerUrl: props.mcpServerUrl,
-            COGNITO_USER_POOL_ID: props.userPool.userPoolId,
-            COGNITO_CLIENT_ID: props.userPoolClient.userPoolClientId,
-            COGNITO_REGION: Stack.of(this).region,
+            McpServerUrl: props.mcpServerConstruct.functionUrl.url,
+            CognitoUserPoolId: props.userPool.userPoolId,
+            CognitoUserPoolClientId: props.userPoolClient.userPoolClientId,
+            CognitoRegion: Stack.of(this).region,
           },
         },
         asset: imageAsset,
@@ -84,6 +85,9 @@ export class SpeechControlWebConstruct extends Construct {
         resources: ["*"],
       })
     );
+
+    // Grant permission to invoke the MCP server Lambda function
+    props.mcpServerConstruct.mcpFunction.grantInvoke(service);
 
     this.serviceUrl = service.serviceUrl;
   }

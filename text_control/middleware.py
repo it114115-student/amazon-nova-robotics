@@ -8,11 +8,11 @@ from functools import wraps
 
 import jwt
 import requests
+from config import COGNITO_CLIENT_ID, COGNITO_USER_POOL_ID
 from flask import g, jsonify, redirect, request, session, url_for
 from jwt.exceptions import InvalidTokenError
 
-COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
-COGNITO_CLIENT_ID = os.getenv("COGNITO_CLIENT_ID")
+# Configuration settings
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 
 # Cache for JWKS
@@ -24,7 +24,7 @@ def get_jwks():
     global _jwks_cache
     if _jwks_cache is None:
         jwks_url = f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
-        response = requests.get(jwks_url)
+        response = requests.get(jwks_url, timeout=5)
         response.raise_for_status()
         _jwks_cache = response.json()
     return _jwks_cache

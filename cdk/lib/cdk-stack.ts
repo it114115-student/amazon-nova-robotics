@@ -35,7 +35,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
 
     const webConstruct = new SpeechControlWebConstruct(this, "WebConstruct", {
       database: databaseConstruct,
-      mcpServerUrl: mcpServerConstruct.functionUrl.url,
+      mcpServerConstruct: mcpServerConstruct,
       userPool: authenticator.userPool,
       userPoolClient: authenticator.userPoolClient,
     });
@@ -51,7 +51,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       "TextControlWebConstruct",
       {
         database: databaseConstruct,
-        mcpServerUrl: mcpServerConstruct.functionUrl.url,
+        mcpServerConstruct: mcpServerConstruct,
         userPool: authenticator.userPool,
         userPoolClient: authenticator.userPoolClient,
       }
@@ -109,6 +109,11 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, "CognitoUserPoolClientId", {
       value: authenticator.userPoolClient.userPoolClientId,
       description: "Cognito User Pool Client ID for authentication",
+    });
+
+    new cdk.CfnOutput(this, "CognitoRegion", {
+      value: this.region,
+      description: "AWS region for Cognito User Pool",
     });
 
     new cdk.CfnOutput(this, "CognitoUserPoolDomain", {
