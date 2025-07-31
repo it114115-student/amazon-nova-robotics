@@ -188,6 +188,60 @@ class DogActionExecutor:
         
         self.logger.info(f"DogActionExecutor initialized for robot: {robot_name}")
 
+    def __init__(
+        self, 
+        robot_name: str, 
+        simulator_endpoint: str = "", 
+        session_key: str = "",
+        robot_ip: str = "127.0.0.1",
+        robot_port: int = 8830
+    ) -> None:
+        """
+        Initialize the DogActionExecutor.
+        
+        Args:
+            robot_name: Name/ID of the robot
+            simulator_endpoint: Optional simulator endpoint for dual control
+            session_key: Optional session key for simulator
+            robot_ip: IP address of the physical robot
+            robot_port: UDP port for robot communication
+        """
+        self.robot_name = robot_name
+        self.simulator_endpoint = simulator_endpoint
+        self.session_key = session_key
+        self.logger = logging.getLogger(__name__)
+        self._walking_mode_enabled = False  # Track walking mode state
+        
+        # Initialize dog controller
+        try:
+            self.dog_controller = DogController(ip=robot_ip, port=robot_port)
+            self.logger.info(f"Dog controller initialized for {robot_ip}:{robot_port}")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize dog controller: {e}")
+            self.dog_controller = None
+        
+        # Queue and threading setup
+        self.action_queue: queue.Queue = queue.Queue()
+        self.current_action: Dict[str, Any] = idle_action.copy()
+        self.is_running: bool = False
+        self._immediate_stop_event = threading.Event()
+        self.queue_lock = threading.Lock()
+        self._stop_event = threading.Event()
+        
+        # Action execution statistics
+        self.execution_stats = {
+            'total_actions': 0,
+            'successful_actions': 0,
+            'failed_actions': 0,
+            'last_action_time': None
+        }
+        
+        # Start consumer thread
+        self.consumer_thread = threading.Thread(target=self._consumer, daemon=True)
+        self.consumer_thread.start()
+        
+        self.logger.info(f"DogActionExecutor initialized for robot: {robot_name}")
+
     def _execute_dog_action(
         self, action_name: str, parameters: Dict[str, Any] = None
     ) -> bool:
@@ -207,17 +261,27 @@ class DogActionExecutor:
             
         try:
             # Extract parameters
-            speed = parameters.get('speed', 0.5) if parameters else 0.5
-            duration = parameters.get('duration') if parameters else None
-            distance = parameters.get('distance') if parameters else None
+            speed = 1.0 # parameters.get('speed', 0.5) if parameters else 1.0
+            duration = 2.0 #parameters.get('duration') if parameters else 2.0
+            distance = 1.0 #parameters.get('distance') if parameters else None
             angle = parameters.get('angle') if parameters else None
             
             # Normalize speed parameter from distance/angle if provided
-            if distance and not parameters.get('speed'):
-                speed = min(1.0, max(0.1, abs(distance) / 100.0))  # Scale distance to speed
-            elif angle and not parameters.get('speed'):
-                speed = min(1.0, max(0.1, abs(angle) / 180.0))  # Scale angle to speed
+            # if distance and not parameters.get('speed'):
+            #     speed = min(1.0, max(0.1, abs(distance) / 100.0))  # Scale distance to speed
+            # elif angle and not parameters.get('speed'):
+            #     speed = min(1.0, max(0.1, abs(angle) / 180.0))  # Scale angle to speed
+
+            # Handle walking mode for movement actions
+            if action_name in ["forward", "back", "left", "right", "cw", "ccw"]:
+                if not self._walking_mode_enabled:
+                    self.logger.info("Walking mode is not enabled, enabling it permanently...")
+                    self.dog_controller.enable_walking()
+                    time.sleep(2)  # Allow time for walking mode to activate
+                    self._walking_mode_enabled = True
+                    self.logger.info("Walking mode enabled permanently for movement actions")
             
+            self.logger.info(f"Executing dog action: {action_name} with speed={speed}, duration={duration}, parameters={parameters}")
             # Execute action based on type
             if action_name == "forward":
                 self.dog_controller.movement.move_forward(speed=speed, duration=duration)
@@ -245,7 +309,11 @@ class DogActionExecutor:
             elif action_name == "dance_mode":
                 self.dog_controller.enable_dancing()
             elif action_name == "stop":
+                # For stop action, preserve the walking mode state
+                was_walking = self.dog_controller.is_walking_enabled()
                 self.dog_controller.stop_all()
+                if was_walking:
+                    self.dog_controller.enable_walking()
             elif action_name == "custom_movement":
                 # Handle custom movement with multiple parameters
                 lx = parameters.get('lx', 0.0)
@@ -554,7 +622,7 @@ class DogActionExecutor:
         Stop all actions immediately and clear the queue.
         
         This method triggers an immediate stop of the current action
-        and clears all pending actions from the queue.
+        and clears all pending actions from the queue while preserving walking mode.
         """
         self.logger.info("Immediate stop requested: clearing queue and interrupting current action")
         self._immediate_stop_event.set()
@@ -563,7 +631,13 @@ class DogActionExecutor:
         # Also stop the dog controller if available
         if self.dog_controller:
             try:
+                # Remember walking mode state
+                was_walking = self._walking_mode_enabled
                 self.dog_controller.emergency_stop()
+                # Restore walking mode if it was enabled
+                if was_walking:
+                    self.dog_controller.enable_walking()
+                    self._walking_mode_enabled = True
             except Exception as e:
                 self.logger.error(f"Error during emergency stop: {e}")
 

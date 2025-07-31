@@ -266,7 +266,7 @@ def main():
             robot_name=robot_name,
             simulator_endpoint=settings.get("simulator_endpoint", ""),
             session_key=settings.get("session_key", ""),
-            robot_ip=settings.get("robot_ip", "192.168.137.195"),
+            robot_ip=settings.get("robot_ip", "192.168.137.41"),
             robot_port=settings.get("robot_port", 8830)
         )
         client = PubSubClient(settings, executor)

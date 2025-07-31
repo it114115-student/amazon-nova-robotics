@@ -45,7 +45,7 @@ class MovementCommands:
         
         try:
             self.publisher.send(command)
-            # logger.info(f"Movement command sent: {kwargs}")
+            logger.info(f"Movement command sent: {kwargs}")
         except Exception as e:
             logger.error(f"Failed to send movement command: {e}")
             raise

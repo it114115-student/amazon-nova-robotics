@@ -14,23 +14,39 @@ from api import DogController
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+dog = DogController(ip="192.168.137.41", port=8830)
+def enable_walking():    
+    # Initialize the dog controller
+
+
+    # Enable walking mode
+    print("Enabling walking mode...")
+    dog.enable_walking()
+    time.sleep(2)
+
+    
+    # # Enable walking mode
+    # print("Enabling walking mode...")
+    # dog.enable_walking()
+    # time.sleep(2)
+    
 
 def basic_movement_example():
     """Demonstrate basic movement commands."""
     print("=== Basic Movement Example ===")
     
     # Initialize the dog controller
-    dog = DogController(ip="192.168.137.41", port=8830)
+    # dog = DogController(ip="192.168.137.41", port=8830)
 
-    # Activate the robot
-    print("Activating robot...")
-    dog.activate()
-    time.sleep(2)
+    # # Activate the robot
+    # print("Activating robot...")
+    # dog.activate()
+    # time.sleep(2)
     
-    # Enable walking mode
-    print("Enabling walking mode...")
-    dog.enable_walking()
-    time.sleep(2)
+    # # Enable walking mode
+    # print("Enabling walking mode...")
+    # dog.enable_walking()
+    # time.sleep(2)
     
     # Perform basic movements
 
@@ -51,9 +67,9 @@ def basic_movement_example():
     print("Stopping...")
     dog.stop_all()
     
-    # Disable walking mode
-    print("Disabling walking mode...")
-    dog.enable_walking()
+    # # Disable walking mode
+    # print("Disabling walking mode...")
+    # dog.enable_walking()
 
 
 def rotation_example():
@@ -63,10 +79,10 @@ def rotation_example():
     dog = DogController()
     
     print("Rotating left...")
-    dog.movement.rotate_left(speed=0.3, duration=2.0)
+    dog.movement.rotate_left(speed=1, duration=2.0)
     
     print("Rotating right...")
-    dog.movement.rotate_right(speed=0.3, duration=2.0)
+    dog.movement.rotate_right(speed=1, duration=2.0)
     
     dog.stop_all()
 
@@ -146,12 +162,12 @@ def emergency_stop_example():
     
     dog = DogController()
     
-    # Start some movement
-    print("Starting movement...")
-    dog.movement.move_forward(speed=0.5)
+    # # Start some movement
+    # print("Starting movement...")
+    # dog.movement.move_forward(speed=0.5)
     
-    # Wait a bit
-    time.sleep(1)
+    # # Wait a bit
+    # time.sleep(1)
     
     # Emergency stop
     print("EMERGENCY STOP!")
@@ -168,13 +184,15 @@ def main():
         print("Dog Robot API Usage Examples")
         print("=" * 40)
         
+        enable_walking()
+        # basic_movement_example()
         # Run examples
-        basic_movement_example()
-        rotation_example()
+        # basic_movement_example()
+        # rotation_example()
         # posture_example()
-        custom_movement_example()
-        status_monitoring_example()
-        emergency_stop_example()
+        # custom_movement_example()
+        # status_monitoring_example()
+        # emergency_stop_example()
         
         print("\n=== All Examples Completed ===")
         
