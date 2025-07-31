@@ -26,7 +26,9 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       (_, i) => `robot_${i + 1}`
     );
     const droneNames = Array.from({ length: 1 }, (_, i) => `drone_${i + 1}`);
+    const dogNames = Array.from({ length: 2 }, (_, i) => `dog_${i + 1}`);
     thingNames.push(...droneNames);
+    thingNames.push(...dogNames)
     const roboticConstruct = new RoboticConstruct(this, "RoboticConstruct", {
       thingNames: thingNames,
     });

@@ -9,65 +9,17 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# 動作配置字典 (Action configuration dictionary)
+# Dog-specific action configuration dictionary - only movement and rotation actions
 actions: Dict[str, Dict[str, Any]] = {
-    "back_fast": {"sleep_time": 4.5, "action": ["2", "4"], "name": "back_fast"},
-    "bow": {"sleep_time": 4, "action": ["10", "1"], "name": "bow"},
-    "chest": {"sleep_time": 9, "action": ["12", "1"], "name": "chest"},
-    "dance_eight": {"sleep_time": 85, "action": ["42", "1"], "name": "dance_eight"},
-    "dance_five": {"sleep_time": 59, "action": ["39", "1"], "name": "dance_five"},
-    "dance_four": {"sleep_time": 59, "action": ["38", "1"], "name": "dance_four"},
-    "dance_nine": {"sleep_time": 84, "action": ["43", "1"], "name": "dance_nine"},
-    "dance_seven": {"sleep_time": 67, "action": ["41", "1"], "name": "dance_seven"},
-    "dance_six": {"sleep_time": 69, "action": ["40", "1"], "name": "dance_six"},
-    "dance_ten": {"sleep_time": 85, "action": ["44", "1"], "name": "dance_ten"},
-    "dance_three": {"sleep_time": 70, "action": ["37", "1"], "name": "dance_three"},
-    "dance_two": {"sleep_time": 52, "action": ["36", "1"], "name": "dance_two"},
-    "go_forward": {"sleep_time": 3.5, "action": ["1", "4"], "name": "go_forward"},
-    "kung_fu": {"sleep_time": 2, "action": ["46", "2"], "name": "kung_fu"},
-    "left_kick": {"sleep_time": 2, "action": ["18", "1"], "name": "left_kick"},
-    "left_move_fast": {"sleep_time": 3, "action": ["3", "4"], "name": "left_move_fast"},
-    "left_shot_fast": {
-        "sleep_time": 4,
-        "action": ["13", "1"],
-        "name": "left_shot_fast",
-    },
-    "left_uppercut": {"sleep_time": 2, "action": ["16", "1"], "name": "left_uppercut"},
-    "push_ups": {"sleep_time": 9, "action": ["5", "1"], "name": "push_ups"},
-    "right_kick": {"sleep_time": 2, "action": ["19", "1"], "name": "right_kick"},
-    "right_move_fast": {
-        "sleep_time": 3,
-        "action": ["4", "4"],
-        "name": "right_move_fast",
-    },
-    "right_shot_fast": {
-        "sleep_time": 4,
-        "action": ["14", "1"],
-        "name": "right_shot_fast",
-    },
-    "right_uppercut": {
-        "sleep_time": 2,
-        "action": ["17", "1"],
-        "name": "right_uppercut",
-    },
-    "sit_ups": {"sleep_time": 12, "action": ["6", "1"], "name": "sit_ups"},
-    "squat": {"sleep_time": 1, "action": ["11", "1"], "name": "squat"},
-    "squat_up": {"sleep_time": 6, "action": ["45", "1"], "name": "squat_up"},
-    "stand": {"sleep_time": 1, "action": ["0", "1"], "name": "站立"},
-    "stand_up_back": {"sleep_time": 5, "action": ["21", "1"], "name": "stand_up_back"},
-    "stand_up_front": {
-        "sleep_time": 5,
-        "action": ["20", "1"],
-        "name": "stand_up_front",
-    },
-    "stepping": {"sleep_time": 3, "action": ["24", "2"], "name": "stepping"},
-    "stop": {"sleep_time": 3, "action": ["24", "2"], "name": "stop"},
-    "turn_left": {"sleep_time": 4, "action": ["7", "4"], "name": "turn_left"},
-    "turn_right": {"sleep_time": 4, "action": ["8", "4"], "name": "turn_right"},
-    "twist": {"sleep_time": 4, "action": ["22", "1"], "name": "twist"},
-    "wave": {"sleep_time": 3.5, "action": ["9", "1"], "name": "wave"},
-    "weightlifting": {"sleep_time": 9, "action": ["35", "1"], "name": "weightlifting"},
-    "wing_chun": {"sleep_time": 2, "action": ["15", "1"], "name": "wing_chun"},
+    # Movement actions for dogs (matching MCP server actions)
+    "left": {"sleep_time": 2.0, "action": ["0", "50"], "name": "left"},
+    "right": {"sleep_time": 2.0, "action": ["0", "-50"], "name": "right"},
+    "forward": {"sleep_time": 2.0, "action": ["50", "0"], "name": "forward"},
+    "back": {"sleep_time": 2.0, "action": ["-50", "0"], "name": "back"},
+    
+    # Rotation actions for dogs (matching MCP server actions)
+    "cw": {"sleep_time": 2.0, "action": ["0", "90"], "name": "cw"},
+    "ccw": {"sleep_time": 2.0, "action": ["0", "-90"], "name": "ccw"},
 }
 
 # 空閒動作 (Idle action)
@@ -76,8 +28,13 @@ idle_action: Dict[str, Any] = {"name": None, "sleep_time": 0}
 
 class ActionExecutor:
 
-    def __init__(self) -> None:
+    def __init__(
+        self, robot_name: str, simulator_endpoint: str, session_key: str
+    ) -> None:
         """Initialize the ActionExecutor with a queue and a consumer thread."""
+        self.robot_name = robot_name
+        self.simulator_endpoint = simulator_endpoint
+        self.session_key = session_key
         self.logger = logging.getLogger(__name__)
         self.action_queue: queue.Queue = queue.Queue()
         self.current_action: Dict[str, Any] = idle_action.copy()
@@ -85,11 +42,21 @@ class ActionExecutor:
         self._immediate_stop_event = threading.Event()
         self.queue_lock = threading.Lock()
         self._stop_event = threading.Event()
+        self.movement_parameters: Dict[str, Any] = {}  # Store dynamic parameters
         self.consumer_thread = threading.Thread(target=self._consumer, daemon=True)
         self.consumer_thread.start()
 
-    def _run_action(self, p1: str, p2: str) -> Optional[Dict[str, Any]]:
+    def _run_action(
+        self, action_name: str, p1: str, p2: str
+    ) -> Optional[Dict[str, Any]]:
         """Send a request to execute an action."""
+
+        self._send_to_simulator(
+            action_name=action_name,
+            log_success_msg=f"Action {action_name} sent to simulator.",
+            log_error_msg=f"Error sending action {action_name} to simulator:",
+        )
+
         return self._send_request(
             method="RunAction",
             params=[p1, p2],
@@ -100,8 +67,8 @@ class ActionExecutor:
     def _run_stop_action(self) -> Optional[Dict[str, Any]]:
         """Send a request to stop the current action group."""
         return self._send_request(
-            method="StopActionGroup",
-            params=None,
+            method="StopBusServo",
+            params=["stopAction"],
             log_success_msg="Action run_stop_action() successful.",
             log_error_msg="Error running action run_stop_action():",
         )
@@ -113,21 +80,31 @@ class ActionExecutor:
         log_success_msg: str,
         log_error_msg: str,
     ) -> Optional[Dict[str, Any]]:
-        headers = {"deviceid": "1732853986186"}
-        data = {
-            "id": "1732853986186",
-            "jsonrpc": "2.0",
-            "method": method,
-        }
-        if params is not None:
-            data["params"] = params
+        if not params:
+            self.logger.error("No parameters provided for dog action")
+            return None
+            
         try:
-            response = requests.post(
-                "http://localhost:9030/", headers=headers, json=data, timeout=0.5
-            )
-            response.raise_for_status()
-            self.logger.info("%s Response: %s", log_success_msg, response.json())
-            return response.json()
+            # Format parameters: add "x/" or "y/" prefix unless value is "0"
+            p0 = params[0] if params[0] == "0" else f"x/{params[0]}"
+            p1 = params[1] if params[1] == "0" else f"y/{params[1]}"
+            
+            # Execute walk API sequence
+            requests.get("http://localhost:8080/walk/status/toggle")
+            
+            if p0 != "0":
+                requests.get(f"http://localhost:8080/walk/vel_{p0}")
+            if p1 != "0":
+                requests.get(f"http://localhost:8080/walk/vel_{p1}")
+                
+            time.sleep(2)
+            requests.get("http://localhost:8080/walk/vel_x=1")
+            requests.get("http://localhost:8080/walk/vel_y=1")
+            requests.get("http://localhost:8080/walk/status/toggle")
+            
+            self.logger.info(log_success_msg)
+            return {"status": "success", "params": params}
+            
         except requests.exceptions.RequestException as e:
             self.logger.error("%s %s", log_error_msg, e)
             return None
@@ -141,7 +118,25 @@ class ActionExecutor:
             "sleep_time": action["sleep_time"],
         }
         try:
-            self._run_action(action["action"][0], action["action"][1])
+            # Get base parameters from action config
+            param1 = action["action"][0]
+            param2 = action["action"][1]
+            
+            # Override with dynamic parameter if available (from MCP server)
+            if "parameter" in action_item:
+                dynamic_param = str(action_item["parameter"])
+                # For movement actions, the dynamic parameter replaces the distance/angle
+                if action_name in ["left", "right"]:
+                    # For left/right movement, dynamic param goes to y (param2)
+                    param2 = dynamic_param if action_name == "left" else f"-{dynamic_param}"
+                elif action_name in ["forward", "back"]:
+                    # For forward/back movement, dynamic param goes to x (param1)
+                    param1 = dynamic_param if action_name == "forward" else f"-{dynamic_param}"
+                elif action_name in ["cw", "ccw"]:
+                    # For rotation, dynamic param goes to y (param2)
+                    param2 = dynamic_param if action_name == "cw" else f"-{dynamic_param}"
+            
+            self._run_action(action_name, param1, param2)
             elapsed = 0.0
             while elapsed < action["sleep_time"]:
                 if self._immediate_stop_event.is_set():
@@ -194,22 +189,34 @@ class ActionExecutor:
                 self.is_running = False
                 time.sleep(0.5)
 
+    def set_movement_parameter(self, action_name: str, value: Any) -> None:
+        """Set a dynamic parameter for a movement action."""
+        self.movement_parameters[action_name] = value
+
     def add_action_to_queue(self, action_name: str) -> None:
         """Add a new action to the queue."""
         action_id = str(uuid4())
 
+        # Handle special stop action
         if action_name == "stop":
-            self.stop()  # Use improved stop logic
+            self.stop()
             return
 
         if action_name not in actions:
             self.logger.error(
-                "Action '%s' not found in actions dictionary.", action_name
+                "Action '%s' not found in actions dictionary. Available actions: %s", 
+                action_name, list(actions.keys())
             )
             return
 
         with self.queue_lock:
-            self.action_queue.put({"id": action_id, "name": action_name})
+            # Include any dynamic parameters with the action
+            action_item = {"id": action_id, "name": action_name}
+            if action_name in self.movement_parameters:
+                action_item["parameter"] = self.movement_parameters[action_name]
+                # Clear the parameter after use
+                del self.movement_parameters[action_name]
+            self.action_queue.put(action_item)
 
     def remove_action_from_queue(self, action_id: str) -> None:
         """Remove an action from the queue by its ID."""
@@ -237,11 +244,57 @@ class ActionExecutor:
         )
         self._immediate_stop_event.set()
         self.clear_action_queue()
-        with self.queue_lock:
-            stand_id = str(uuid4())
-            self.action_queue.put({"id": stand_id, "name": "stand"})
 
     def shutdown(self) -> None:
         """Gracefully shutdown the consumer thread."""
         self._stop_event.set()
         self.consumer_thread.join()
+
+    def _send_to_simulator(
+        self,
+        action_name: str,
+        log_success_msg: str = None,
+        log_error_msg: str = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Send an action command to the robot simulator.
+
+        Args:
+            action_name: The name of the action to execute
+            robot_id: The ID of the robot to control
+            session_key: The session key for authentication
+            simulator_base_url: The base URL of the simulator (default: http://localhost:5000)
+            log_success_msg: Message to log on successful API call
+            log_error_msg: Message to log on failed API call
+
+        Returns:
+            Optional response data from the simulator API call
+        """
+
+        if log_success_msg is None:
+            log_success_msg = f"Simulator action {action_name} for robot {self.robot_name} successful."
+        if log_error_msg is None:
+            log_error_msg = f"Error sending action {action_name} to simulator for robot {self.robot_name}:"
+
+        # Construct the URL in the format:
+        url = f"{self.simulator_endpoint}/run_action/{self.robot_name}?session_key={self.session_key}"
+
+        # Prepare the payload in the expected format: {"action": "bow"}
+        payload = {"action": action_name}
+
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                timeout=3.0,
+                headers={"Content-Type": "application/json"},
+            )
+            response.raise_for_status()
+            resp_json = response.json()
+            self.logger.info(
+                "%s - %s Response: %s", self.robot_name, log_success_msg, resp_json
+            )
+            return resp_json
+        except requests.exceptions.RequestException as e:
+            self.logger.error("%s %s", log_error_msg, e)
+            return None

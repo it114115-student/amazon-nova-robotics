@@ -2,14 +2,14 @@
 Chat service - Handles Nova chatbot integration
 """
 
+import json
 from typing import Any, Dict, List
 
 import boto3
 import config
 from botocore.config import Config
-from models.actions import get_available_actions, get_available_action_and_description
+from models.actions import get_available_action_and_description, get_available_actions
 from services.database_service import get_robot
-
 
 # Session storage for Nova conversation tracking
 active_sessions = {}
@@ -31,7 +31,8 @@ async def get_chat_response(
 
     # Nova Chatbot system prompt
     SYSTEM_PROMPT = f"""
-    You are a helpful robot and drone assistant. You control various robots and drones that can perform physical actions.
+    You are a helpful obots, dogs and drones assistant. 
+    You control various robots, dogs and drones that can perform physical actions.
 
     <background></background>
 
@@ -103,25 +104,158 @@ background: {background}
         }
 
 
+async def classify_response_type(
+    bot_response: str, user_message: str
+) -> Dict[str, Any]:
+    """
+    Use Bedrock tool calling to classify if the bot response is a rephrase or contains commands
+    Returns: {"type": "rephrase" | "commands", "commands": List[str], "confidence": float}
+    """
+    available_actions = await get_available_actions()
+    actions_list = ", ".join(available_actions)
+
+    # Define the tool for classification
+    classification_tool = {
+        "toolSpec": {
+            "name": "classify_response",
+            "description": "Classify a bot response as either conversational rephrase or containing commands",
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": {
+                        "response_type": {
+                            "type": "string",
+                            "enum": ["rephrase", "commands"],
+                            "description": "Whether the response is conversational (rephrase) or contains action commands",
+                        },
+                        "commands": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of valid robot/drone commands found in the response",
+                        },
+                        "confidence": {
+                            "type": "number",
+                            "minimum": 0.0,
+                            "maximum": 1.0,
+                            "description": "Confidence score for the classification",
+                        },
+                    },
+                    "required": ["response_type", "commands", "confidence"],
+                }
+            },
+        }
+    }
+
+    # Improved conversational indicator detection in fallback
+    classification_prompt = f"""
+    Analyze the following bot response and classify it:
+    
+    Available robot/drone commands: {actions_list}
+    
+    User message: "{user_message}"
+    Bot response: "{bot_response}"
+    
+    Classification rules:
+    - "rephrase": conversational response, greeting, explanation, or general chat (including phrases like 'here are the available ... actions')
+    - "commands": contains actual robot/drone action commands to execute
+    - Only include commands that exist in the available commands list
+    - Provide confidence score between 0.0 and 1.0
+    
+    Use the classify_response tool to provide your analysis.
+    """
+
+    try:
+        response = bedrock_runtime.converse(
+            modelId=config.NOVA_MODEL_ID,
+            messages=[{"role": "user", "content": [{"text": classification_prompt}]}],
+            toolConfig={
+                "tools": [classification_tool],
+                "toolChoice": {"tool": {"name": "classify_response"}},
+            },
+            inferenceConfig={"maxTokens": 200, "temperature": 0.1, "topP": 0.9},
+        )
+
+        # Extract tool use from response
+        message_content = response["output"]["message"]["content"]
+        for content in message_content:
+            if "toolUse" in content:
+                tool_input = content["toolUse"]["input"]
+
+                # Validate and filter commands
+                valid_commands = [
+                    cmd
+                    for cmd in tool_input.get("commands", [])
+                    if cmd in available_actions
+                ]
+
+                return {
+                    "type": tool_input["response_type"],
+                    "commands": valid_commands,
+                    "confidence": tool_input["confidence"],
+                }
+
+    except Exception as e:
+        print(f"Error in tool-based classification: {str(e)}")
+
+    # Fallback to simple keyword detection
+    return await _fallback_classification(bot_response, user_message)
+
+
+async def _fallback_classification(
+    bot_response: str, user_message: str
+) -> Dict[str, Any]:
+    """Fallback classification method using simple keyword detection"""
+    available_actions = await get_available_actions()
+    found_commands = []
+
+    # Check for commands in bot response
+    for word in bot_response.split():
+        clean_word = "".join(char for char in word if char.isalnum() or char == "_")
+        if clean_word in available_actions:
+            found_commands.append(clean_word)
+
+    # Check for comma-separated commands in user message
+    if "," in user_message:
+        direct_commands = [item.strip() for item in user_message.split(",")]
+        valid_direct_commands = [
+            cmd for cmd in direct_commands if cmd in available_actions
+        ]
+        if valid_direct_commands:
+            found_commands.extend(valid_direct_commands)
+
+    # Determine type based on found commands and response characteristics
+    if found_commands:
+        return {
+            "type": "commands",
+            "commands": list(set(found_commands)),
+            "confidence": 0.8,
+        }
+
+    # Check if response is conversational (contains common conversational patterns)
+    conversational_indicators = [
+        "i don't have",
+        "you can call me",
+        "feel free",
+        "let me know",
+        "here are the available",
+        "just let me know",
+        "i'll assist you",
+        "how can i help",
+        "what can i do",
+        "available actions",
+    ]
+
+    response_lower = bot_response.lower()
+    if any(indicator in response_lower for indicator in conversational_indicators):
+        return {"type": "rephrase", "commands": [], "confidence": 0.9}
+
+    # Default to rephrase if uncertain
+    return {"type": "rephrase", "commands": [], "confidence": 0.6}
+
+
 async def extract_actions_from_response(
     bot_response: str, user_message: str
 ) -> List[str]:
     """Extract action commands from bot response or user message"""
-    # Check if Nova's response contains any of our robot commands
-    potential_actions = []
-    available_actions = await get_available_actions()
-
-    for word in bot_response.split():
-        word = "".join(char for char in word if char.isalnum() or char == "_")
-        if word in available_actions:
-            potential_actions.append(word)
-
-    # If comma-separated commands are detected in the user input, prioritize those
-    if "," in user_message:
-        direct_commands = [item.strip() for item in user_message.split(",")]
-        valid_commands = [cmd for cmd in direct_commands if cmd in available_actions]
-
-        if valid_commands:
-            return valid_commands
-
-    return potential_actions
+    classification = await classify_response_type(bot_response, user_message)
+    return classification["commands"]

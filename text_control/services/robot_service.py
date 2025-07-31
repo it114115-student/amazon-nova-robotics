@@ -27,6 +27,7 @@ DEFAULT_ANGLE = 90  # degrees
 ACTION_DELAY = 0.1  # seconds
 ROBOT_RANGE = range(1, 10)
 DRONE_IDS = ["drone_1", "drone_2"]
+DOG_IDS = ["dog_1", "dog_2"]
 
 # Initialize AWS clients with retry configuration
 iot_client = boto3.client(
@@ -144,12 +145,62 @@ class DronePublisher(RobotPublisher):
             return False
 
 
+class DogPublisher(RobotPublisher):
+    """Publisher for dogs with movement and rotation mapping"""
+
+    def __init__(self):
+        self.action_mapping = {
+            "rotate_clockwise": {"action": "cw", "params": {"x": DEFAULT_ANGLE}},
+            "rotate_counterclockwise": {"action": "ccw", "params": {"x": DEFAULT_ANGLE}},
+        }
+
+    def _map_action_to_sdk(self, action: str) -> Dict[str, Any]:
+        """Map high-level action to dog SDK command"""
+        if action.startswith("move_"):
+            direction = action.replace("move_", "")
+            return {"action": direction, "params": {"x": DEFAULT_DISTANCE}}
+
+        return self.action_mapping.get(action, {"action": action, "params": {}})
+
+    def publish(self, robot_id: str, message: str) -> bool:
+        """Publish message to dog - one dog one topic"""
+        # Remove 'dog' prefix and convert to snake_case
+        processed_message = MessageTransformer.remove_prefix(message, "dog")
+        if processed_message is None:
+            logger.error("Invalid message format for dog %s: %s", robot_id, message)
+            return False
+
+        action = MessageTransformer.camel_to_snake_case(processed_message)
+        sdk_mapping = self._map_action_to_sdk(action)
+
+        data = {
+            "dogID": robot_id.lower(),
+            "action": sdk_mapping["action"],
+            "parameters": sdk_mapping["params"],
+        }
+
+        topic = f"{robot_id}/topic"  # one dog one topic
+        try:
+            iot_client.publish(
+                topic=topic,
+                qos=0,
+                retain=False,
+                payload=bytes(json.dumps(data), "utf-8"),
+            )
+            logger.info("Published to %s: %s", topic, data)
+            return True
+        except (ConnectionError, TimeoutError, Exception) as e:
+            logger.error("Error publishing to %s: %s", topic, e)
+            return False
+
+
 class RobotService:
     """Main service class for robot operations"""
 
     def __init__(self):
         self.robot_publisher = StandardRobotPublisher()
         self.drone_publisher = DronePublisher()
+        self.dog_publisher = DogPublisher()
 
     def _get_robot_ids(self) -> List[str]:
         """Get list of robot IDs"""
@@ -191,6 +242,15 @@ class RobotService:
 
             elif selected_robot in DRONE_IDS:
                 return self.drone_publisher.publish(selected_robot, message)
+
+            elif selected_robot == "dog_all":
+                # Execute action for all dogs in parallel
+                return self._execute_parallel_actions(
+                    DOG_IDS, message, self.dog_publisher
+                )
+
+            elif selected_robot in DOG_IDS:
+                return self.dog_publisher.publish(selected_robot, message)
 
             else:
                 return self.robot_publisher.publish(selected_robot, message)

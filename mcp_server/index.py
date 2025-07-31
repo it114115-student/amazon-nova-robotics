@@ -2,7 +2,11 @@ from enum import Enum
 from typing import Dict
 
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
-from services.iot_service import execute_drone_action, execute_robot_action
+from services.iot_service import (
+    execute_dog_action,
+    execute_drone_action,
+    execute_robot_action,
+)
 
 mcp = MCPLambdaHandler(name="robotics-mcp-server", version="1.0.0")
 
@@ -19,6 +23,12 @@ class RobotID(str, Enum):
     ROBOT_8 = "robot_8"
     ROBOT_9 = "robot_9"
     ROBOT_10 = "robot_10"
+
+
+class DogID(str, Enum):
+    ALL = "all"
+    DOG_1 = "dog_1"
+    DOG_2 = "dog_2"
 
 
 class DroneID(str, Enum):
@@ -70,6 +80,32 @@ class RobotExecutor:
             "parameters": sdk_params,
         }
         return execute_drone_action(message)
+
+    def execute_dog_action(self, dog_id: str, action: str, parameters: Dict = None):
+        if parameters is None:
+            parameters = {}
+        # Map high-level actions to dog commands (similar to drone but no flying/flipping)
+        sdk_action = None
+        sdk_params = None
+        if action.startswith("move_"):
+            direction = action.replace("move_", "")
+            sdk_action = direction  # left, right, forward, back (no up/down)
+            sdk_params = {"distance": parameters.get("x")}
+        elif action == "rotate_clockwise":
+            sdk_action = "cw"
+            sdk_params = {"angle": parameters.get("x")}
+        elif action == "rotate_counterclockwise":
+            sdk_action = "ccw"
+            sdk_params = {"angle": parameters.get("x")}
+        else:
+            sdk_action = action
+            sdk_params = parameters
+        message = {
+            "dogID": dog_id.lower(),
+            "action": sdk_action,
+            "parameters": sdk_params,
+        }
+        return execute_dog_action(message)
 
     def execute_action(self, robot_id: str, action: str) -> bool:
         """Execute a robot action"""
@@ -301,6 +337,108 @@ def drone_land(drone_id: DroneID) -> str:
     """
     robot_executor.execute_drone_action(drone_id, "land")
     return "The drone is landing."
+
+
+# Default distance for dog move commands (in cm)
+DOG_MOVE_DISTANCE_CM = 50
+
+
+@mcp.tool()
+def dog_move_left(dog_id: DogID) -> str:
+    """Command the dog to move left for DOG_MOVE_DISTANCE_CM cm.
+
+    Args:
+        dog_id (DogID): Dog ID
+
+    Returns:
+        str: The dog is moving left.
+    """
+    robot_executor.execute_dog_action(dog_id, "move_left", {"x": DOG_MOVE_DISTANCE_CM})
+    return f"The dog is moving left for {DOG_MOVE_DISTANCE_CM} cm."
+
+
+@mcp.tool()
+def dog_move_right(dog_id: DogID) -> str:
+    """Command the dog to move right for DOG_MOVE_DISTANCE_CM cm.
+
+    Args:
+        dog_id (DogID): Dog ID
+
+    Returns:
+        str: The dog is moving right.
+    """
+    robot_executor.execute_dog_action(dog_id, "move_right", {"x": DOG_MOVE_DISTANCE_CM})
+    return f"The dog is moving right for {DOG_MOVE_DISTANCE_CM} cm."
+
+
+@mcp.tool()
+def dog_move_forward(dog_id: DogID) -> str:
+    """Command the dog to move forward for DOG_MOVE_DISTANCE_CM cm.
+
+    Args:
+        dog_id (DogID): Dog ID
+
+    Returns:
+        str: The dog is moving forward.
+    """
+    robot_executor.execute_dog_action(
+        dog_id, "move_forward", {"x": DOG_MOVE_DISTANCE_CM}
+    )
+    return f"The dog is moving forward for {DOG_MOVE_DISTANCE_CM} cm."
+
+
+@mcp.tool()
+def dog_move_back(dog_id: DogID) -> str:
+    """Command the dog to move back for DOG_MOVE_DISTANCE_CM cm.
+
+    Args:
+        dog_id (DogID): Dog ID
+
+    Returns:
+        str: The dog is moving back.
+    """
+    robot_executor.execute_dog_action(dog_id, "move_back", {"x": DOG_MOVE_DISTANCE_CM})
+    return f"The dog is moving back for {DOG_MOVE_DISTANCE_CM} cm."
+
+
+@mcp.tool()
+def dog_turn_right(dog_id: DogID) -> str:
+    """Command the dog to turn right by a 90 degree angle.
+
+    Args:
+        dog_id (DogID): Dog ID
+    Returns:
+        str: The dog is turning right.
+    """
+    robot_executor.execute_dog_action(dog_id, "rotate_clockwise", {"x": 90})
+    return "The dog is turning right by 90 degrees."
+
+
+@mcp.tool()
+def dog_turn_left(dog_id: DogID) -> str:
+    """Command the dog to turn left by a 90 degree angle.
+
+    Args:
+        dog_id (DogID): Dog ID
+    Returns:
+        str: The dog is turning left.
+    """
+    robot_executor.execute_dog_action(dog_id, "rotate_counterclockwise", {"x": 90})
+    return "The dog is turning left by 90 degrees."
+
+
+@mcp.tool()
+def dog_turn_back(dog_id: DogID) -> str:
+    """Command the dog to turn back by 180 degrees.
+
+    Args:
+        dog_id (DogID): Dog ID
+
+    Returns:
+        str: The dog is turning back.
+    """
+    robot_executor.execute_dog_action(dog_id, "rotate_clockwise", {"x": 180})
+    return "The dog is turning back by 180 degrees."
 
 
 @mcp.tool()
@@ -819,6 +957,11 @@ def robot_wing_chun(robot_id: RobotID) -> str:
     """
     robot_executor.execute_action(robot_id, "wing_chun")
     return "The robot is performing Wing Chun moves."
+
+
+def handler(event, context):
+    """AWS Lambda handler function."""
+    return mcp.handle_request(event, context)
 
 
 def handler(event, context):
