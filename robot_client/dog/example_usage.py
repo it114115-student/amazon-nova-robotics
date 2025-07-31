@@ -6,8 +6,9 @@ This script demonstrates how to use the new dog robot API for various
 movement and control operations.
 """
 
-import time
 import logging
+import time
+
 from api import DogController
 
 # Configure logging
@@ -203,4 +204,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()    main()

@@ -5,9 +5,10 @@ This module provides movement command implementations for the dog robot,
 including directional movement, rotation, and posture controls.
 """
 
-import time
 import logging
-from typing import Dict, Any, Optional
+import time
+from typing import Any, Dict, Optional
+
 from .UDPComms import Publisher
 
 logger = logging.getLogger(__name__)
@@ -270,4 +271,4 @@ class MovementCommands:
         if duration:
             self.stop()
         
-        logger.info(f"Custom movement executed: {params}")
+        logger.info(f"Custom movement executed: {params}")        logger.info(f"Custom movement executed: {params}")

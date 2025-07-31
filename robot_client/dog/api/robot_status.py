@@ -6,7 +6,8 @@ walking mode, and dancing mode toggles.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
+
 from .UDPComms import Publisher
 
 logger = logging.getLogger(__name__)
@@ -122,4 +123,4 @@ class RobotStatus:
         This can be used for additional custom behaviors.
         """
         self._send_status_command(R2=1)
-        logger.info("R2 action triggered")
+        logger.info("R2 action triggered")        logger.info("R2 action triggered")

@@ -22,105 +22,101 @@ logger = logging.getLogger(__name__)
 actions: Dict[str, Dict[str, Any]] = {
     # Basic movement actions
     "left": {
-        "sleep_time": 2.0, 
+        "sleep_time": 2.0,
         "name": "left",
         "type": "movement",
         "default_speed": 0.5,
-        "description": "Move robot left"
+        "description": "Move robot left",
     },
     "right": {
-        "sleep_time": 2.0, 
+        "sleep_time": 2.0,
         "name": "right",
-        "type": "movement", 
+        "type": "movement",
         "default_speed": 0.5,
-        "description": "Move robot right"
+        "description": "Move robot right",
     },
     "forward": {
-        "sleep_time": 2.0, 
+        "sleep_time": 2.0,
         "name": "forward",
         "type": "movement",
         "default_speed": 0.5,
-        "description": "Move robot forward"
+        "description": "Move robot forward",
     },
     "back": {
-        "sleep_time": 2.0, 
+        "sleep_time": 2.0,
         "name": "back",
         "type": "movement",
         "default_speed": 0.5,
-        "description": "Move robot backward"
+        "description": "Move robot backward",
     },
-    
     # Rotation actions
     "cw": {
-        "sleep_time": 2.0, 
+        "sleep_time": 2.0,
         "name": "cw",
         "type": "rotation",
         "default_speed": 0.5,
-        "description": "Rotate robot clockwise"
+        "description": "Rotate robot clockwise",
     },
     "ccw": {
-        "sleep_time": 2.0, 
+        "sleep_time": 2.0,
         "name": "ccw",
         "type": "rotation",
         "default_speed": 0.5,
-        "description": "Rotate robot counter-clockwise"
+        "description": "Rotate robot counter-clockwise",
     },
-    
     # Posture actions
     "stand_up": {
         "sleep_time": 2.0,
         "name": "stand_up",
         "type": "posture",
         "default_speed": 0.5,
-        "description": "Make robot stand up"
+        "description": "Make robot stand up",
     },
     "lay_down": {
         "sleep_time": 2.0,
-        "name": "lay_down", 
+        "name": "lay_down",
         "type": "posture",
         "default_speed": 0.5,
-        "description": "Make robot lay down"
+        "description": "Make robot lay down",
     },
     "hop": {
         "sleep_time": 1.5,
         "name": "hop",
         "type": "special",
-        "description": "Make robot hop"
+        "description": "Make robot hop",
     },
-    
     # Status actions
     "activate": {
         "sleep_time": 1.0,
         "name": "activate",
         "type": "status",
-        "description": "Toggle robot activation"
+        "description": "Toggle robot activation",
     },
     "walk_mode": {
         "sleep_time": 1.0,
         "name": "walk_mode",
-        "type": "status", 
-        "description": "Toggle walking mode"
+        "type": "status",
+        "description": "Toggle walking mode",
     },
     "dance_mode": {
         "sleep_time": 1.0,
         "name": "dance_mode",
         "type": "status",
-        "description": "Toggle dancing mode"
+        "description": "Toggle dancing mode",
     },
     "stop": {
         "sleep_time": 0.5,
         "name": "stop",
         "type": "control",
-        "description": "Stop all movement"
+        "description": "Stop all movement",
     },
-    
     # Advanced actions
     "custom_movement": {
         "sleep_time": 2.0,
         "name": "custom_movement",
         "type": "movement",
-        "description": "Execute custom movement pattern"
-    }
+        "description": "Execute custom movement pattern",
+    },
 }
 
 # Idle action state
@@ -130,22 +126,22 @@ idle_action: Dict[str, Any] = {"name": None, "sleep_time": 0, "type": "idle"}
 class DogActionExecutor:
     """
     Enhanced action executor for dog robots with improved API integration.
-    
+
     This class manages a queue of actions to be executed on the dog robot,
     using the new DogController API for better control and error handling.
     """
 
     def __init__(
-        self, 
-        robot_name: str, 
-        simulator_endpoint: str = "", 
+        self,
+        robot_name: str,
+        simulator_endpoint: str = "",
         session_key: str = "",
         robot_ip: str = "127.0.0.1",
-        robot_port: int = 8830
+        robot_port: int = 8830,
     ) -> None:
         """
         Initialize the DogActionExecutor.
-        
+
         Args:
             robot_name: Name/ID of the robot
             simulator_endpoint: Optional simulator endpoint for dual control
@@ -157,7 +153,7 @@ class DogActionExecutor:
         self.simulator_endpoint = simulator_endpoint
         self.session_key = session_key
         self.logger = logging.getLogger(__name__)
-        
+
         # Initialize dog controller
         try:
             self.dog_controller = DogController(ip=robot_ip, port=robot_port)
@@ -165,7 +161,7 @@ class DogActionExecutor:
         except Exception as e:
             self.logger.error(f"Failed to initialize dog controller: {e}")
             self.dog_controller = None
-        
+
         # Queue and threading setup
         self.action_queue: queue.Queue = queue.Queue()
         self.current_action: Dict[str, Any] = idle_action.copy()
@@ -173,32 +169,32 @@ class DogActionExecutor:
         self._immediate_stop_event = threading.Event()
         self.queue_lock = threading.Lock()
         self._stop_event = threading.Event()
-        
+
         # Action execution statistics
         self.execution_stats = {
-            'total_actions': 0,
-            'successful_actions': 0,
-            'failed_actions': 0,
-            'last_action_time': None
+            "total_actions": 0,
+            "successful_actions": 0,
+            "failed_actions": 0,
+            "last_action_time": None,
         }
-        
+
         # Start consumer thread
         self.consumer_thread = threading.Thread(target=self._consumer, daemon=True)
         self.consumer_thread.start()
-        
+
         self.logger.info(f"DogActionExecutor initialized for robot: {robot_name}")
 
     def __init__(
-        self, 
-        robot_name: str, 
-        simulator_endpoint: str = "", 
+        self,
+        robot_name: str,
+        simulator_endpoint: str = "",
         session_key: str = "",
         robot_ip: str = "127.0.0.1",
-        robot_port: int = 8830
+        robot_port: int = 8830,
     ) -> None:
         """
         Initialize the DogActionExecutor.
-        
+
         Args:
             robot_name: Name/ID of the robot
             simulator_endpoint: Optional simulator endpoint for dual control
@@ -211,7 +207,7 @@ class DogActionExecutor:
         self.session_key = session_key
         self.logger = logging.getLogger(__name__)
         self._walking_mode_enabled = False  # Track walking mode state
-        
+
         # Initialize dog controller
         try:
             self.dog_controller = DogController(ip=robot_ip, port=robot_port)
@@ -219,7 +215,7 @@ class DogActionExecutor:
         except Exception as e:
             self.logger.error(f"Failed to initialize dog controller: {e}")
             self.dog_controller = None
-        
+
         # Queue and threading setup
         self.action_queue: queue.Queue = queue.Queue()
         self.current_action: Dict[str, Any] = idle_action.copy()
@@ -227,19 +223,19 @@ class DogActionExecutor:
         self._immediate_stop_event = threading.Event()
         self.queue_lock = threading.Lock()
         self._stop_event = threading.Event()
-        
+
         # Action execution statistics
         self.execution_stats = {
-            'total_actions': 0,
-            'successful_actions': 0,
-            'failed_actions': 0,
-            'last_action_time': None
+            "total_actions": 0,
+            "successful_actions": 0,
+            "failed_actions": 0,
+            "last_action_time": None,
         }
-        
+
         # Start consumer thread
         self.consumer_thread = threading.Thread(target=self._consumer, daemon=True)
         self.consumer_thread.start()
-        
+
         self.logger.info(f"DogActionExecutor initialized for robot: {robot_name}")
 
     def _execute_dog_action(
@@ -247,25 +243,25 @@ class DogActionExecutor:
     ) -> bool:
         """
         Execute an action using the DogController API.
-        
+
         Args:
             action_name: Name of the action to execute
             parameters: Optional parameters for the action
-            
+
         Returns:
             True if action executed successfully, False otherwise
         """
         if not self.dog_controller:
             self.logger.error("Dog controller not available")
             return False
-            
+
         try:
             # Extract parameters
-            speed = 1.0 # parameters.get('speed', 0.5) if parameters else 1.0
-            duration = 2.0 #parameters.get('duration') if parameters else 2.0
-            distance = 1.0 #parameters.get('distance') if parameters else None
-            angle = parameters.get('angle') if parameters else None
-            
+            speed = 1.0  # parameters.get('speed', 0.5) if parameters else 1.0
+            duration = 2.0  # parameters.get('duration') if parameters else 2.0
+            distance = 1.0  # parameters.get('distance') if parameters else None
+            angle = parameters.get("angle") if parameters else None
+
             # Normalize speed parameter from distance/angle if provided
             # if distance and not parameters.get('speed'):
             #     speed = min(1.0, max(0.1, abs(distance) / 100.0))  # Scale distance to speed
@@ -275,24 +271,36 @@ class DogActionExecutor:
             # Handle walking mode for movement actions
             if action_name in ["forward", "back", "left", "right", "cw", "ccw"]:
                 if not self._walking_mode_enabled:
-                    self.logger.info("Walking mode is not enabled, enabling it permanently...")
+                    self.logger.info(
+                        "Walking mode is not enabled, enabling it permanently..."
+                    )
                     self.dog_controller.enable_walking()
                     time.sleep(2)  # Allow time for walking mode to activate
                     self._walking_mode_enabled = True
-                    self.logger.info("Walking mode enabled permanently for movement actions")
-            
-            self.logger.info(f"Executing dog action: {action_name} with speed={speed}, duration={duration}, parameters={parameters}")
+                    self.logger.info(
+                        "Walking mode enabled permanently for movement actions"
+                    )
+
+            self.logger.info(
+                f"Executing dog action: {action_name} with speed={speed}, duration={duration}, parameters={parameters}"
+            )
             # Execute action based on type
             if action_name == "forward":
-                self.dog_controller.movement.move_forward(speed=speed, duration=duration)
+                self.dog_controller.movement.move_forward(
+                    speed=speed, duration=duration
+                )
             elif action_name == "back":
-                self.dog_controller.movement.move_backward(speed=speed, duration=duration)
+                self.dog_controller.movement.move_backward(
+                    speed=speed, duration=duration
+                )
             elif action_name == "left":
                 self.dog_controller.movement.move_left(speed=speed, duration=duration)
             elif action_name == "right":
                 self.dog_controller.movement.move_right(speed=speed, duration=duration)
             elif action_name == "cw":
-                self.dog_controller.movement.rotate_right(speed=speed, duration=duration)
+                self.dog_controller.movement.rotate_right(
+                    speed=speed, duration=duration
+                )
             elif action_name == "ccw":
                 self.dog_controller.movement.rotate_left(speed=speed, duration=duration)
             elif action_name == "stand_up":
@@ -305,48 +313,53 @@ class DogActionExecutor:
             elif action_name == "activate":
                 self.dog_controller.activate()
             elif action_name == "walk_mode":
+                self._walking_mode_enabled = not self._walking_mode_enabled
                 self.dog_controller.enable_walking()
             elif action_name == "dance_mode":
                 self.dog_controller.enable_dancing()
             elif action_name == "stop":
-                # For stop action, preserve the walking mode state
-                was_walking = self.dog_controller.is_walking_enabled()
                 self.dog_controller.stop_all()
-                if was_walking:
+                if self._walking_mode_enabled:
                     self.dog_controller.enable_walking()
+                self._walking_mode_enabled = False
             elif action_name == "custom_movement":
                 # Handle custom movement with multiple parameters
-                lx = parameters.get('lx', 0.0)
-                ly = parameters.get('ly', 0.0) 
-                rx = parameters.get('rx', 0.0)
-                ry = parameters.get('ry', 0.0)
-                dpadx = parameters.get('dpadx', 0.0)
-                dpady = parameters.get('dpady', 0.0)
+                lx = parameters.get("lx", 0.0)
+                ly = parameters.get("ly", 0.0)
+                rx = parameters.get("rx", 0.0)
+                ry = parameters.get("ry", 0.0)
+                dpadx = parameters.get("dpadx", 0.0)
+                dpady = parameters.get("dpady", 0.0)
                 self.dog_controller.movement.custom_movement(
-                    lx=lx, ly=ly, rx=rx, ry=ry, 
-                    dpadx=dpadx, dpady=dpady, duration=duration
+                    lx=lx,
+                    ly=ly,
+                    rx=rx,
+                    ry=ry,
+                    dpadx=dpadx,
+                    dpady=dpady,
+                    duration=duration,
                 )
             else:
                 self.logger.error(f"Unknown action: {action_name}")
                 return False
-                
+
             self.logger.info(f"Dog action '{action_name}' executed successfully")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error executing dog action '{action_name}': {e}")
             return False
-    
+
     def _stop_dog_action(self) -> bool:
         """
         Stop current dog action.
-        
+
         Returns:
             True if stop was successful, False otherwise
         """
         if not self.dog_controller:
             return False
-            
+
         try:
             self.dog_controller.stop_all()
             self.logger.info("Dog action stopped successfully")
@@ -358,49 +371,49 @@ class DogActionExecutor:
     def _execute_action(self, action_item: Dict[str, Any]) -> None:
         """
         Execute a single action from the queue.
-        
+
         Args:
             action_item: Dictionary containing action details and parameters
         """
         action_name = action_item["name"]
         action_config = actions[action_name]
-        
+
         # Update current action status
         self.current_action = {
             "name": action_config["name"],
             "sleep_time": action_config["sleep_time"],
             "type": action_config["type"],
-            "start_time": time.time()
+            "start_time": time.time(),
         }
-        
+
         success = False
         try:
             # Update statistics
-            self.execution_stats['total_actions'] += 1
-            self.execution_stats['last_action_time'] = time.time()
-            
+            self.execution_stats["total_actions"] += 1
+            self.execution_stats["last_action_time"] = time.time()
+
             # Get parameters from action item
             parameters = action_item.get("parameters", {})
-            
+
             # Execute the action using dog controller
             success = self._execute_dog_action(action_name, parameters)
-            
+
             # Also send to simulator if configured
             if self.simulator_endpoint and success:
                 self._send_to_simulator(action_name)
-            
+
             if success:
-                self.execution_stats['successful_actions'] += 1
+                self.execution_stats["successful_actions"] += 1
             else:
-                self.execution_stats['failed_actions'] += 1
-            
+                self.execution_stats["failed_actions"] += 1
+
             # Wait for action completion with interrupt capability
             sleep_time = action_config["sleep_time"]
-            
+
             # Override sleep time if duration is specified in parameters
             if "duration" in parameters:
                 sleep_time = parameters["duration"]
-            
+
             elapsed = 0.0
             while elapsed < sleep_time:
                 if self._immediate_stop_event.is_set():
@@ -410,15 +423,15 @@ class DogActionExecutor:
                     break
                 time.sleep(0.1)
                 elapsed += 0.1
-                
+
         except Exception as e:
             self.logger.error(f"Error executing action {action_name}: {e}")
-            self.execution_stats['failed_actions'] += 1
+            self.execution_stats["failed_actions"] += 1
         finally:
             # Clean up
             self._remove_action_by_id(action_item["id"])
             self.current_action = idle_action.copy()
-            
+
             # Log execution result
             status = "SUCCESS" if success else "FAILED"
             self.logger.info(f"Action {action_name} completed: {status}")
@@ -439,29 +452,31 @@ class DogActionExecutor:
     def _consumer(self) -> None:
         """
         Continuously consume actions from the queue and execute them.
-        
+
         This method runs in a separate thread and processes actions sequentially.
         """
         self.logger.info("Action consumer thread started")
-        
+
         # Align to 5-second boundary for consistent timing
         time.sleep(5 - time.time() % 5)
-        
+
         while not self._stop_event.is_set():
             try:
                 # Check for immediate stop
                 if self._immediate_stop_event.is_set():
-                    self.logger.info("Immediate stop triggered, clearing queue and setting to idle")
+                    self.logger.info(
+                        "Immediate stop triggered, clearing queue and setting to idle"
+                    )
                     self.clear_action_queue()
                     self.current_action = idle_action.copy()
                     self.is_running = False
                     self._immediate_stop_event.clear()
                     time.sleep(0.5)
                     continue
-                
+
                 # Align to 1-second boundary for consistent timing
                 time.sleep(1 - time.time() % 1)
-                
+
                 # Try to get an action from the queue
                 try:
                     action_item = self.action_queue.get(timeout=1)
@@ -471,45 +486,49 @@ class DogActionExecutor:
                 except queue.Empty:
                     self.is_running = False
                     time.sleep(0.5)
-                    
+
             except Exception as e:
                 self.logger.error(f"Error in consumer thread: {e}")
                 self.is_running = False
                 time.sleep(1)
-        
+
         self.logger.info("Action consumer thread stopped")
-    
+
     def get_execution_stats(self) -> Dict[str, Any]:
         """
         Get execution statistics.
-        
+
         Returns:
             Dictionary containing execution statistics
         """
         stats = self.execution_stats.copy()
-        if stats['total_actions'] > 0:
-            stats['success_rate'] = (stats['successful_actions'] / stats['total_actions']) * 100
+        if stats["total_actions"] > 0:
+            stats["success_rate"] = (
+                stats["successful_actions"] / stats["total_actions"]
+            ) * 100
         else:
-            stats['success_rate'] = 0.0
+            stats["success_rate"] = 0.0
         return stats
-    
+
     def get_available_actions(self) -> Dict[str, Dict[str, Any]]:
         """
         Get list of available actions with their configurations.
-        
+
         Returns:
             Dictionary of available actions and their configurations
         """
         return actions.copy()
 
-    def add_action_to_queue(self, action_name: str, parameters: Dict[str, Any] = None) -> str:
+    def add_action_to_queue(
+        self, action_name: str, parameters: Dict[str, Any] = None
+    ) -> str:
         """
         Add a new action to the queue.
-        
+
         Args:
             action_name: Name of the action to execute
             parameters: Optional parameters for the action
-            
+
         Returns:
             Action ID for tracking purposes
         """
@@ -537,40 +556,42 @@ class DogActionExecutor:
                 "name": action_name,
                 "parameters": processed_parameters,
                 "timestamp": time.time(),
-                "type": actions[action_name]["type"]
+                "type": actions[action_name]["type"],
             }
-            
+
             self.action_queue.put(action_item)
-            
+
         self.logger.info(f"Action '{action_name}' added to queue with ID: {action_id}")
         return action_id
-    
-    def _process_parameters(self, action_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _process_parameters(
+        self, action_name: str, parameters: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Process and validate parameters for an action.
-        
+
         Args:
             action_name: Name of the action
             parameters: Raw parameters
-            
+
         Returns:
             Processed and validated parameters
         """
         processed = parameters.copy()
         action_config = actions[action_name]
-        
+
         # Set default speed if not provided
         if "speed" not in processed and "default_speed" in action_config:
             processed["speed"] = action_config["default_speed"]
-        
+
         # Validate speed parameter
         if "speed" in processed:
             processed["speed"] = max(0.1, min(1.0, float(processed["speed"])))
-        
+
         # Validate duration parameter
         if "duration" in processed:
             processed["duration"] = max(0.1, float(processed["duration"]))
-        
+
         # Handle distance parameter for movement actions
         if "distance" in processed and action_config["type"] == "movement":
             distance = abs(float(processed["distance"]))
@@ -578,7 +599,7 @@ class DogActionExecutor:
             # Convert distance to duration if not specified
             if "duration" not in processed:
                 processed["duration"] = min(5.0, max(0.5, distance / 50.0))
-        
+
         # Handle angle parameter for rotation actions
         if "angle" in processed and action_config["type"] == "rotation":
             angle = abs(float(processed["angle"]))
@@ -586,7 +607,7 @@ class DogActionExecutor:
             # Convert angle to duration if not specified
             if "duration" not in processed:
                 processed["duration"] = min(5.0, max(0.5, angle / 90.0))
-        
+
         return processed
 
     def remove_action_from_queue(self, action_id: str) -> None:
@@ -601,33 +622,37 @@ class DogActionExecutor:
     def get_queue_status(self) -> Dict[str, Any]:
         """
         Get the current status of the action queue.
-        
+
         Returns:
             Dictionary containing queue status information
         """
         with self.queue_lock:
             queue_items = list(self.action_queue.queue)
-        
+
         return {
             "queue": queue_items,
             "queue_size": len(queue_items),
             "current_action": self.current_action,
             "is_running": self.is_running,
-            "robot_status": self.dog_controller.get_status() if self.dog_controller else None,
-            "execution_stats": self.get_execution_stats()
+            "robot_status": (
+                self.dog_controller.get_status() if self.dog_controller else None
+            ),
+            "execution_stats": self.get_execution_stats(),
         }
 
     def stop(self) -> None:
         """
         Stop all actions immediately and clear the queue.
-        
+
         This method triggers an immediate stop of the current action
         and clears all pending actions from the queue while preserving walking mode.
         """
-        self.logger.info("Immediate stop requested: clearing queue and interrupting current action")
+        self.logger.info(
+            "Immediate stop requested: clearing queue and interrupting current action"
+        )
         self._immediate_stop_event.set()
         self.clear_action_queue()
-        
+
         # Also stop the dog controller if available
         if self.dog_controller:
             try:
@@ -644,33 +669,33 @@ class DogActionExecutor:
     def shutdown(self) -> None:
         """
         Gracefully shutdown the action executor.
-        
+
         This method stops the consumer thread and cleans up resources.
         """
         self.logger.info("Shutting down action executor...")
-        
+
         # Stop the consumer thread
         self._stop_event.set()
-        
+
         # Clear any remaining actions
         self.clear_action_queue()
-        
+
         # Stop current action
         self.stop()
-        
+
         # Wait for consumer thread to finish
         if self.consumer_thread.is_alive():
             self.consumer_thread.join(timeout=5)
             if self.consumer_thread.is_alive():
                 self.logger.warning("Consumer thread did not shut down gracefully")
-        
+
         self.logger.info("Action executor shutdown complete")
-    
+
     def pause_execution(self) -> None:
         """Pause action execution without clearing the queue."""
         self._immediate_stop_event.set()
         self.logger.info("Action execution paused")
-    
+
     def resume_execution(self) -> None:
         """Resume action execution."""
         self._immediate_stop_event.clear()
@@ -699,7 +724,9 @@ class DogActionExecutor:
             return None
 
         if log_success_msg is None:
-            log_success_msg = f"Simulator action {action_name} for robot {self.robot_name} successful"
+            log_success_msg = (
+                f"Simulator action {action_name} for robot {self.robot_name} successful"
+            )
         if log_error_msg is None:
             log_error_msg = f"Error sending action {action_name} to simulator for robot {self.robot_name}"
 
@@ -722,7 +749,9 @@ class DogActionExecutor:
             )
             response.raise_for_status()
             resp_json = response.json()
-            self.logger.info(f"{self.robot_name} - {log_success_msg}. Response: {resp_json}")
+            self.logger.info(
+                f"{self.robot_name} - {log_success_msg}. Response: {resp_json}"
+            )
             return resp_json
         except requests.exceptions.RequestException as e:
             self.logger.error(f"{log_error_msg}: {e}")

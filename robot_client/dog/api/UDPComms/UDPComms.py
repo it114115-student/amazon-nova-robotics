@@ -1,22 +1,19 @@
-
 """
 This is a simple library to enable communication between different processes (potentially on different machines) over a network using UDP. It's goals a simplicity and easy of understanding and reliability
 
 mikadam@stanford.edu
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+
+from __future__ import absolute_import, division, print_function
 
 import socket
 import struct
 from collections import namedtuple
+from sys import version_info
 
 import msgpack
 
-from sys import version_info
-
-USING_PYTHON_2 = (version_info[0] < 3)
+USING_PYTHON_2 = version_info[0] < 3
 if USING_PYTHON_2:
     from time import time as monotonic
 else:
@@ -28,9 +25,10 @@ MAX_SIZE = 65507
 
 DEFAULT_IP = "10.0.0.255"
 
+
 class Publisher:
-    def __init__(self, port, ip = DEFAULT_IP):
-        """ Create a Publisher Object
+    def __init__(self, port, ip=DEFAULT_IP):
+        """Create a Publisher Object
 
         Arguments:
             port         -- the port to publish the messages on
@@ -47,7 +45,7 @@ class Publisher:
         self.port = port
 
     def send(self, obj):
-        """ Publish a message. The obj can be any nesting of standard python types """
+        """Publish a message. The obj can be any nesting of standard python types"""
         msg = msgpack.dumps(obj, use_bin_type=False)
         assert len(msg) < MAX_SIZE, "Encoded message too big!"
         self.sock.send(msg)
@@ -58,7 +56,7 @@ class Publisher:
 
 class Subscriber:
     def __init__(self, port, timeout=0.2):
-        """ Create a Subscriber Object
+        """Create a Subscriber Object
 
         Arguments:
             port         -- the port to listen to messages on
@@ -70,9 +68,9 @@ class Subscriber:
         self.timeout = timeout
 
         self.last_data = None
-        self.last_time = float('-inf')
+        self.last_time = float("-inf")
 
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if hasattr(socket, "SO_REUSEPORT"):
@@ -82,8 +80,9 @@ class Subscriber:
         self.sock.bind(("", port))
 
     def recv(self):
-        """ Receive a single message from the socket buffer. It blocks for up to timeout seconds.
-        If no message is received before timeout it raises a UDPComms.timeout exception"""
+        """Receive a single message from the socket buffer. It blocks for up to timeout seconds.
+        If no message is received before timeout it raises a UDPComms.timeout exception
+        """
 
         try:
             self.last_data, address = self.sock.recvfrom(self.max_size)
@@ -94,8 +93,8 @@ class Subscriber:
         return msgpack.loads(self.last_data, raw=USING_PYTHON_2)
 
     def get(self):
-        """ Returns the latest message it can without blocking. If the latest massage is 
-            older then timeout seconds it raises a UDPComms.timeout exception"""
+        """Returns the latest message it can without blocking. If the latest massage is
+        older then timeout seconds it raises a UDPComms.timeout exception"""
         try:
             self.sock.settimeout(0)
             while True:
@@ -110,12 +109,17 @@ class Subscriber:
         if (current_time - self.last_time) < self.timeout:
             return msgpack.loads(self.last_data, raw=USING_PYTHON_2)
         else:
-            raise socket.timeout("timeout=" + str(self.timeout) + \
-                                 ", last message time=" + str(self.last_time) + \
-                                 ", current time=" + str(current_time))
+            raise socket.timeout(
+                "timeout="
+                + str(self.timeout)
+                + ", last message time="
+                + str(self.last_time)
+                + ", current time="
+                + str(current_time)
+            )
 
     def get_list(self):
-        """ Returns list of messages, in the order they were received"""
+        """Returns list of messages, in the order they were received"""
         msg_bufer = []
         try:
             self.sock.settimeout(0)
@@ -136,7 +140,7 @@ class Subscriber:
 
 
 if __name__ == "__main__":
-    msg = 'very important data'
+    msg = "very important data"
 
     a = Publisher(1000)
-    a.send( {"text": "magic", "number":5.5, "bool":False} )
+    a.send({"text": "magic", "number": 5.5, "bool": False})

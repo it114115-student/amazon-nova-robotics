@@ -68,7 +68,7 @@ class PubSubClient:
                 # Handle both old format (toolName) and new format (dogID, action, parameters)
                 action_name = payload.get("toolName")
                 parameters = None
-                
+
                 if not action_name:
                     # New format from MCP server
                     action_name = payload.get("action")
@@ -266,8 +266,8 @@ def main():
             robot_name=robot_name,
             simulator_endpoint=settings.get("simulator_endpoint", ""),
             session_key=settings.get("session_key", ""),
-            robot_ip=settings.get("robot_ip", "192.168.137.41"),
-            robot_port=settings.get("robot_port", 8830)
+            robot_ip="127.255.255.255",
+            robot_port=settings.get("robot_port", 8830),
         )
         client = PubSubClient(settings, executor)
         client.run()
