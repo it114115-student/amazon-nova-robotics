@@ -9,6 +9,11 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from config import DEFAULT_ROBOT_IP, DEFAULT_ROBOT_PORT
 from .movement_commands import MovementCommands
 from .robot_status import RobotStatus
 from .UDPComms import Publisher
@@ -19,7 +24,7 @@ logger = logging.getLogger(__name__)
 class DogController:
     """Main controller for dog robot operations."""
 
-    def __init__(self, ip: str = "127.255.255.255", port: int = 8830):
+    def __init__(self, ip: str = DEFAULT_ROBOT_IP, port: int = DEFAULT_ROBOT_PORT):
         """
         Initialize the dog controller.
 
@@ -29,15 +34,19 @@ class DogController:
         """
         self.ip = ip
         self.port = port
-        print(f"Initializing DogController with IP: {ip}, Port: {port}")
-        self.publisher = Publisher(port, ip)
-        self.movement = MovementCommands(self.publisher)
-        self.status = RobotStatus(self.publisher)
-        self._is_activated = False
-        self._is_walking = False
-        self._is_dancing = False
-
-        logger.info(f"Dog controller initialized for {ip}:{port}")
+        
+        try:
+            self.publisher = Publisher(port, ip)
+            self.movement = MovementCommands(self.publisher)
+            self.status = RobotStatus(self.publisher)
+            self._is_activated = False
+            self._is_walking = False
+            self._is_dancing = False
+            
+            logger.info(f"Dog controller initialized for {ip}:{port}")
+        except Exception as e:
+            logger.error(f"Failed to initialize dog controller: {e}")
+            raise
 
     def send_command(self, command: Dict[str, Any]) -> None:
         """

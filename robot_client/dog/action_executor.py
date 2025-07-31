@@ -15,6 +15,14 @@ from uuid import uuid4
 
 import requests
 from api import DogController
+from config import (
+    DEFAULT_ACTION_SLEEP_TIME,
+    DEFAULT_SPEED,
+    HOP_ACTION_SLEEP_TIME,
+    STATUS_ACTION_SLEEP_TIME,
+    STOP_ACTION_SLEEP_TIME,
+    ActionType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,105 +30,105 @@ logger = logging.getLogger(__name__)
 actions: Dict[str, Dict[str, Any]] = {
     # Basic movement actions
     "left": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "left",
-        "type": "movement",
-        "default_speed": 0.5,
+        "type": ActionType.MOVEMENT,
+        "default_speed": DEFAULT_SPEED,
         "description": "Move robot left",
     },
     "right": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "right",
-        "type": "movement",
-        "default_speed": 0.5,
+        "type": ActionType.MOVEMENT,
+        "default_speed": DEFAULT_SPEED,
         "description": "Move robot right",
     },
     "forward": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "forward",
-        "type": "movement",
-        "default_speed": 0.5,
+        "type": ActionType.MOVEMENT,
+        "default_speed": DEFAULT_SPEED,
         "description": "Move robot forward",
     },
     "back": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "back",
-        "type": "movement",
-        "default_speed": 0.5,
+        "type": ActionType.MOVEMENT,
+        "default_speed": DEFAULT_SPEED,
         "description": "Move robot backward",
     },
     # Rotation actions
     "cw": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "cw",
-        "type": "rotation",
-        "default_speed": 0.5,
+        "type": ActionType.ROTATION,
+        "default_speed": DEFAULT_SPEED,
         "description": "Rotate robot clockwise",
     },
     "ccw": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "ccw",
-        "type": "rotation",
-        "default_speed": 0.5,
+        "type": ActionType.ROTATION,
+        "default_speed": DEFAULT_SPEED,
         "description": "Rotate robot counter-clockwise",
     },
     # Posture actions
     "stand_up": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "stand_up",
-        "type": "posture",
-        "default_speed": 0.5,
+        "type": ActionType.POSTURE,
+        "default_speed": DEFAULT_SPEED,
         "description": "Make robot stand up",
     },
     "lay_down": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "lay_down",
-        "type": "posture",
-        "default_speed": 0.5,
+        "type": ActionType.POSTURE,
+        "default_speed": DEFAULT_SPEED,
         "description": "Make robot lay down",
     },
     "hop": {
-        "sleep_time": 1.5,
+        "sleep_time": HOP_ACTION_SLEEP_TIME,
         "name": "hop",
-        "type": "special",
+        "type": ActionType.SPECIAL,
         "description": "Make robot hop",
     },
     # Status actions
     "activate": {
-        "sleep_time": 1.0,
+        "sleep_time": STATUS_ACTION_SLEEP_TIME,
         "name": "activate",
-        "type": "status",
+        "type": ActionType.STATUS,
         "description": "Toggle robot activation",
     },
     "walk_mode": {
-        "sleep_time": 1.0,
+        "sleep_time": STATUS_ACTION_SLEEP_TIME,
         "name": "walk_mode",
-        "type": "status",
+        "type": ActionType.STATUS,
         "description": "Toggle walking mode",
     },
     "dance_mode": {
-        "sleep_time": 1.0,
+        "sleep_time": STATUS_ACTION_SLEEP_TIME,
         "name": "dance_mode",
-        "type": "status",
+        "type": ActionType.STATUS,
         "description": "Toggle dancing mode",
     },
     "stop": {
-        "sleep_time": 0.5,
+        "sleep_time": STOP_ACTION_SLEEP_TIME,
         "name": "stop",
-        "type": "control",
+        "type": ActionType.CONTROL,
         "description": "Stop all movement",
     },
     # Advanced actions
     "custom_movement": {
-        "sleep_time": 2.0,
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
         "name": "custom_movement",
-        "type": "movement",
+        "type": ActionType.MOVEMENT,
         "description": "Execute custom movement pattern",
     },
 }
 
 # Idle action state
-idle_action: Dict[str, Any] = {"name": None, "sleep_time": 0, "type": "idle"}
+idle_action: Dict[str, Any] = {"name": None, "sleep_time": 0, "type": ActionType.IDLE}
 
 
 class DogActionExecutor:
@@ -130,59 +138,6 @@ class DogActionExecutor:
     This class manages a queue of actions to be executed on the dog robot,
     using the new DogController API for better control and error handling.
     """
-
-    def __init__(
-        self,
-        robot_name: str,
-        simulator_endpoint: str = "",
-        session_key: str = "",
-        robot_ip: str = "127.0.0.1",
-        robot_port: int = 8830,
-    ) -> None:
-        """
-        Initialize the DogActionExecutor.
-
-        Args:
-            robot_name: Name/ID of the robot
-            simulator_endpoint: Optional simulator endpoint for dual control
-            session_key: Optional session key for simulator
-            robot_ip: IP address of the physical robot
-            robot_port: UDP port for robot communication
-        """
-        self.robot_name = robot_name
-        self.simulator_endpoint = simulator_endpoint
-        self.session_key = session_key
-        self.logger = logging.getLogger(__name__)
-
-        # Initialize dog controller
-        try:
-            self.dog_controller = DogController(ip=robot_ip, port=robot_port)
-            self.logger.info(f"Dog controller initialized for {robot_ip}:{robot_port}")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize dog controller: {e}")
-            self.dog_controller = None
-
-        # Queue and threading setup
-        self.action_queue: queue.Queue = queue.Queue()
-        self.current_action: Dict[str, Any] = idle_action.copy()
-        self.is_running: bool = False
-        self._immediate_stop_event = threading.Event()
-        self.queue_lock = threading.Lock()
-        self._stop_event = threading.Event()
-
-        # Action execution statistics
-        self.execution_stats = {
-            "total_actions": 0,
-            "successful_actions": 0,
-            "failed_actions": 0,
-            "last_action_time": None,
-        }
-
-        # Start consumer thread
-        self.consumer_thread = threading.Thread(target=self._consumer, daemon=True)
-        self.consumer_thread.start()
-
-        self.logger.info(f"DogActionExecutor initialized for robot: {robot_name}")
 
     def __init__(
         self,
@@ -256,17 +211,32 @@ class DogActionExecutor:
             return False
 
         try:
-            # Extract parameters
-            speed = 1.0  # parameters.get('speed', 0.5) if parameters else 1.0
-            duration = 2.0  # parameters.get('duration') if parameters else 2.0
-            distance = 1.0  # parameters.get('distance') if parameters else None
+            from config import (
+                DEFAULT_SPEED,
+                angle_to_duration,
+                distance_to_duration,
+                validate_duration,
+                validate_speed,
+            )
+
+            # Extract and validate parameters
+            speed = (
+                validate_speed(parameters.get("speed", DEFAULT_SPEED))
+                if parameters
+                else DEFAULT_SPEED
+            )
+            duration = parameters.get("duration") if parameters else None
+            distance = parameters.get("distance") if parameters else None
             angle = parameters.get("angle") if parameters else None
 
-            # Normalize speed parameter from distance/angle if provided
-            # if distance and not parameters.get('speed'):
-            #     speed = min(1.0, max(0.1, abs(distance) / 100.0))  # Scale distance to speed
-            # elif angle and not parameters.get('speed'):
-            #     speed = min(1.0, max(0.1, abs(angle) / 180.0))  # Scale angle to speed
+            # Convert distance/angle to duration if not specified
+            if distance and not duration:
+                duration = distance_to_duration(distance)
+            elif angle and not duration:
+                duration = angle_to_duration(angle)
+
+            if duration:
+                duration = validate_duration(duration)
 
             # Handle walking mode for movement actions
             if action_name in ["forward", "back", "left", "right", "cw", "ccw"]:
