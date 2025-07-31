@@ -10,7 +10,7 @@ from concurrent.futures import Future
 from typing import Any, Dict, Optional
 
 import yaml
-from action_executor import ActionExecutor
+from action_executor import DogActionExecutor
 from awscrt import auth, mqtt5
 from awsiot import mqtt5_client_builder
 
@@ -44,7 +44,7 @@ def format_settings(
 
 
 class PubSubClient:
-    def __init__(self, settings: Dict[str, Any], executor: ActionExecutor):
+    def __init__(self, settings: Dict[str, Any], executor: DogActionExecutor):
         self.settings = settings
         self.executor = executor
         self.client: Optional[mqtt5.Client] = None
@@ -67,6 +67,8 @@ class PubSubClient:
 
                 # Handle both old format (toolName) and new format (dogID, action, parameters)
                 action_name = payload.get("toolName")
+                parameters = None
+                
                 if not action_name:
                     # New format from MCP server
                     action_name = payload.get("action")
@@ -77,24 +79,9 @@ class PubSubClient:
                         f"Received dog action: {action_name} for {dog_id} with params: {parameters}"
                     )
 
-                    # For movement actions with distance/angle parameters, store the parameter
-                    if parameters:
-                        if "distance" in parameters:
-                            self.executor.set_movement_parameter(
-                                action_name, parameters["distance"]
-                            )
-                        elif "angle" in parameters:
-                            self.executor.set_movement_parameter(
-                                action_name, parameters["angle"]
-                            )
-                        elif "x" in parameters:
-                            # Handle the 'x' parameter from MCP server
-                            self.executor.set_movement_parameter(
-                                action_name, parameters["x"]
-                            )
-
                 if action_name:
-                    self.executor.add_action_to_queue(action_name)
+                    # Pass parameters directly to the action executor
+                    self.executor.add_action_to_queue(action_name, parameters)
                 else:
                     logging.warning("No action specified in the payload")
             except json.JSONDecodeError:
@@ -275,10 +262,12 @@ def main():
             )
         print("Settings loaded successfully:", json.dumps(settings, indent=2))
 
-        executor = ActionExecutor(
-            robot_name,
-            settings.get("simulator_endpoint", ""),
-            settings.get("session_key", ""),
+        executor = DogActionExecutor(
+            robot_name=robot_name,
+            simulator_endpoint=settings.get("simulator_endpoint", ""),
+            session_key=settings.get("session_key", ""),
+            robot_ip=settings.get("robot_ip", "192.168.137.195"),
+            robot_port=settings.get("robot_port", 8830)
         )
         client = PubSubClient(settings, executor)
         client.run()

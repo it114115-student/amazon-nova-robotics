@@ -1,6 +1,7 @@
 awsiotsdk
 pyyaml
 requests
+msgpack
 # pyaudio
 # rx
 # smithy-aws-core
