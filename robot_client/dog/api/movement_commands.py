@@ -45,7 +45,7 @@ class MovementCommands:
         
         try:
             self.publisher.send(command)
-            logger.debug(f"Movement command sent: {kwargs}")
+            # logger.info(f"Movement command sent: {kwargs}")
         except Exception as e:
             logger.error(f"Failed to send movement command: {e}")
             raise
@@ -61,8 +61,12 @@ class MovementCommands:
         speed = max(0.0, min(1.0, speed))  # Clamp speed
         self._send_movement_command(ly=speed)
         
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(ly=speed)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
         if duration:
-            time.sleep(duration)
             self.stop()
         
         logger.info(f"Moving forward at speed {speed}")
@@ -78,8 +82,12 @@ class MovementCommands:
         speed = max(0.0, min(1.0, speed))  # Clamp speed
         self._send_movement_command(ly=-speed)
         
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(ly=-speed)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
         if duration:
-            time.sleep(duration)
             self.stop()
         
         logger.info(f"Moving backward at speed {speed}")
@@ -95,8 +103,12 @@ class MovementCommands:
         speed = max(0.0, min(1.0, speed))  # Clamp speed
         self._send_movement_command(lx=-speed)
         
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(lx=-speed)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
         if duration:
-            time.sleep(duration)
             self.stop()
         
         logger.info(f"Moving left at speed {speed}")
@@ -112,8 +124,12 @@ class MovementCommands:
         speed = max(0.0, min(1.0, speed))  # Clamp speed
         self._send_movement_command(lx=speed)
         
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(lx=speed)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
         if duration:
-            time.sleep(duration)
             self.stop()
         
         logger.info(f"Moving right at speed {speed}")
@@ -129,8 +145,12 @@ class MovementCommands:
         speed = max(0.0, min(1.0, speed))  # Clamp speed
         self._send_movement_command(dpadx=speed)
         
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(dpadx=speed)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
         if duration:
-            time.sleep(duration)
             self.stop()
         
         logger.info(f"Rotating left at speed {speed}")
@@ -146,32 +166,54 @@ class MovementCommands:
         speed = max(0.0, min(1.0, speed))  # Clamp speed
         self._send_movement_command(dpadx=-speed)
         
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(dpadx=-speed)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
         if duration:
-            time.sleep(duration)
             self.stop()
         
         logger.info(f"Rotating right at speed {speed}")
     
-    def stand_up(self, speed: float = 0.5) -> None:
+    def stand_up(self, speed: float = 0.5, duration: Optional[float] = None) -> None:
         """
         Make robot stand up.
         
         Args:
             speed: Standing speed (0.0 to 1.0)
+            duration: Optional duration in seconds
         """
         speed = max(0.0, min(1.0, speed))  # Clamp speed
-        self._send_movement_command(dpady=speed)
+        
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(dpady=speed)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
+        if duration:
+            self.stop()
+            
         logger.info("Standing up")
     
-    def lay_down(self, speed: float = 0.5) -> None:
+    def lay_down(self, speed: float = 0.5, duration: Optional[float] = None) -> None:
         """
         Make robot lay down.
         
         Args:
             speed: Laying down speed (0.0 to 1.0)
+            duration: Optional duration in seconds
         """
         speed = max(0.0, min(1.0, speed))  # Clamp speed
-        self._send_movement_command(dpady=-speed)
+        
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(dpady=-speed)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
+        if duration:
+            self.stop()
+            
         logger.info("Laying down")
     
     def hop(self, duration: float = 1.0) -> None:
@@ -181,8 +223,11 @@ class MovementCommands:
         Args:
             duration: Hop duration in seconds
         """
-        self._send_movement_command(x=1)
-        time.sleep(duration)
+        start_time = time.time()
+        while time.time() - start_time < duration:
+            self._send_movement_command(x=1)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
+        
         self.stop()
         logger.info("Hopping")
     
@@ -217,10 +262,12 @@ class MovementCommands:
             'dpady': max(-1.0, min(1.0, dpady))
         }
         
-        self._send_movement_command(**params)
+        start_time = time.time()
+        while not duration or (time.time() - start_time < duration):
+            self._send_movement_command(**params)
+            time.sleep(1.0 / self.BASE_COMMAND['message_rate'])
         
         if duration:
-            time.sleep(duration)
             self.stop()
         
         logger.info(f"Custom movement executed: {params}")

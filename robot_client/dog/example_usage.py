@@ -20,30 +20,32 @@ def basic_movement_example():
     print("=== Basic Movement Example ===")
     
     # Initialize the dog controller
-    dog = DogController(ip="192.168.137.195")
-    
+    dog = DogController(ip="192.168.137.41", port=8830)
+
     # Activate the robot
     print("Activating robot...")
     dog.activate()
-    time.sleep(1)
+    time.sleep(2)
     
     # Enable walking mode
     print("Enabling walking mode...")
     dog.enable_walking()
-    time.sleep(1)
+    time.sleep(2)
     
     # Perform basic movements
-    print("Moving forward...")
-    dog.movement.move_forward(speed=0.5, duration=2.0)
+
     
     print("Moving backward...")
-    dog.movement.move_backward(speed=0.5, duration=2.0)
+    dog.movement.move_backward(speed=1, duration=2.0)
     
+    print("Moving forward...")
+    dog.movement.move_forward(speed=1, duration=2.0)
+
     print("Moving left...")
-    dog.movement.move_left(speed=0.5, duration=2.0)
+    dog.movement.move_left(speed=1, duration=2.0)
     
     print("Moving right...")
-    dog.movement.move_right(speed=0.5, duration=2.0)
+    dog.movement.move_right(speed=1, duration=2.0)
     
     # Stop all movement
     print("Stopping...")
@@ -169,7 +171,7 @@ def main():
         # Run examples
         basic_movement_example()
         rotation_example()
-        posture_example()
+        # posture_example()
         custom_movement_example()
         status_monitoring_example()
         emergency_stop_example()

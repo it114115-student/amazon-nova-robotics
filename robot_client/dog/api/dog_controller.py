@@ -29,6 +29,7 @@ class DogController:
         """
         self.ip = ip
         self.port = port
+        print(f"Initializing DogController with IP: {ip}, Port: {port}")
         self.publisher = Publisher(port, ip)
         self.movement = MovementCommands(self.publisher)
         self.status = RobotStatus(self.publisher)
@@ -110,4 +111,4 @@ class DogController:
             'activated': self._is_activated,
             'walking_enabled': self._is_walking,
             'dancing_enabled': self._is_dancing
-        }        }
+        }        

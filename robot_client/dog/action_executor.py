@@ -140,7 +140,7 @@ class DogActionExecutor:
         robot_name: str, 
         simulator_endpoint: str = "", 
         session_key: str = "",
-        robot_ip: str = "172.0.0.1",
+        robot_ip: str = "127.0.0.1",
         robot_port: int = 8830
     ) -> None:
         """
