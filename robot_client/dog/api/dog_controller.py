@@ -5,12 +5,13 @@ Main controller class for managing dog robot operations including movement,
 status control, and command execution.
 """
 
-import time
 import logging
-from typing import Dict, Any, Optional
-from .UDPComms import Publisher
+import time
+from typing import Any, Dict, Optional
+
 from .movement_commands import MovementCommands
 from .robot_status import RobotStatus
+from .UDPComms import Publisher
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class DogController:
     """Main controller for dog robot operations."""
     
-    def __init__(self, ip: str = "172.0.0.1", port: int = 8830):
+    def __init__(self, ip: str = "127.0.0.1", port: int = 8830):
         """
         Initialize the dog controller.
         
@@ -109,4 +110,4 @@ class DogController:
             'activated': self._is_activated,
             'walking_enabled': self._is_walking,
             'dancing_enabled': self._is_dancing
-        }
+        }        }
