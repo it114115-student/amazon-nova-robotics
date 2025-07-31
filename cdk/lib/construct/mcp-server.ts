@@ -35,6 +35,7 @@ export class LambdaMcpServerConstruct extends Construct {
         resources: [
           "arn:aws:iot:*:*:topic/robot_*/topic",
           "arn:aws:iot:*:*:topic/drone_*/topic",
+          "arn:aws:iot:*:*:topic/dog_*/topic",
         ],
       })
     );

@@ -70,7 +70,11 @@ export class TextControlWebConstruct extends Construct {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["iot:Publish"],
-        resources: ["arn:aws:iot:*:*:topic/robot_*/topic"],
+        resources: [
+          "arn:aws:iot:*:*:topic/robot_*/topic",
+          "arn:aws:iot:*:*:topic/drone_*/topic",
+          "arn:aws:iot:*:*:topic/dog_*/topic",
+        ],
       })
     );
     flaskLambda.addToRolePolicy(
