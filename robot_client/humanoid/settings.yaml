@@ -1,4 +1,4 @@
-robot_name: "robot_1"
+robot_name: "robot_7"
 input_topic: "{robot_name}/topic"
 base_path: "../certificates"
 input_cert: "{base_path}/{robot_name}/{robot_name}.cert.pem"

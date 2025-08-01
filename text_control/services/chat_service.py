@@ -170,7 +170,7 @@ async def classify_response_type(
             messages=[{"role": "user", "content": [{"text": classification_prompt}]}],
             toolConfig={
                 "tools": [classification_tool],
-                "toolChoice": {"tool": {"name": "classify_response"}},
+                "toolChoice": {"any": {}},
             },
             inferenceConfig={"maxTokens": 200, "temperature": 0.1, "topP": 0.9},
         )
@@ -188,6 +188,10 @@ async def classify_response_type(
                     if cmd in available_actions
                 ]
 
+                # If too many commands found, likely a false positive
+                if len(valid_commands) > 4:
+                    valid_commands = []
+
                 return {
                     "type": tool_input["response_type"],
                     "commands": valid_commands,
@@ -197,60 +201,8 @@ async def classify_response_type(
     except Exception as e:
         print(f"Error in tool-based classification: {str(e)}")
 
-    # Fallback to simple keyword detection
-    return await _fallback_classification(bot_response, user_message)
-
-
-async def _fallback_classification(
-    bot_response: str, user_message: str
-) -> Dict[str, Any]:
-    """Fallback classification method using simple keyword detection"""
-    available_actions = await get_available_actions()
-    found_commands = []
-
-    # Check for commands in bot response
-    for word in bot_response.split():
-        clean_word = "".join(char for char in word if char.isalnum() or char == "_")
-        if clean_word in available_actions:
-            found_commands.append(clean_word)
-
-    # Check for comma-separated commands in user message
-    if "," in user_message:
-        direct_commands = [item.strip() for item in user_message.split(",")]
-        valid_direct_commands = [
-            cmd for cmd in direct_commands if cmd in available_actions
-        ]
-        if valid_direct_commands:
-            found_commands.extend(valid_direct_commands)
-
-    # Determine type based on found commands and response characteristics
-    if found_commands:
-        return {
-            "type": "commands",
-            "commands": list(set(found_commands)),
-            "confidence": 0.8,
-        }
-
-    # Check if response is conversational (contains common conversational patterns)
-    conversational_indicators = [
-        "i don't have",
-        "you can call me",
-        "feel free",
-        "let me know",
-        "here are the available",
-        "just let me know",
-        "i'll assist you",
-        "how can i help",
-        "what can i do",
-        "available actions",
-    ]
-
-    response_lower = bot_response.lower()
-    if any(indicator in response_lower for indicator in conversational_indicators):
-        return {"type": "rephrase", "commands": [], "confidence": 0.9}
-
-    # Default to rephrase if uncertain
-    return {"type": "rephrase", "commands": [], "confidence": 0.6}
+    # Default to rephrase if tool classification fails
+    return {"type": "rephrase", "commands": [], "confidence": 0.5}
 
 
 async def extract_actions_from_response(

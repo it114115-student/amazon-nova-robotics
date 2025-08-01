@@ -312,6 +312,60 @@ def register_robot_tools(mcp: MCPLambdaHandler):
         robot_executor.execute_action(robot_id, "weightlifting")
         return "The robot is performing weightlifting."
 
+    # Turning commands
+    @mcp.tool()
+    def robot_turn_left(robot_id: RobotID) -> str:
+        """Command the robot to turn left.
+
+        Args:
+            robot_id (RobotID): Robot ID
+
+        Returns:
+            str: The robot is turning left.
+        """
+        robot_executor.execute_action(robot_id, "turn_left")
+        return "The robot is turning left."
+
+    @mcp.tool()
+    def robot_turn_right(robot_id: RobotID) -> str:
+        """Command the robot to turn right.
+
+        Args:
+            robot_id (RobotID): Robot ID
+
+        Returns:
+            str: The robot is turning right.
+        """
+        robot_executor.execute_action(robot_id, "turn_right")
+        return "The robot is turning right."
+
+    # Gesture commands
+    @mcp.tool()
+    def robot_twist(robot_id: RobotID) -> str:
+        """Command the robot to twist its body.
+
+        Args:
+            robot_id (RobotID): Robot ID
+
+        Returns:
+            str: The robot is twisting its body.
+        """
+        robot_executor.execute_action(robot_id, "twist")
+        return "The robot is twisting its body."
+
+    @mcp.tool()
+    def robot_wave(robot_id: RobotID) -> str:
+        """Command the robot to wave its hand.
+
+        Args:
+            robot_id (RobotID): Robot ID
+
+        Returns:
+            str: The robot is waving its hand.
+        """
+        robot_executor.execute_action(robot_id, "wave")
+        return "The robot is waving its hand."
+
     # Control commands
     @mcp.tool()
     def robot_stop(robot_id: RobotID) -> str:

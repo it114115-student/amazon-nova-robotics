@@ -9,6 +9,19 @@ def register_dance_tools(mcp: MCPLambdaHandler):
     """Register all dance-related tools with the MCP handler."""
 
     @mcp.tool()
+    def robot_dance_one(robot_id: RobotID) -> str:
+        """Command the robot to perform dance one.
+
+        Args:
+            robot_id (RobotID): Robot ID
+
+        Returns:
+            str: The robot is performing dance one.
+        """
+        robot_executor.execute_action(robot_id, "dance_ten")
+        return "The robot is performing dance one."
+
+    @mcp.tool()
     def robot_dance_two(robot_id: RobotID) -> str:
         """Command the robot to perform dance two.
 

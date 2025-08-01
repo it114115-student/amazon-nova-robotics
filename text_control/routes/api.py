@@ -17,10 +17,27 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 @api_bp.route("/chat", methods=["POST"])
 @require_hybrid_auth
 async def chat():
+    try:
+        data = await request.get_json()
+    except Exception:
+        data = request.json or {}
+    return await _chat(data)
+
+
+@api_bp.route("/chat-api", methods=["POST"])
+async def chat_api():
+    try:
+        data = await request.get_json()
+    except Exception:
+        data = request.json or {}
+    return await _chat(data)
+
+
+async def _chat(data):
     """Handle chat requests with Nova Chatbot integration"""
-    user_message = request.json.get("message")
-    selected_robots = request.json.get("robots")
-    session_id = request.json.get("session_id", str(uuid.uuid4()))
+    user_message = data.get("message")
+    selected_robots = data.get("robots")
+    session_id = data.get("session_id", str(uuid.uuid4()))
 
     # For backward compatibility, if robots is not a list, make it a list
     if not isinstance(selected_robots, list):
@@ -105,7 +122,12 @@ def robot_delete(robot_id):
 @require_hybrid_auth
 async def run_action(robot_id):
     """Run process_actions with provided action and robot"""
-    data = request.json
+    try:
+        data = await request.get_json()
+    except Exception:
+        # Fallback to synchronous request.json if async fails
+        data = request.json or {}
+    
     robot = robot_id or data.get("robot")
     method = data.get("method")
     action = data.get("action")
