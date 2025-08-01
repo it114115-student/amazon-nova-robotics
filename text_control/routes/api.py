@@ -56,12 +56,19 @@ async def _chat(data):
 
     print(f"Actions to execute: {actions_to_execute}")
 
-    # Handle 'all' as mutually exclusive in backend as well
+    # Handle special robot selections
     actions_executed = []
-    robots_to_use = selected_robots
+    robots_to_use = []
+    
     if "all" in selected_robots:
-        # If 'all' is selected, ignore other selections and send to all robots 1-7
-        robots_to_use = ["all"]
+        # If 'all' is selected, send to all individual robots, drones, and dogs
+        individual_robots = [f"robot_{i}" for i in range(1, 10)]  # robot_1 to robot_9
+        individual_drones = ["drone_1", "drone_2"]
+        individual_dogs = ["dog_1", "dog_2"]
+        robots_to_use = individual_robots + individual_drones + individual_dogs
+    else:
+        # Handle other selections (individual robots, groups, or combinations)
+        robots_to_use = selected_robots
 
     for robot in robots_to_use:
         if actions_to_execute:

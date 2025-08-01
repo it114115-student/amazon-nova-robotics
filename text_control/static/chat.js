@@ -15,15 +15,59 @@ document.addEventListener("DOMContentLoaded", function () {
 
   robotSelect.addEventListener("change", function (e) {
     const selected = Array.from(robotSelect.selectedOptions).map((opt) => opt.value);
-    // If 'all' is selected, deselect all others
+
+    // Helper function to deselect specific options
+    function deselectOptions(valuesToDeselect) {
+      valuesToDeselect.forEach(value => {
+        const option = robotSelect.querySelector(`option[value="${value}"]`);
+        if (option) option.selected = false;
+      });
+    }
+
+    // If 'all' is selected, it should be mutually exclusive with everything else
     if (selected.includes("all") && selected.length > 1) {
       for (const opt of robotSelect.options) {
         if (opt.value !== "all") opt.selected = false;
       }
-    } else if (!selected.includes("all")) {
-      // If any other is selected, ensure 'all' is not selected
-      robotSelect.querySelector('option[value="all"]').selected = false;
     }
+    // If any group selector is chosen, handle conflicts
+    else {
+      // If 'all_robots' is selected with individual robots or 'all', deselect conflicts
+      if (selected.includes("all_robots")) {
+        const conflicts = selected.filter(val => val.startsWith("robot_") || val === "all");
+        if (conflicts.length > 0) {
+          deselectOptions(conflicts);
+        }
+      }
+
+      // If 'all_drones' is selected with individual drones or 'all', deselect conflicts  
+      if (selected.includes("all_drones")) {
+        const conflicts = selected.filter(val => val.startsWith("drone_") || val === "all");
+        if (conflicts.length > 0) {
+          deselectOptions(conflicts);
+        }
+      }
+
+      // If 'all_dogs' is selected with individual dogs or 'all', deselect conflicts
+      if (selected.includes("all_dogs")) {
+        const conflicts = selected.filter(val => val.startsWith("dog_") || val === "all");
+        if (conflicts.length > 0) {
+          deselectOptions(conflicts);
+        }
+      }
+
+      // If individual items are selected, deselect their corresponding 'all_*' and 'all'
+      if (selected.some(val => val.startsWith("robot_"))) {
+        deselectOptions(["all_robots", "all"]);
+      }
+      if (selected.some(val => val.startsWith("drone_"))) {
+        deselectOptions(["all_drones", "all"]);
+      }
+      if (selected.some(val => val.startsWith("dog_"))) {
+        deselectOptions(["all_dogs", "all"]);
+      }
+    }
+
     updateSummary();
   });
 
@@ -70,7 +114,7 @@ async function sendMessage() {
     const pathParts = window.location.pathname.split('/');
     const basePath = (pathParts.length > 1 && pathParts[1] === 'prod') ? '/prod' : '';
     let endPoint = basePath + "/api/chat";
-    
+
     // Use authenticated request if authManager is available
     let response;
     if (window.authManager && window.authManager.getAuthToken()) {
@@ -99,7 +143,7 @@ async function sendMessage() {
         }),
       });
     }
-    
+
     const data = await response.json();
     const messagesDiv = document.getElementById("messages");
 

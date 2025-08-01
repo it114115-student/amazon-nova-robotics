@@ -2,7 +2,6 @@
 Chat service - Handles Nova chatbot integration
 """
 
-import json
 from typing import Any, Dict, List
 
 import boto3

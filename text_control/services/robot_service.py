@@ -51,13 +51,27 @@ class MessageTransformer:
         if text.startswith(prefix):
             return text[len(prefix) :]
         return None
+    
+    @staticmethod
+    def has_device_prefix(message: str, target_device: str) -> bool:
+        """Check if message has a specific device prefix (robot, drone, dog)"""
+        device_prefixes = ["robot", "drone", "dog"]
+        
+        for prefix in device_prefixes:
+            if prefix != target_device and message.lower().startswith(prefix.lower()):
+                # Check if it's a real prefix (followed by uppercase letter or end of string)
+                if len(message) == len(prefix) or (len(message) > len(prefix) and message[len(prefix)].isupper()):
+                    return True
+        return False
 
 
 class RobotPublisher(ABC):
     """Abstract base class for robot publishers"""
 
     @abstractmethod
-    def publish(self, robot_id: str, message: str, parameters: Dict[str, Any] = None) -> bool:
+    def publish(
+        self, robot_id: str, message: str, parameters: Dict[str, Any] = None
+    ) -> bool:
         """Publish message to robot"""
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -65,13 +79,25 @@ class RobotPublisher(ABC):
 class StandardRobotPublisher(RobotPublisher):
     """Publisher for standard robots"""
 
-    def publish(self, robot_id: str, message: str, parameters: Dict[str, Any] = None) -> bool:
+    def publish(
+        self, robot_id: str, message: str, parameters: Dict[str, Any] = None
+    ) -> bool:
         """Publish message to standard robot"""
-        # Remove 'robot' prefix and convert to snake_case
+        # Skip actions with other device prefixes
+        if MessageTransformer.has_device_prefix(message, "robot"):
+            logger.info(
+                f"Skipping action '{message}' for robot {robot_id} - wrong device type"
+            )
+            return True  # Return True to indicate "handled" (by skipping)
+
+        # Remove 'robot' prefix and convert to snake_case, or use generic action
         processed_message = MessageTransformer.remove_prefix(message, "robot")
         if processed_message is None:
-            logger.error("Invalid message format for robot %s: %s", robot_id, message)
-            return False
+            # No 'robot' prefix, treat as generic action
+            processed_message = message
+            logger.info(f"Using generic action '{message}' for robot {robot_id}")
+        else:
+            logger.info(f"Using robot-specific action '{message}' for robot {robot_id}")
 
         processed_message = MessageTransformer.camel_to_snake_case(processed_message)
         topic = f"{robot_id}/topic"
@@ -113,13 +139,25 @@ class DronePublisher(RobotPublisher):
 
         return self.action_mapping.get(action, {"action": action, "params": {}})
 
-    def publish(self, robot_id: str, message: str, parameters: Dict[str, Any] = None) -> bool:
+    def publish(
+        self, robot_id: str, message: str, parameters: Dict[str, Any] = None
+    ) -> bool:
         """Publish message to drone"""
-        # Remove 'drone' prefix and convert to snake_case
+        # Skip actions with other device prefixes
+        if MessageTransformer.has_device_prefix(message, "drone"):
+            logger.info(
+                f"Skipping action '{message}' for drone {robot_id} - wrong device type"
+            )
+            return True  # Return True to indicate "handled" (by skipping)
+
+        # Remove 'drone' prefix and convert to snake_case, or use generic action
         processed_message = MessageTransformer.remove_prefix(message, "drone")
         if processed_message is None:
-            logger.error("Invalid message format for drone %s: %s", robot_id, message)
-            return False
+            # No 'drone' prefix, treat as generic action
+            processed_message = message
+            logger.info(f"Using generic action '{message}' for drone {robot_id}")
+        else:
+            logger.info(f"Using drone-specific action '{message}' for drone {robot_id}")
 
         action = MessageTransformer.camel_to_snake_case(processed_message)
         sdk_mapping = self._map_action_to_sdk(action)
@@ -156,7 +194,6 @@ class DogPublisher(RobotPublisher):
             "move_backward": {"action": "back", "type": "movement"},
             "move_left": {"action": "left", "type": "movement"},
             "move_right": {"action": "right", "type": "movement"},
-            
             # Rotation actions
             "rotate_clockwise": {"action": "cw", "type": "rotation"},
             "rotate_counterclockwise": {"action": "ccw", "type": "rotation"},
@@ -166,128 +203,141 @@ class DogPublisher(RobotPublisher):
             "turn_right": {"action": "cw", "type": "rotation"},
             "turn_back": {"action": "cw", "type": "rotation"},
             "turn_around": {"action": "cw", "type": "rotation"},
-            
             # Posture actions
             "stand_up": {"action": "stand_up", "type": "posture"},
             "lay_down": {"action": "lay_down", "type": "posture"},
             "hop": {"action": "hop", "type": "special"},
-            
             # Status actions
             "activate": {"action": "activate", "type": "status"},
             "enable_walking": {"action": "walk_mode", "type": "status"},
             "enable_dancing": {"action": "dance_mode", "type": "status"},
             "walk_mode": {"action": "walk_mode", "type": "status"},
             "dance_mode": {"action": "dance_mode", "type": "status"},
-            
             # Control actions
             "stop": {"action": "stop", "type": "control"},
             "emergency_stop": {"action": "stop", "type": "control"},
-            
             # Custom movement
             "custom_movement": {"action": "custom_movement", "type": "advanced"},
             "circle_movement": {"action": "custom_movement", "type": "advanced"},
         }
 
-    def _map_action_to_sdk(self, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _map_action_to_sdk(
+        self, action: str, parameters: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
         """Map high-level action to dog SDK command with comprehensive parameter handling"""
         if parameters is None:
             parameters = {}
-        
+
         logger.info(f"Mapping action '{action}' with parameters: {parameters}")
-        
+
         # Handle direct action mapping
         if action in self.action_mapping:
             mapping = self.action_mapping[action]
             mapped_action = mapping["action"]
             action_type = mapping["type"]
-            
+
             # Process parameters based on action type
             processed_params = self._process_parameters(action, action_type, parameters)
-            
+
             # Special handling for specific actions
             if action == "turn_back" or action == "turn_around":
                 processed_params["angle"] = 180
             elif action == "turn_left" or action == "turn_right":
                 processed_params.setdefault("angle", DEFAULT_ANGLE)
-            
+
             return {"action": mapped_action, "params": processed_params}
-        
+
         # Handle legacy snake_case actions
         elif action.startswith("move_"):
             direction = action.replace("move_", "")
             processed_params = self._process_parameters(action, "movement", parameters)
             return {"action": direction, "params": processed_params}
-        
+
         # Handle rotation actions
         elif action in ["cw", "ccw"]:
             processed_params = self._process_parameters(action, "rotation", parameters)
             return {"action": action, "params": processed_params}
-        
+
         # Default mapping
         else:
-            logger.warning(f"No specific mapping found for action '{action}', using default")
+            logger.warning(
+                f"No specific mapping found for action '{action}', using default"
+            )
             return {"action": action, "params": parameters}
 
-    def _process_parameters(self, action: str, action_type: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def _process_parameters(
+        self, action: str, action_type: str, parameters: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Process parameters based on action type"""
         processed = parameters.copy()
-        
+
         if action_type == "movement":
             # Handle distance parameter
             if "distance" not in processed:
                 processed["distance"] = DEFAULT_DISTANCE
-            
+
             # Handle speed parameter
             if "speed" not in processed:
                 processed["speed"] = 0.5
-            
+
             # Ensure valid ranges
             processed["speed"] = max(0.1, min(1.0, float(processed["speed"])))
             processed["distance"] = max(1, int(processed["distance"]))
-            
+
         elif action_type == "rotation":
             # Handle angle parameter
             if "angle" not in processed:
                 processed["angle"] = DEFAULT_ANGLE
-            
+
             # Handle speed parameter
             if "speed" not in processed:
                 processed["speed"] = 0.5
-            
+
             # Ensure valid ranges
             processed["speed"] = max(0.1, min(1.0, float(processed["speed"])))
             processed["angle"] = max(1, min(360, int(processed["angle"])))
-            
+
         elif action_type == "posture":
             # Handle speed parameter for posture actions
             if "speed" not in processed:
                 processed["speed"] = 0.5
             processed["speed"] = max(0.1, min(1.0, float(processed["speed"])))
-            
+
         elif action_type == "special":
             # Handle duration for special actions like hop
             if "duration" not in processed:
                 processed["duration"] = 1.0
             processed["duration"] = max(0.1, min(5.0, float(processed["duration"])))
-        
+
         elif action_type == "advanced":
             # Handle custom movement parameters
             movement_params = ["lx", "ly", "rx", "ry", "dpadx", "dpady"]
             for param in movement_params:
                 if param in processed:
                     processed[param] = max(-1.0, min(1.0, float(processed[param])))
-            
+
             if "duration" not in processed:
                 processed["duration"] = 2.0
             processed["duration"] = max(0.1, min(10.0, float(processed["duration"])))
-        
+
         return processed
 
-    def publish(self, robot_id: str, message: str, parameters: Dict[str, Any] = None) -> bool:
+    def publish(
+        self, robot_id: str, message: str, parameters: Dict[str, Any] = None
+    ) -> bool:
         """Publish message to dog with enhanced error handling and logging"""
-        logger.info(f"DogPublisher.publish called with robot_id={robot_id}, message={message}, parameters={parameters}")
-        
+        logger.info(
+            f"DogPublisher.publish called with robot_id={robot_id}, message={message}, parameters={parameters}"
+        )
+
         try:
+            # Skip actions with other device prefixes
+            if MessageTransformer.has_device_prefix(message, "dog"):
+                logger.info(
+                    f"Skipping action '{message}' for dog {robot_id} - wrong device type"
+                )
+                return True  # Return True to indicate "handled" (by skipping)
+
             # Handle direct action names (no prefix removal needed)
             if message in self.action_mapping:
                 action = message
@@ -301,8 +351,10 @@ class DogPublisher(RobotPublisher):
                     logger.info(f"No 'dog' prefix found, using message as-is: {action}")
                 else:
                     action = MessageTransformer.camel_to_snake_case(processed_message)
-                    logger.info(f"Processed message after removing 'dog' prefix: {action}")
-            
+                    logger.info(
+                        f"Processed message after removing 'dog' prefix: {action}"
+                    )
+
             # Map action to SDK format
             sdk_mapping = self._map_action_to_sdk(action, parameters or {})
             logger.info(f"SDK mapping result: {sdk_mapping}")
@@ -316,7 +368,7 @@ class DogPublisher(RobotPublisher):
 
             topic = f"{robot_id}/topic"
             logger.info(f"Publishing to topic: {topic} with data: {data}")
-            
+
             # Publish to IoT
             iot_client.publish(
                 topic=topic,
@@ -324,10 +376,10 @@ class DogPublisher(RobotPublisher):
                 retain=False,
                 payload=bytes(json.dumps(data), "utf-8"),
             )
-            
+
             logger.info(f"Successfully published to {topic}: {data}")
             return True
-            
+
         except ValueError as e:
             logger.error(f"Parameter validation error for dog {robot_id}: {e}")
             return False
@@ -352,12 +404,18 @@ class RobotService:
         return [f"robot_{i}" for i in ROBOT_RANGE]
 
     def _execute_parallel_actions(
-        self, robot_ids: List[str], message: str, publisher: RobotPublisher, parameters: Dict[str, Any] = None
+        self,
+        robot_ids: List[str],
+        message: str,
+        publisher: RobotPublisher,
+        parameters: Dict[str, Any] = None,
     ) -> bool:
         """Execute actions in parallel for multiple robots"""
         with ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(publisher.publish, robot_id, message, parameters): robot_id
+                executor.submit(
+                    publisher.publish, robot_id, message, parameters
+                ): robot_id
                 for robot_id in robot_ids
             }
             results = []
@@ -373,25 +431,29 @@ class RobotService:
 
             return all(results)
 
-    def execute_robot_action(self, message: str, selected_robot: str, parameters: Dict[str, Any] = None) -> bool:
+    def execute_robot_action(
+        self, message: str, selected_robot: str, parameters: Dict[str, Any] = None
+    ) -> bool:
         """Execute a robot action by publishing to the appropriate IoT topic with enhanced routing"""
-        logger.info(f"execute_robot_action called with message={message}, selected_robot={selected_robot}, parameters={parameters}")
-        
+        logger.info(
+            f"execute_robot_action called with message={message}, selected_robot={selected_robot}, parameters={parameters}"
+        )
+
         try:
             # Validate inputs
             if not message or not selected_robot:
                 logger.error("Invalid input: message and selected_robot are required")
                 return False
-            
+
             # Route to appropriate publisher based on robot type
-            if selected_robot == "all":
+            if selected_robot == "all_robots":
                 logger.info("Executing action for all standard robots")
                 robot_ids = self._get_robot_ids()
                 return self._execute_parallel_actions(
                     robot_ids, message, self.robot_publisher, parameters
                 )
 
-            elif selected_robot == "drone_all":
+            elif selected_robot == "all_drones":
                 logger.info("Executing action for all drones")
                 return self._execute_parallel_actions(
                     DRONE_IDS, message, self.drone_publisher, parameters
@@ -401,7 +463,7 @@ class RobotService:
                 logger.info(f"Executing action for individual drone: {selected_robot}")
                 return self.drone_publisher.publish(selected_robot, message, parameters)
 
-            elif selected_robot == "dog_all":
+            elif selected_robot == "all_dogs":
                 logger.info("Executing action for all dogs")
                 return self._execute_parallel_actions(
                     DOG_IDS, message, self.dog_publisher, parameters
@@ -416,51 +478,62 @@ class RobotService:
                 return self.robot_publisher.publish(selected_robot, message, parameters)
 
             else:
-                logger.warning(f"Unknown robot type for {selected_robot}, trying default robot publisher")
+                logger.warning(
+                    f"Unknown robot type for {selected_robot}, trying default robot publisher"
+                )
                 return self.robot_publisher.publish(selected_robot, message, parameters)
 
         except Exception as e:
             logger.error(f"Error executing robot action: {e}", exc_info=True)
             return False
 
-    def execute_dog_action(self, dog_id: str, action: str, parameters: Dict[str, Any] = None) -> bool:
+    def execute_dog_action(
+        self, dog_id: str, action: str, parameters: Dict[str, Any] = None
+    ) -> bool:
         """
         Execute a specific dog action with parameters.
-        
+
         This method provides a direct interface for dog actions, bypassing
         the general robot action routing.
-        
+
         Args:
             dog_id: ID of the dog robot (e.g., "dog_1", "dog_2")
             action: Action name (e.g., "move_forward", "rotate_left")
             parameters: Action parameters (e.g., {"distance": 100, "speed": 0.5})
-            
+
         Returns:
             True if action was successfully published, False otherwise
         """
-        logger.info(f"execute_dog_action called with dog_id={dog_id}, action={action}, parameters={parameters}")
-        
+        logger.info(
+            f"execute_dog_action called with dog_id={dog_id}, action={action}, parameters={parameters}"
+        )
+
         try:
             # Validate dog ID
             if dog_id not in DOG_IDS and dog_id != "all":
-                logger.error(f"Invalid dog ID: {dog_id}. Valid IDs: {DOG_IDS + ['all']}")
+                logger.error(
+                    f"Invalid dog ID: {dog_id}. Valid IDs: {DOG_IDS + ['all']}"
+                )
                 return False
-            
+
             # Handle "all" dogs
             if dog_id == "all":
                 return self._execute_parallel_actions(
                     DOG_IDS, action, self.dog_publisher, parameters
                 )
-            
+
             # Execute for specific dog
             return self.dog_publisher.publish(dog_id, action, parameters)
-            
+
         except Exception as e:
             logger.error(f"Error executing dog action: {e}", exc_info=True)
             return False
 
     async def process_actions(
-        self, actions_to_execute: List[str], selected_robot: str, parameters: Dict[str, Any] = None
+        self,
+        actions_to_execute: List[str],
+        selected_robot: str,
+        parameters: Dict[str, Any] = None,
     ) -> List[Dict[str, Any]]:
         """Process a list of actions sequentially with parameter support"""
         results = []
@@ -470,7 +543,9 @@ class RobotService:
 
             for action in actions_to_execute:
                 if action in available_actions:
-                    success = self.execute_robot_action(action, selected_robot, parameters)
+                    success = self.execute_robot_action(
+                        action, selected_robot, parameters
+                    )
                     results.append(
                         {"robot": selected_robot, "action": action, "success": success}
                     )
@@ -505,35 +580,40 @@ class RobotService:
                     "robot_id": robot_id,
                     "type": "dog",
                     "status": "active",
-                    "supported_actions": self.get_supported_dog_actions()
+                    "supported_actions": self.get_supported_dog_actions(),
                 }
             elif robot_id in DRONE_IDS:
                 return {
                     "robot_id": robot_id,
-                    "type": "drone", 
+                    "type": "drone",
                     "status": "active",
-                    "supported_actions": list(self.drone_publisher.action_mapping.keys())
+                    "supported_actions": list(
+                        self.drone_publisher.action_mapping.keys()
+                    ),
                 }
             elif robot_id.startswith("robot_"):
                 return {
                     "robot_id": robot_id,
                     "type": "standard_robot",
-                    "status": "active"
+                    "status": "active",
                 }
             else:
-                return {
-                    "robot_id": robot_id,
-                    "type": "unknown",
-                    "status": "unknown"
-                }
+                return {"robot_id": robot_id, "type": "unknown", "status": "unknown"}
         except Exception as e:
             logger.error(f"Error getting robot status for {robot_id}: {e}")
-            return {"robot_id": robot_id, "type": "unknown", "status": "error", "error": str(e)}
+            return {
+                "robot_id": robot_id,
+                "type": "unknown",
+                "status": "error",
+                "error": str(e),
+            }
 
-    def validate_dog_action(self, action: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+    def validate_dog_action(
+        self, action: str, parameters: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
         """
         Validate a dog action and its parameters.
-        
+
         Returns:
             Dictionary with validation results
         """
@@ -543,60 +623,60 @@ class RobotService:
                 return {
                     "valid": False,
                     "error": f"Unsupported action: {action}",
-                    "supported_actions": self.get_supported_dog_actions()
+                    "supported_actions": self.get_supported_dog_actions(),
                 }
-            
+
             # Validate parameters
             mapping = self.dog_publisher.action_mapping[action]
             action_type = mapping["type"]
-            
+
             validation_errors = []
-            
+
             if parameters:
                 if action_type == "movement":
                     if "distance" in parameters:
                         try:
                             distance = int(parameters["distance"])
                             if distance < 1 or distance > 1000:
-                                validation_errors.append("Distance must be between 1 and 1000 cm")
+                                validation_errors.append(
+                                    "Distance must be between 1 and 1000 cm"
+                                )
                         except (ValueError, TypeError):
                             validation_errors.append("Distance must be a valid integer")
-                    
+
                     if "speed" in parameters:
                         try:
                             speed = float(parameters["speed"])
                             if speed < 0.1 or speed > 1.0:
-                                validation_errors.append("Speed must be between 0.1 and 1.0")
+                                validation_errors.append(
+                                    "Speed must be between 0.1 and 1.0"
+                                )
                         except (ValueError, TypeError):
                             validation_errors.append("Speed must be a valid float")
-                
+
                 elif action_type == "rotation":
                     if "angle" in parameters:
                         try:
                             angle = int(parameters["angle"])
                             if angle < 1 or angle > 360:
-                                validation_errors.append("Angle must be between 1 and 360 degrees")
+                                validation_errors.append(
+                                    "Angle must be between 1 and 360 degrees"
+                                )
                         except (ValueError, TypeError):
                             validation_errors.append("Angle must be a valid integer")
-            
+
             if validation_errors:
-                return {
-                    "valid": False,
-                    "errors": validation_errors
-                }
-            
+                return {"valid": False, "errors": validation_errors}
+
             return {
                 "valid": True,
                 "action_type": action_type,
-                "mapped_action": mapping["action"]
+                "mapped_action": mapping["action"],
             }
-            
+
         except Exception as e:
             logger.error(f"Error validating dog action: {e}")
-            return {
-                "valid": False,
-                "error": f"Validation error: {str(e)}"
-            }
+            return {"valid": False, "error": f"Validation error: {str(e)}"}
 
 
 # Create service instance
