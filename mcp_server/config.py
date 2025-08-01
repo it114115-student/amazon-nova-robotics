@@ -2,10 +2,6 @@
 
 # Default movement parameters
 DRONE_MOVE_DISTANCE_CM = 50
-DOG_MOVE_DISTANCE_CM = 50
-DOG_MOVE_SPEED = 0.5
-DOG_ROTATION_ANGLE = 90
-DOG_ROTATION_SPEED = 0.5
 
 # Robot action mappings
 DOG_ACTION_MAPPING = {
