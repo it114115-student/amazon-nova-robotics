@@ -2,13 +2,22 @@
 API routes - Handles all API endpoints
 """
 
+import hashlib
+import json
+import os
+import time
 import uuid
+from datetime import datetime
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from middleware import require_hybrid_auth
 from services.chat_service import extract_actions_from_response, get_chat_response
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
 from services.robot_service import robot_service
+from utils.lambda_logger import get_lambda_logger
+
+# Configure logging for AWS Lambda
+logger = get_lambda_logger(__name__)
 
 # Create a blueprint for the API routes
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -24,13 +33,153 @@ async def chat():
     return await _chat(data)
 
 
+def error_response(status_code, message):
+    """Returns a consistent JSON error response."""
+    response = jsonify({"error": {"code": status_code, "message": message}})
+    response.status_code = status_code
+    return response
+
+
+def calculate_signature(secret_key: str, timestamp: str, body_string: str) -> str:
+    """Calculate signature for authentication"""
+    string_to_checksum = body_string + secret_key + timestamp
+    sha512 = hashlib.sha512()
+    sha512.update(string_to_checksum.encode("utf-8"))
+    hex_digest = sha512.hexdigest()
+    return hex_digest.replace("-", "")
+
+
 @api_bp.route("/chat-api", methods=["POST"])
 async def chat_api():
+    """
+    Direct chat API endpoint with authentication and response mapping
+    Replaces the proxy functionality with direct processing
+    """
+    logger.info(f"Chat API request from {request.remote_addr}")
+
+    # 1. Extract request
     try:
-        data = await request.get_json()
-    except Exception:
-        data = request.json or {}
-    return await _chat(data)
+        if not request.json:
+            logger.warning("Bad request: Request body must be JSON")
+            return error_response(400, "Request body must be JSON")
+
+        # Required parameters
+        required_params = ["askText", "sessionId", "traceId"]
+        for param in required_params:
+            if param not in request.json:
+                logger.warning(f"Bad request: Missing required parameter: {param}")
+                return error_response(400, f"Missing required parameter: {param}")
+
+        ask_text = request.json["askText"]
+        session_id = request.json["sessionId"]
+        trace_id = request.json["traceId"]
+        language_code = request.json.get("languageCode", "zh")
+        extra = request.json.get("extra", {})
+
+        if not isinstance(extra, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) for k, v in extra.items()
+        ):
+            logger.warning(
+                "Bad request: 'extra' parameter must be a dictionary with string key-value pairs"
+            )
+            return error_response(
+                400,
+                "'extra' parameter must be a dictionary with string key-value pairs",
+            )
+
+        logger.info(f"Request parsed - TraceId: {trace_id}, SessionId: {session_id}")
+
+    except Exception as e:
+        logger.error(f"Error parsing request: {e}", exc_info=True)
+        return error_response(400, f"Error parsing request: {e}")
+
+    # 2. Authentication check
+    try:
+        timestamp = request.headers.get("timestamp")
+        signature = request.headers.get("signature")
+        access_key = request.headers.get("key")
+
+        stored_secret_key = os.getenv("CHAT_SECRET_KEY", "your_actual_secret_key")
+        valid_access_key = os.getenv("CHAT_ACCESS_KEY", "your_actual_access_key")
+
+        if not all([stored_secret_key, valid_access_key]):
+            logger.error("Server configuration error: Missing environment variables")
+            return error_response(500, "Server configuration error")
+
+        if not all([timestamp, signature, access_key]):
+            logger.warning("Authentication failed: Missing authentication headers")
+            return error_response(401, "Missing authentication headers")
+
+        if access_key != valid_access_key:
+            logger.warning(
+                f"Authentication failed: Invalid access key received: {access_key}"
+            )
+            return error_response(401, "Invalid access key")
+
+        body_string = request.data.decode("utf-8")
+        calculated_signature = calculate_signature(
+            stored_secret_key, timestamp, body_string
+        )
+
+        if calculated_signature != signature:
+            logger.warning("Authentication failed: Invalid signature")
+            return error_response(401, "Invalid signature")
+
+        logger.info("Authentication successful")
+
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}", exc_info=True)
+        return error_response(401, f"Authentication failed: {e}")
+
+    # 3. Call _chat with mapped parameters
+    try:
+        # Map the request parameters to the internal _chat format
+        chat_data = {
+            "message": ask_text,
+            "robots": [
+                "all"
+            ],  # Default to all robots, can be customized based on extra params
+            "session_id": session_id,
+        }
+
+        # Check if streaming is requested
+        is_streaming = request.args.get("stream", "false").lower() == "true"
+        logger.info(f"Streaming requested: {is_streaming}")
+
+        # Call the internal chat function
+        chat_response = await _chat(chat_data)
+
+        # 4. Map the output to the expected format
+        if isinstance(chat_response, tuple):
+            # Handle error responses
+            response_data, status_code = chat_response
+            if status_code != 200:
+                return chat_response
+            response_data = response_data.get_json()
+        else:
+            response_data = chat_response.get_json()
+
+        # Map to the expected response format
+        now = datetime.now()
+        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        mapped_response = {
+            "id": formatted_time,
+            "traceId": trace_id,
+            "sessionId": session_id,
+            "askText": ask_text,
+            "replyText": response_data.get("response", ""),
+            "replyType": "Llm",
+            "timestamp": now.timestamp(),
+        }
+
+        logger.info(f"Chat API response generated for trace: {trace_id}")
+
+        return jsonify(mapped_response)
+
+    except Exception as e:
+        logger.error(f"Error processing chat request: {e}", exc_info=True)
+        return error_response(500, f"Error processing chat request: {e}")
 
 
 async def _chat(data):
@@ -54,12 +203,12 @@ async def _chat(data):
     bot_response = response_data["response"]
     actions_to_execute = await extract_actions_from_response(bot_response, user_message)
 
-    print(f"Actions to execute: {actions_to_execute}")
+    logger.debug(f"Actions to execute: {actions_to_execute}")
 
     # Handle special robot selections
     actions_executed = []
     robots_to_use = []
-    
+
     if "all" in selected_robots:
         # If 'all' is selected, send to all individual robots, drones, and dogs
         individual_robots = [f"robot_{i}" for i in range(1, 10)]  # robot_1 to robot_9
@@ -134,13 +283,12 @@ async def run_action(robot_id):
     except Exception:
         # Fallback to synchronous request.json if async fails
         data = request.json or {}
-    
+
     robot = robot_id or data.get("robot")
     method = data.get("method")
     action = data.get("action")
 
-    print(f"Running action for robot: {robot}, method: {method}, action: {action}")
-    print(f"Data received: {data}")
+    logger.info(f"Running action for robot: {robot}, method: {method}, action: {action}")
 
     if not method or not action or not robot:
         return jsonify({"error": "Missing robot or method or params."}), 400
