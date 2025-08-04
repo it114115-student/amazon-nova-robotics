@@ -1,23 +1,22 @@
-import {
-  RestApi,
-  LambdaIntegration,
-  CognitoUserPoolsAuthorizer,
-} from "aws-cdk-lib/aws-apigateway";
-import { Duration, IgnoreMode } from "aws-cdk-lib";
+import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
+import { CfnOutput, Duration } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
+
 import { Construct } from "constructs";
 import path = require("path");
 import * as iam from "aws-cdk-lib/aws-iam";
 import { DatabaseConstruct } from "./datebase";
 import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
 import { LambdaMcpServerConstruct } from "./mcp-server";
+import * as crypto from "crypto";
+import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 
 export interface TextControlWebConstructProps {
   readonly database: DatabaseConstruct;
   readonly mcpServerConstruct: LambdaMcpServerConstruct;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
+  readonly awsUserId: string;
 }
 
 export class TextControlWebConstruct extends Construct {
@@ -40,6 +39,22 @@ export class TextControlWebConstruct extends Construct {
       },
     });
 
+    // Remove unused userId variable
+    const hash = crypto
+      .createHash("sha256")
+      .update(props.awsUserId)
+      .digest("hex");
+
+    const chatSecretKey = crypto
+      .createHash("sha256")
+      .update(hash + "chat-secret-key")
+      .digest("hex");
+
+    const chatAccessKey = crypto
+      .createHash("sha256")
+      .update(hash + "chat-access-key")
+      .digest("hex");
+
     const flaskLambda = new PythonFunction(this, "TextControlLambda", {
       entry: path.join(__dirname, "../../../text_control"),
       runtime: lambda.Runtime.PYTHON_3_12,
@@ -52,7 +67,9 @@ export class TextControlWebConstruct extends Construct {
         McpServerUrl: props.mcpServerConstruct.functionUrl.url,
         CognitoUserPoolId: props.userPool.userPoolId,
         CognitoUserPoolClientId: props.userPoolClient.userPoolClientId,
-        FlaskSecretKey: "aws-lambda-session-key-robot-control-2025",
+        FlaskSecretKey: hash,
+        ChatSecretKey: chatSecretKey,
+        ChatAccessKey: chatAccessKey,
       },
       bundling: {
         assetExcludes: [
@@ -145,5 +162,20 @@ export class TextControlWebConstruct extends Construct {
     });
 
     this.serviceUrl = restApi.url + "index";
+
+    new CfnOutput(this, "XiaoiceChatSecretKey", {
+      key: "XiaoiceChatSecretKey",
+      value: chatSecretKey,
+    });
+
+    new CfnOutput(this, "XiaoiceChatAccessKey", {
+      key: "XiaoiceChatAccessKey",
+      value: chatAccessKey,
+    });
+
+    new CfnOutput(this, "XiaoiceApiUrl", {
+      key: "XiaoiceApiUrl",
+      value: restApi.url + "api/xiaoice-chat-api",
+    });
   }
 }

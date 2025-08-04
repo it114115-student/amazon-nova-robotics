@@ -3,13 +3,11 @@ API routes - Handles all API endpoints
 """
 
 import hashlib
-import json
 import os
-import time
 import uuid
 from datetime import datetime
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, jsonify, request
 from middleware import require_hybrid_auth
 from services.chat_service import extract_actions_from_response, get_chat_response
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
@@ -49,7 +47,7 @@ def calculate_signature(secret_key: str, timestamp: str, body_string: str) -> st
     return hex_digest.replace("-", "")
 
 
-@api_bp.route("/chat-api", methods=["POST"])
+@api_bp.route("/xiaoice-chat-api", methods=["POST"])
 async def chat_api():
     """
     Direct chat API endpoint with authentication and response mapping
@@ -99,8 +97,8 @@ async def chat_api():
         signature = request.headers.get("signature")
         access_key = request.headers.get("key")
 
-        stored_secret_key = os.getenv("CHAT_SECRET_KEY", "your_actual_secret_key")
-        valid_access_key = os.getenv("CHAT_ACCESS_KEY", "your_actual_access_key")
+        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
+        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
 
         if not all([stored_secret_key, valid_access_key]):
             logger.error("Server configuration error: Missing environment variables")
@@ -288,7 +286,9 @@ async def run_action(robot_id):
     method = data.get("method")
     action = data.get("action")
 
-    logger.info(f"Running action for robot: {robot}, method: {method}, action: {action}")
+    logger.info(
+        f"Running action for robot: {robot}, method: {method}, action: {action}"
+    )
 
     if not method or not action or not robot:
         return jsonify({"error": "Missing robot or method or params."}), 400

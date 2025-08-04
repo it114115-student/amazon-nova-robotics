@@ -115,9 +115,16 @@ cdk bootstrap
 ```
 
 2. **Deploy Stacks**:
+   Install jq, if you don't have it.
 
 ```bash
-cdk deploy --require-approval never --outputs-file output.json
+sudo apt update && sudo apt install -y jq
+```
+
+Deployment
+
+```bash
+./deploy.sh
 ```
 
 3. **Destroy Stacks** (when needed):

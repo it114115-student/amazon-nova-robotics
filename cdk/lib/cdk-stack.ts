@@ -28,7 +28,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     const droneNames = Array.from({ length: 1 }, (_, i) => `drone_${i + 1}`);
     const dogNames = Array.from({ length: 2 }, (_, i) => `dog_${i + 1}`);
     thingNames.push(...droneNames);
-    thingNames.push(...dogNames)
+    thingNames.push(...dogNames);
     const roboticConstruct = new RoboticConstruct(this, "RoboticConstruct", {
       thingNames: thingNames,
     });
@@ -48,6 +48,12 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       {}
     );
 
+    const awsUserId = new cdk.CfnParameter(this, "AwsUserId", {
+      noEcho: true,
+      type: "String",
+      description: "A parameter passed during deployment.",
+    });
+
     const textControlWebConstruct = new TextControlWebConstruct(
       this,
       "TextControlWebConstruct",
@@ -56,6 +62,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
         mcpServerConstruct: mcpServerConstruct,
         userPool: authenticator.userPool,
         userPoolClient: authenticator.userPoolClient,
+        awsUserId: awsUserId.valueAsString,
       }
     );
 
