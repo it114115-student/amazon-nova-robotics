@@ -16,7 +16,6 @@ export interface TextControlWebConstructProps {
   readonly mcpServerConstruct: LambdaMcpServerConstruct;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
-  readonly awsUserId: string;
 }
 
 export class TextControlWebConstruct extends Construct {
@@ -39,11 +38,9 @@ export class TextControlWebConstruct extends Construct {
       },
     });
 
-    // Remove unused userId variable
-    const hash = crypto
-      .createHash("sha256")
-      .update(props.awsUserId)
-      .digest("hex");
+    const awsUserId = this.node.tryGetContext("AwsUserId");
+    console.log("AWS User ID:", awsUserId);
+    const hash = crypto.createHash("sha256").update(awsUserId).digest("hex");
 
     const chatSecretKey = crypto
       .createHash("sha256")

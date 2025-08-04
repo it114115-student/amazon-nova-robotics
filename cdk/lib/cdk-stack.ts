@@ -48,12 +48,6 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       {}
     );
 
-    const awsUserId = new cdk.CfnParameter(this, "AwsUserId", {
-      noEcho: true,
-      type: "String",
-      description: "A parameter passed during deployment.",
-    });
-
     const textControlWebConstruct = new TextControlWebConstruct(
       this,
       "TextControlWebConstruct",
@@ -62,7 +56,6 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
         mcpServerConstruct: mcpServerConstruct,
         userPool: authenticator.userPool,
         userPoolClient: authenticator.userPoolClient,
-        awsUserId: awsUserId.valueAsString,
       }
     );
 
