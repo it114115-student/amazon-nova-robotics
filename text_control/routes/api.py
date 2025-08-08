@@ -2,16 +2,19 @@
 API routes - Handles all API endpoints
 """
 
+import asyncio
 import hashlib
 import os
 import uuid
 from datetime import datetime
 
+from command_config.simple_commands import SIMPLE_COMMANDS
 from flask import Blueprint, jsonify, request
 from middleware import require_hybrid_auth
 from services.chat_service import extract_actions_from_response, get_chat_response
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
 from services.robot_service import robot_service
+from utils.command_normalization import find_matching_command
 from utils.lambda_logger import get_lambda_logger
 
 # Configure logging for AWS Lambda
@@ -71,7 +74,6 @@ async def chat_api():
         ask_text = request.json["askText"]
         session_id = request.json["sessionId"]
         trace_id = request.json["traceId"]
-        language_code = request.json.get("languageCode", "zh")
         extra = request.json.get("extra", {})
 
         if not isinstance(extra, dict) or not all(
@@ -197,9 +199,37 @@ async def _chat(data):
     if "error" in response_data:
         return jsonify(response_data), 500
 
-    # Extract actions to execute
+    # Optimize classification - check for simple commands first with normalization
+    user_message_lower = user_message.lower().strip()
     bot_response = response_data["response"]
-    actions_to_execute = await extract_actions_from_response(bot_response, user_message)
+
+    # Check if user message is a simple command (with normalization)
+    matched_command = find_matching_command(user_message, SIMPLE_COMMANDS)
+    if matched_command:
+        logger.info(f"Simple command detected: '{user_message}' -> '{matched_command}'")
+        actions_to_execute = [matched_command]
+    else:
+        # Check if any word in the message is a simple command (with normalization)
+        words = user_message_lower.split()
+        simple_action_found = None
+
+        for word in words:
+            matched_word_command = find_matching_command(word, SIMPLE_COMMANDS)
+            if matched_word_command:
+                simple_action_found = matched_word_command
+                logger.info(
+                    f"Simple action found in message: '{word}' -> '{matched_word_command}'"
+                )
+                break
+
+        if simple_action_found:
+            actions_to_execute = [simple_action_found]
+        else:
+            # Fall back to full classification for complex requests
+            logger.info("Complex request detected, using full classification")
+            actions_to_execute = await extract_actions_from_response(
+                bot_response, user_message
+            )
 
     logger.debug(f"Actions to execute: {actions_to_execute}")
 
@@ -217,12 +247,33 @@ async def _chat(data):
         # Handle other selections (individual robots, groups, or combinations)
         robots_to_use = selected_robots
 
-    for robot in robots_to_use:
-        if actions_to_execute:
-            execution_results = await robot_service.process_actions(
-                actions_to_execute, robot
+    # Optimization: Process robot actions in parallel instead of sequentially
+    if actions_to_execute and robots_to_use:
+        logger.info(f"Processing actions for {len(robots_to_use)} robots in parallel")
+
+        # Create tasks for parallel execution
+        tasks = []
+        for robot in robots_to_use:
+            task = asyncio.create_task(
+                robot_service.process_actions(actions_to_execute, robot)
             )
-            actions_executed.append({"robot": robot, "results": execution_results})
+            tasks.append((robot, task))
+
+        # Execute all tasks concurrently
+        for robot, task in tasks:
+            try:
+                execution_results = await task
+                actions_executed.append({"robot": robot, "results": execution_results})
+            except Exception as e:
+                logger.error(f"Error executing actions for robot {robot}: {e}")
+                actions_executed.append(
+                    {
+                        "robot": robot,
+                        "results": [
+                            {"action": "error", "success": False, "error": str(e)}
+                        ],
+                    }
+                )
 
     if actions_executed:
         response_data["actions_executed"] = actions_executed
