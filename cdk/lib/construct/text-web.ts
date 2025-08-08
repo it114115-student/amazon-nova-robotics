@@ -75,6 +75,23 @@ export class TextControlWebConstruct extends Construct {
           ".dockerignore",
           "Dockerfile",
         ],
+        // Pre-build commands to run before packaging
+        commandHooks: {
+          beforeBundling(inputDir: string, outputDir: string): string[] {
+            return [
+              `echo "Running pre-build commands for ${inputDir}"`,
+              `cd ${inputDir}`,
+              `chmod +x pre_deploy_update_commands.sh`,
+              `./pre_deploy_update_commands.sh`,
+            ];
+          },
+          afterBundling(inputDir: string, outputDir: string): string[] {
+            return [
+              `echo "Post-build verification for ${outputDir}"`,
+              `ls -la ${outputDir}/command_config/`,
+            ];
+          },
+        },
       },
     });
 
