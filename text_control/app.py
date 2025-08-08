@@ -1,4 +1,5 @@
 import atexit
+import logging
 import os
 
 import awsgi2
@@ -7,6 +8,14 @@ from errors import register_error_handlers
 from flask import Flask
 from flask_caching import Cache
 from mcp_client import cleanup_mcp_client, init_mcp_client
+
+# Configure logging for development environment
+if not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    print("Initializing MCP client with AWS SigV4 authentication")
 
 # Import and register blueprints after app is created to avoid circular imports
 from routes.api import api_bp

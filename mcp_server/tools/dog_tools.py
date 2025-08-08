@@ -114,47 +114,6 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         robot_executor.execute_dog_action(dog_id, "move_rightback", {})
         return "The dog is moving diagonally right-backward."
 
-    # ===== ROTATION COMMANDS =====
-
-    @mcp.tool()
-    def dog_rotate_left(dog_id: DogID) -> str:
-        """Command the dog to rotate left (counter-clockwise).
-
-        Args:
-            dog_id (DogID): Dog ID
-
-        Returns:
-            str: The dog is rotating left.
-        """
-        robot_executor.execute_dog_action(dog_id, "ccw", {})
-        return "The dog is rotating left."
-
-    @mcp.tool()
-    def dog_rotate_right(dog_id: DogID) -> str:
-        """Command the dog to rotate right (clockwise).
-
-        Args:
-            dog_id (DogID): Dog ID
-
-        Returns:
-            str: The dog is rotating right.
-        """
-        robot_executor.execute_dog_action(dog_id, "cw", {})
-        return "The dog is rotating right."
-
-    @mcp.tool()
-    def dog_turn_around(dog_id: DogID) -> str:
-        """Command the dog to turn around 180 degrees.
-
-        Args:
-            dog_id (DogID): Dog ID
-
-        Returns:
-            str: The dog is turning around.
-        """
-        robot_executor.execute_dog_action(dog_id, "cw", {})
-        return "The dog is turning around."
-
     # ===== POSTURE COMMANDS =====
 
     @mcp.tool()
@@ -250,36 +209,27 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         robot_executor.execute_dog_action(dog_id, "stop", {})
         return "The dog has stopped all movement."
 
-    # ===== ADVANCED MOVEMENT COMMANDS =====
-
     @mcp.tool()
-    def dog_custom_movement(
+    def dog_stop_with_time(
         dog_id: DogID,
-        forward_speed: float = 0.0,
-        side_speed: float = 0.0,
-        rotation_speed: float = 0.0,
-        duration: float = 2.0,
+        time: float = 1.0,
     ) -> str:
-        """Execute custom movement with combined forward, side, and rotation.
+        """Return dog to default standing position for a specified time.
 
         Args:
             dog_id (DogID): Dog ID
-            forward_speed (float): Forward/backward speed -1.0 to 1.0 (default: 0.0)
-            side_speed (float): Left/right speed -1.0 to 1.0 (default: 0.0)
-            rotation_speed (float): Rotation speed -1.0 to 1.0 (default: 0.0)
-            duration (float): Movement duration in seconds (default: 2.0)
+            time (float): Time to remain in default state in seconds (default: 1.0)
 
         Returns:
-            str: The dog is executing custom movement.
+            str: The dog is in default standing position.
         """
         parameters = {
-            "ly": forward_speed,
-            "lx": side_speed,
-            "dpadx": rotation_speed,
-            "duration": duration,
+            "time": time,
         }
-        robot_executor.execute_dog_action(dog_id, "custom_movement", parameters)
-        return f"The dog is executing custom movement for {duration} seconds."
+        robot_executor.execute_dog_action(dog_id, "stop", parameters)
+        return f"The dog is in default standing position for {time} seconds."
+
+    # ===== ADVANCED MOVEMENT COMMANDS =====
 
     @mcp.tool()
     def dog_circle_movement(
@@ -295,13 +245,397 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         Returns:
             str: The dog is moving in a circle.
         """
-        speed = 0.3
-        rotation_direction = -speed if clockwise else speed
         parameters = {
-            "ly": speed * radius,
-            "dpadx": rotation_direction,
-            "duration": 5.0,
+            "radius": radius,
+            "clockwise": clockwise,
         }
-        robot_executor.execute_dog_action(dog_id, "custom_movement", parameters)
+        robot_executor.execute_dog_action(dog_id, "circle_movement", parameters)
         direction = "clockwise" if clockwise else "counter-clockwise"
         return f"The dog is moving in a {direction} circle."
+
+    # ===== HEAD MOVEMENT COMMANDS =====
+
+    @mcp.tool()
+    def dog_look_up(dog_id: DogID) -> str:
+        """Command the dog to look up.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is looking up.
+        """
+        robot_executor.execute_dog_action(dog_id, "look_up", {})
+        return "The dog is looking up."
+
+    @mcp.tool()
+    def dog_look_down(dog_id: DogID) -> str:
+        """Command the dog to look down.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is looking down.
+        """
+        robot_executor.execute_dog_action(dog_id, "look_down", {})
+        return "The dog is looking down."
+
+    @mcp.tool()
+    def dog_look_left(dog_id: DogID) -> str:
+        """Command the dog to look left.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is looking left.
+        """
+        robot_executor.execute_dog_action(dog_id, "look_left", {})
+        return "The dog is looking left."
+
+    @mcp.tool()
+    def dog_look_right(dog_id: DogID) -> str:
+        """Command the dog to look right.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is looking right.
+        """
+        robot_executor.execute_dog_action(dog_id, "look_right", {})
+        return "The dog is looking right."
+
+    @mcp.tool()
+    def dog_look_upperleft(dog_id: DogID) -> str:
+        """Command the dog to look up and left.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is looking up and left.
+        """
+        robot_executor.execute_dog_action(dog_id, "look_upperleft", {})
+        return "The dog is looking up and left."
+
+    @mcp.tool()
+    def dog_look_upperright(dog_id: DogID) -> str:
+        """Command the dog to look up and right.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is looking up and right.
+        """
+        robot_executor.execute_dog_action(dog_id, "look_upperright", {})
+        return "The dog is looking up and right."
+
+    @mcp.tool()
+    def dog_look_rightlower(dog_id: DogID) -> str:
+        """Command the dog to look down and right.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is looking down and right.
+        """
+        robot_executor.execute_dog_action(dog_id, "look_rightlower", {})
+        return "The dog is looking down and right."
+
+    @mcp.tool()
+    def dog_look_leftlower(dog_id: DogID) -> str:
+        """Command the dog to look down and left.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is looking down and left.
+        """
+        robot_executor.execute_dog_action(dog_id, "look_leftlower", {})
+        return "The dog is looking down and left."
+
+    # ===== ADVANCED HEAD MOVEMENT WITH PARAMETERS =====
+
+    @mcp.tool()
+    def dog_head_move(
+        dog_id: DogID,
+        pitch_deg: float = 0.0,
+        yaw_deg: float = 0.0,
+        time_uni: float = 1.0,
+        time_acc: float = 1.0,
+    ) -> str:
+        """Move the dog's head to specific pitch and yaw angles.
+
+        Args:
+            dog_id (DogID): Dog ID
+            pitch_deg (float): Pitch angle in degrees (up/down) (default: 0.0)
+            yaw_deg (float): Yaw angle in degrees (left/right) (default: 0.0)
+            time_uni (float): Time to hold position in seconds (default: 1.0)
+            time_acc (float): Time to reach position in seconds (default: 1.0)
+
+        Returns:
+            str: The dog is moving its head.
+        """
+        parameters = {
+            "pitch_deg": pitch_deg,
+            "yaw_deg": yaw_deg,
+            "time_uni": time_uni,
+            "time_acc": time_acc,
+        }
+        robot_executor.execute_dog_action(dog_id, "head_move", parameters)
+        return f"The dog is moving its head to pitch {pitch_deg}° and yaw {yaw_deg}°."
+
+    # ===== BODY POSTURE COMMANDS =====
+
+    @mcp.tool()
+    def dog_body_roll(
+        dog_id: DogID,
+        roll_deg: float = 0.0,
+        time_uni: float = 1.0,
+        time_acc: float = 1.0,
+    ) -> str:
+        """Tilt the dog's body to a specific roll angle.
+
+        Args:
+            dog_id (DogID): Dog ID
+            roll_deg (float): Roll angle in degrees (default: 0.0)
+            time_uni (float): Time to hold position in seconds (default: 1.0)
+            time_acc (float): Time to reach position in seconds (default: 1.0)
+
+        Returns:
+            str: The dog is tilting its body.
+        """
+        parameters = {
+            "roll_deg": roll_deg,
+            "time_uni": time_uni,
+            "time_acc": time_acc,
+        }
+        robot_executor.execute_dog_action(dog_id, "body_row", parameters)
+        return f"The dog is tilting its body to {roll_deg}° roll."
+
+    @mcp.tool()
+    def dog_balance(
+        dog_id: DogID,
+        roll_deg: float = 0.0,
+        pitch_deg: float = 0.0,
+        time_uni: float = 1.0,
+        time_acc: float = 1.0,
+    ) -> str:
+        """Balance the dog with specific roll and pitch angles.
+
+        Args:
+            dog_id (DogID): Dog ID
+            roll_deg (float): Roll angle in degrees (default: 0.0)
+            pitch_deg (float): Pitch angle in degrees (default: 0.0)
+            time_uni (float): Time to hold position in seconds (default: 1.0)
+            time_acc (float): Time to reach position in seconds (default: 1.0)
+
+        Returns:
+            str: The dog is balancing.
+        """
+        parameters = {
+            "roll_deg": roll_deg,
+            "pitch_deg": pitch_deg,
+            "time_uni": time_uni,
+            "time_acc": time_acc,
+        }
+        robot_executor.execute_dog_action(dog_id, "balance", parameters)
+        return f"The dog is balancing at roll {roll_deg}° and pitch {pitch_deg}°."
+
+    # ===== GAIT AND MOVEMENT COMMANDS =====
+
+    @mcp.tool()
+    def dog_gait_uniform(
+        dog_id: DogID,
+        v_x: float = 0.0,
+        v_y: float = 0.0,
+        time_uni: float = 1.0,
+        time_acc: float = 1.0,
+    ) -> str:
+        """Make the dog gait uniformly with specified velocities.
+
+        Args:
+            dog_id (DogID): Dog ID
+            v_x (float): Forward/backward velocity in m/s (default: 0.0)
+            v_y (float): Left/right velocity in m/s (default: 0.0)
+            time_uni (float): Duration of uniform movement in seconds (default: 1.0)
+            time_acc (float): Acceleration time in seconds (default: 1.0)
+
+        Returns:
+            str: The dog is gaiting uniformly.
+        """
+        parameters = {
+            "v_x": v_x,
+            "v_y": v_y,
+            "time_uni": time_uni,
+            "time_acc": time_acc,
+        }
+        robot_executor.execute_dog_action(dog_id, "gait_uni", parameters)
+        return f"The dog is gaiting at {v_x} m/s forward and {v_y} m/s sideways."
+
+    # ===== HEIGHT CONTROL =====
+
+    @mcp.tool()
+    def dog_height_move(
+        dog_id: DogID,
+        height: float = 0.0,
+        time_uni: float = 1.0,
+        time_acc: float = 1.0,
+    ) -> str:
+        """Adjust the dog's height by ascending or descending.
+
+        Args:
+            dog_id (DogID): Dog ID
+            height (float): Height change in meters (positive=up, negative=down) (default: 0.0)
+            time_uni (float): Time to hold position in seconds (default: 1.0)
+            time_acc (float): Time to reach position in seconds (default: 1.0)
+
+        Returns:
+            str: The dog is adjusting its height.
+        """
+        parameters = {
+            "ht": height,
+            "time_uni": time_uni,
+            "time_acc": time_acc,
+        }
+        robot_executor.execute_dog_action(dog_id, "height_move", parameters)
+        direction = (
+            "ascending" if height > 0 else "descending" if height < 0 else "maintaining"
+        )
+        return f"The dog is {direction} by {abs(height)}m."
+
+    # ===== LEG CONTROL =====
+
+    @mcp.tool()
+    def dog_foreleg_lift(
+        dog_id: DogID,
+        leg_side: str = "left",
+        height: float = 0.01,
+        time_uni: float = 1.0,
+        time_acc: float = 1.0,
+    ) -> str:
+        """Lift one of the dog's front legs.
+
+        Args:
+            dog_id (DogID): Dog ID
+            leg_side (str): Which leg to lift ("left" or "right") (default: "left")
+            height (float): Height to lift the leg in meters (default: 0.01)
+            time_uni (float): Time to hold position in seconds (default: 1.0)
+            time_acc (float): Time to reach position in seconds (default: 1.0)
+
+        Returns:
+            str: The dog is lifting its front leg.
+        """
+        parameters = {
+            "leg_index": leg_side,
+            "ht": height,
+            "time_uni": time_uni,
+            "time_acc": time_acc,
+        }
+        robot_executor.execute_dog_action(dog_id, "foreleg_lift", parameters)
+        return f"The dog is lifting its {leg_side} front leg by {height}m."
+
+    @mcp.tool()
+    def dog_backleg_lift(
+        dog_id: DogID,
+        leg_side: str = "left",
+        height: float = 0.01,
+        time_uni: float = 1.0,
+        time_acc: float = 1.0,
+    ) -> str:
+        """Lift one of the dog's back legs.
+
+        Args:
+            dog_id (DogID): Dog ID
+            leg_side (str): Which leg to lift ("left" or "right") (default: "left")
+            height (float): Height to lift the leg in meters (default: 0.01)
+            time_uni (float): Time to hold position in seconds (default: 1.0)
+            time_acc (float): Time to reach position in seconds (default: 1.0)
+
+        Returns:
+            str: The dog is lifting its back leg.
+        """
+        parameters = {
+            "leg_index": leg_side,
+            "ht": height,
+            "time_uni": time_uni,
+            "time_acc": time_acc,
+        }
+        robot_executor.execute_dog_action(dog_id, "backleg_lift", parameters)
+        return f"The dog is lifting its {leg_side} back leg by {height}m."
+
+    # ===== ROTATION COMMANDS =====
+
+    @mcp.tool()
+    def dog_rotate(
+        dog_id: DogID,
+        angle: float = 1.0,
+    ) -> str:
+        """Rotate the dog around its body center.
+
+        Args:
+            dog_id (DogID): Dog ID
+            angle (float): Rotation angle in degrees (default: 1.0)
+
+        Returns:
+            str: The dog is rotating.
+        """
+        parameters = {
+            "angle": angle,
+        }
+        robot_executor.execute_dog_action(dog_id, "rotate", parameters)
+        direction = "clockwise" if angle > 0 else "counter-clockwise"
+        return f"The dog is rotating {direction} by {abs(angle)}°."
+
+    # ===== SPECIAL MOVEMENTS =====
+
+    @mcp.tool()
+    def dog_bow_back(
+        dog_id: DogID,
+        angle: float = 15.0,
+    ) -> str:
+        """Make the dog bow its head and move backwards.
+
+        Args:
+            dog_id (DogID): Dog ID
+            angle (float): Bow angle in degrees (default: 15.0)
+
+        Returns:
+            str: The dog is bowing and moving backwards.
+        """
+        parameters = {
+            "angle": angle,
+        }
+        robot_executor.execute_dog_action(dog_id, "bowback", parameters)
+        return f"The dog is bowing {angle}° and moving backwards."
+
+    @mcp.tool()
+    def dog_body_cycle(dog_id: DogID) -> str:
+        """Make the dog draw a circle with its body center while maintaining orientation.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is performing a body cycle movement.
+        """
+        robot_executor.execute_dog_action(dog_id, "body_cycle", {})
+        return "The dog is performing a circular body movement."
+
+    @mcp.tool()
+    def dog_head_ellipse(dog_id: DogID) -> str:
+        """Make the dog draw an ellipse-shaped trajectory with its head.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is performing a head ellipse movement.
+        """
+        robot_executor.execute_dog_action(dog_id, "head_ellipse", {})
+        return "The dog is drawing an ellipse with its head movement."

@@ -2,16 +2,16 @@
 Publisher for standard robots
 """
 
-import logging
 from typing import Any, Dict
 
 import boto3
 from botocore.config import Config
+from utils.lambda_logger import get_lambda_logger
 
-from .base_publisher import RobotPublisher
 from ..message_transformer import MessageTransformer
+from .base_publisher import RobotPublisher
 
-logger = logging.getLogger(__name__)
+logger = get_lambda_logger(__name__)
 
 # Initialize AWS client with retry configuration
 iot_client = boto3.client(

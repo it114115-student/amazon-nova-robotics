@@ -5,27 +5,23 @@ This module provides a refactored robot service with improved structure,
 better error handling, and separation of concerns.
 """
 
-import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 from typing import Any, Dict, List
 
 from models.actions import get_available_actions
+from utils.lambda_logger import get_lambda_logger
 
-from .publishers import DogPublisher, DronePublisher, RobotPublisher, StandardRobotPublisher
+from .publishers import (
+    DogPublisher,
+    DronePublisher,
+    RobotPublisher,
+    StandardRobotPublisher,
+)
 from .robot_config import ACTION_DELAY, DOG_IDS, DRONE_IDS, ROBOT_RANGE
 
 # Configure logging for AWS Lambda
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Only add handler if none exists (prevents duplicate logs in Lambda)
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+logger = get_lambda_logger(__name__)
 
 
 class RobotService:
@@ -313,6 +309,11 @@ class RobotService:
 
         except Exception as e:
             logger.error(f"Error validating dog action: {e}")
+            return {"valid": False, "error": f"Validation error: {str(e)}"}
+
+
+# Create service instance
+robot_service = RobotService()
             return {"valid": False, "error": f"Validation error: {str(e)}"}
 
 

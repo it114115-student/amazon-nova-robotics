@@ -3,17 +3,17 @@ Publisher for drones with Tello SDK mapping
 """
 
 import json
-import logging
 from typing import Any, Dict
 
 import boto3
 from botocore.config import Config
+from utils.lambda_logger import get_lambda_logger
 
-from .base_publisher import RobotPublisher
 from ..message_transformer import MessageTransformer
-from ..robot_config import DEFAULT_DISTANCE, DEFAULT_ANGLE
+from ..robot_config import DEFAULT_ANGLE, DEFAULT_DISTANCE
+from .base_publisher import RobotPublisher
 
-logger = logging.getLogger(__name__)
+logger = get_lambda_logger(__name__)
 
 # Initialize AWS client with retry configuration
 iot_client = boto3.client(

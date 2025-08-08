@@ -21,15 +21,17 @@ class MessageTransformer:
         if text.startswith(prefix):
             return text[len(prefix) :]
         return None
-    
+
     @staticmethod
     def has_device_prefix(message: str, target_device: str) -> bool:
         """Check if message has a specific device prefix (robot, drone, dog)"""
         device_prefixes = ["robot", "drone", "dog"]
-        
+
         for prefix in device_prefixes:
             if prefix != target_device and message.lower().startswith(prefix.lower()):
                 # Check if it's a real prefix (followed by uppercase letter or end of string)
-                if len(message) == len(prefix) or (len(message) > len(prefix) and message[len(prefix)].isupper()):
+                if len(message) == len(prefix) or (
+                    len(message) > len(prefix) and message[len(prefix)].isupper()
+                ):
                     return True
         return False

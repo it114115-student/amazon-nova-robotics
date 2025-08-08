@@ -1,8 +1,12 @@
 """Robot command executors."""
 
 from typing import Dict
-from services.iot_service import execute_dog_action, execute_drone_action, execute_robot_action
-from config import DOG_ACTION_MAPPING
+
+from services.iot_service import (
+    execute_dog_action,
+    execute_drone_action,
+    execute_robot_action,
+)
 
 
 class RobotExecutor:
@@ -12,11 +16,11 @@ class RobotExecutor:
         """Execute a drone action with parameter mapping."""
         if parameters is None:
             parameters = {}
-            
+
         # Map high-level actions to Tello SDK commands
         sdk_action = None
         sdk_params = None
-        
+
         if action.startswith("move_"):
             direction = action.replace("move_", "")
             sdk_action = direction  # up, down, left, right, forward, back
@@ -36,7 +40,7 @@ class RobotExecutor:
         else:
             sdk_action = action
             sdk_params = parameters
-            
+
         message = {
             "droneID": drone_id.lower(),
             "action": sdk_action,
@@ -45,31 +49,16 @@ class RobotExecutor:
         return execute_drone_action(message)
 
     def execute_dog_action(self, dog_id: str, action: str, parameters: Dict = None):
-        """Execute a dog action with parameter mapping."""
+        """Execute a dog action."""
         if parameters is None:
             parameters = {}
-        
-        # Map MCP action names to action_executor action names
-        sdk_action = DOG_ACTION_MAPPING.get(action, action)
-        
-        # Process parameters based on action type
+
+        # Process parameters as provided
         sdk_params = parameters.copy()
-        
-        # Handle legacy parameter mapping for backward compatibility
-        if action.startswith("move_"):
-            # Extract distance parameter consistently
-            distance = parameters.get("distance") or parameters.get("x") or parameters.get("y")
-            if distance:
-                sdk_params["distance"] = distance
-        elif action in ["rotate_clockwise", "rotate_counterclockwise"]:
-            # Extract angle parameter consistently  
-            angle = parameters.get("angle") or parameters.get("x")
-            if angle:
-                sdk_params["angle"] = angle
-        
+
         message = {
             "dogID": dog_id.lower(),
-            "action": sdk_action,
+            "action": action,
             "parameters": sdk_params,
         }
         return execute_dog_action(message)
