@@ -1,9 +1,8 @@
 """Dog control tools for the MCP server."""
 
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
-from models import DogID
 from executors import robot_executor
-
+from models import DogID
 
 
 def register_dog_tools(mcp: MCPLambdaHandler):
@@ -21,7 +20,7 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         Returns:
             str: The dog is moving forward.
         """
-        robot_executor.execute_dog_action(dog_id, "forward", {})
+        robot_executor.execute_dog_action(dog_id, "move_forward", {})
         return "The dog is moving forward."
 
     @mcp.tool()
@@ -34,7 +33,7 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         Returns:
             str: The dog is moving backward.
         """
-        robot_executor.execute_dog_action(dog_id, "back", {})
+        robot_executor.execute_dog_action(dog_id, "move_backward", {})
         return "The dog is moving backward."
 
     @mcp.tool()
@@ -47,7 +46,7 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         Returns:
             str: The dog is moving left.
         """
-        robot_executor.execute_dog_action(dog_id, "left", {})
+        robot_executor.execute_dog_action(dog_id, "move_left", {})
         return "The dog is moving left."
 
     @mcp.tool()
@@ -60,8 +59,60 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         Returns:
             str: The dog is moving right.
         """
-        robot_executor.execute_dog_action(dog_id, "right", {})
+        robot_executor.execute_dog_action(dog_id, "move_right", {})
         return "The dog is moving right."
+
+    @mcp.tool()
+    def dog_move_leftfront(dog_id: DogID) -> str:
+        """Command the dog to move diagonally left-forward.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is moving diagonally left-forward.
+        """
+        robot_executor.execute_dog_action(dog_id, "move_leftfront", {})
+        return "The dog is moving diagonally left-forward."
+
+    @mcp.tool()
+    def dog_move_rightfront(dog_id: DogID) -> str:
+        """Command the dog to move diagonally right-forward.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is moving diagonally right-forward.
+        """
+        robot_executor.execute_dog_action(dog_id, "move_rightfront", {})
+        return "The dog is moving diagonally right-forward."
+
+    @mcp.tool()
+    def dog_move_leftback(dog_id: DogID) -> str:
+        """Command the dog to move diagonally left-backward.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is moving diagonally left-backward.
+        """
+        robot_executor.execute_dog_action(dog_id, "move_leftback", {})
+        return "The dog is moving diagonally left-backward."
+
+    @mcp.tool()
+    def dog_move_rightback(dog_id: DogID) -> str:
+        """Command the dog to move diagonally right-backward.
+
+        Args:
+            dog_id (DogID): Dog ID
+
+        Returns:
+            str: The dog is moving diagonally right-backward.
+        """
+        robot_executor.execute_dog_action(dog_id, "move_rightback", {})
+        return "The dog is moving diagonally right-backward."
 
     # ===== ROTATION COMMANDS =====
 
@@ -207,7 +258,7 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         forward_speed: float = 0.0,
         side_speed: float = 0.0,
         rotation_speed: float = 0.0,
-        duration: float = 2.0
+        duration: float = 2.0,
     ) -> str:
         """Execute custom movement with combined forward, side, and rotation.
 
@@ -225,13 +276,15 @@ def register_dog_tools(mcp: MCPLambdaHandler):
             "ly": forward_speed,
             "lx": side_speed,
             "dpadx": rotation_speed,
-            "duration": duration
+            "duration": duration,
         }
         robot_executor.execute_dog_action(dog_id, "custom_movement", parameters)
         return f"The dog is executing custom movement for {duration} seconds."
 
     @mcp.tool()
-    def dog_circle_movement(dog_id: DogID, radius: float = 1.0, clockwise: bool = True) -> str:
+    def dog_circle_movement(
+        dog_id: DogID, radius: float = 1.0, clockwise: bool = True
+    ) -> str:
         """Make the dog move in a circle.
 
         Args:
@@ -247,58 +300,8 @@ def register_dog_tools(mcp: MCPLambdaHandler):
         parameters = {
             "ly": speed * radius,
             "dpadx": rotation_direction,
-            "duration": 5.0
+            "duration": 5.0,
         }
         robot_executor.execute_dog_action(dog_id, "custom_movement", parameters)
         direction = "clockwise" if clockwise else "counter-clockwise"
         return f"The dog is moving in a {direction} circle."
-
-    # ===== LEGACY COMPATIBILITY COMMANDS =====
-
-    @mcp.tool()
-    def dog_turn_right(dog_id: DogID) -> str:
-        """Command the dog to turn right by 90 degrees (legacy compatibility).
-
-        Args:
-            dog_id (DogID): Dog ID
-
-        Returns:
-            str: The dog is turning right.
-        """
-        return dog_rotate_right(dog_id)
-
-    @mcp.tool()
-    def dog_turn_left(dog_id: DogID) -> str:
-        """Command the dog to turn left by 90 degrees (legacy compatibility).
-
-        Args:
-            dog_id (DogID): Dog ID
-
-        Returns:
-            str: The dog is turning left.
-        """
-        return dog_rotate_left(dog_id)
-
-    @mcp.tool()
-    def dog_turn_back(dog_id: DogID) -> str:
-        """Command the dog to turn back by 180 degrees (legacy compatibility).
-
-        Args:
-            dog_id (DogID): Dog ID
-
-        Returns:
-            str: The dog is turning back.
-        """
-        return dog_turn_around(dog_id)
-
-    @mcp.tool()
-    def dog_move_back(dog_id: DogID) -> str:
-        """Command the dog to move back (legacy compatibility).
-
-        Args:
-            dog_id (DogID): Dog ID
-
-        Returns:
-            str: The dog is moving back.
-        """
-        return dog_move_backward(dog_id)

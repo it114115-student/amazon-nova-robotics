@@ -26,8 +26,14 @@ def load_settings(settings_path: str) -> dict:
     try:
         with open(settings_path, "r", encoding="utf-8") as file:
             return yaml.safe_load(file)
+    except (FileNotFoundError, PermissionError) as e:
+        logging.error("Failed to access settings file: %s", e)
+        raise
+    except yaml.YAMLError as e:
+        logging.error("Failed to parse YAML settings: %s", e)
+        raise
     except Exception as e:
-        logging.error("Failed to load settings: %s", e)
+        logging.error("Unexpected error loading settings: %s", e)
         raise
 
 
@@ -54,40 +60,41 @@ class PubSubClient:
         self.message_topic = settings["input_topic"]
 
     def on_publish_received(self, publish_packet_data):
+        publish_packet = publish_packet_data.publish_packet
+        assert isinstance(publish_packet, mqtt5.PublishPacket)
+        logging.info(
+            "Received message from topic '%s': %s",
+            publish_packet.topic,
+            publish_packet.payload,
+        )
         try:
-            publish_packet = publish_packet_data.publish_packet
-            assert isinstance(publish_packet, mqtt5.PublishPacket)
-            logging.info(
-                "Received message from topic '%s': %s",
-                publish_packet.topic,
-                publish_packet.payload,
-            )
-            try:
-                payload = json.loads(publish_packet.payload)
+            payload = json.loads(publish_packet.payload)
 
-                # Handle both old format (toolName) and new format (dogID, action, parameters)
-                action_name = payload.get("toolName")
-                parameters = None
+            # Handle both old format (toolName) and new format (dogID, action, parameters)
+            action_name = payload.get("toolName")
+            parameters = None
 
-                if not action_name:
-                    # New format from MCP server
-                    action_name = payload.get("action")
-                    dog_id = payload.get("dogID")
-                    parameters = payload.get("parameters", {})
+            if not action_name:
+                # New format from MCP server
+                action_name = payload.get("action")
+                dog_id = payload.get("dogID")
+                parameters = payload.get("parameters", {})
 
-                    logging.info(
-                        f"Received dog action: {action_name} for {dog_id} with params: {parameters}"
-                    )
+                logging.info(
+                    f"Received dog action: {action_name} for {dog_id} with params: {parameters}"
+                )
 
-                if action_name:
-                    # Pass parameters directly to the action executor
-                    self.executor.add_action_to_queue(action_name, parameters)
-                else:
-                    logging.warning("No action specified in the payload")
-            except json.JSONDecodeError:
-                logging.error("Invalid JSON payload received")
-        except Exception as e:
-            logging.error("Exception in on_publish_received: %s", e)
+            if action_name:
+                # Pass parameters directly to the action executor
+                self.executor.add_action_to_queue(action_name, parameters)
+            else:
+                logging.warning("No action specified in the payload")
+        except json.JSONDecodeError:
+            logging.error("Invalid JSON payload received")
+        except KeyError as e:
+            logging.error("Missing required field in payload: %s", e)
+        except (ValueError, TypeError) as e:
+            logging.error("Invalid payload format: %s", e)
 
     def on_lifecycle_stopped(self, lifecycle_stopped_data: mqtt5.LifecycleStoppedData):
         logging.info("Lifecycle Stopped")
@@ -155,7 +162,7 @@ class PubSubClient:
                 self.settings["input_clientId"],
                 repr(connack_packet.reason_code),
             )
-        except Exception as e:
+        except (TimeoutError, ConnectionError, OSError) as e:
             logging.warning("MQTT mTLS failed: %s. Trying WebSocket...", e)
             # Reset the future for websocket attempt
             self.future_connection_success = Future()
@@ -196,7 +203,7 @@ class PubSubClient:
             )
             unsuback = unsubscribe_future.result(TIMEOUT)
             logging.info("Unsubscribed with %s", unsuback.reason_codes)
-        except Exception as e:
+        except (TimeoutError, ConnectionError) as e:
             logging.warning("Exception during unsubscribe: %s", e)
 
     def stop(self) -> None:
@@ -206,8 +213,8 @@ class PubSubClient:
         self.executor.stop()
         try:
             self.future_stopped.result(TIMEOUT)
-        except Exception as e:
-            logging.warning("Exception waiting for client stop: %s", e)
+        except TimeoutError as e:
+            logging.warning("Timeout waiting for client stop: %s", e)
         logging.info("Client Stopped!")
 
     def run(self) -> None:
@@ -266,13 +273,19 @@ def main():
             robot_name=robot_name,
             simulator_endpoint=settings.get("simulator_endpoint", ""),
             session_key=settings.get("session_key", ""),
-            robot_ip="127.255.255.255",
-            robot_port=settings.get("robot_port", 8830),
+            network_server_base=settings.get("network_server_base"),
         )
         client = PubSubClient(settings, executor)
         client.run()
-    except Exception as e:
-        logging.error("Exception occurred in main loop: %s", e)
+    except (ImportError, FileNotFoundError, ConnectionError) as e:
+        logging.error("Critical error in main loop: %s", e)
+    except KeyboardInterrupt:
+        logging.info("Application interrupted by user")
+    except (ValueError, TypeError, AttributeError) as e:
+        logging.error("Configuration or runtime error in main loop: %s", e)
+    except Exception as e:  # Final catch-all for truly unexpected errors
+        logging.error("Unexpected error occurred in main loop: %s", e)
+        raise  # Re-raise to help with debugging
 
 
 if __name__ == "__main__":

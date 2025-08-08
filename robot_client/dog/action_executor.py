@@ -10,120 +10,196 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 import requests
-from api import DogController
+
 from config import (
     DEFAULT_ACTION_SLEEP_TIME,
-    DEFAULT_SPEED,
-    HOP_ACTION_SLEEP_TIME,
-    STATUS_ACTION_SLEEP_TIME,
+    NETWORK_SERVER_HOST,
+    NETWORK_SERVER_PORT,
     STOP_ACTION_SLEEP_TIME,
     ActionType,
 )
 
 logger = logging.getLogger(__name__)
 
-# Dog-specific action configuration dictionary with enhanced parameters
+# Complete action configuration matching network_action_server / MovementGroups API
 actions: Dict[str, Dict[str, Any]] = {
-    # Basic movement actions
-    "left": {
-        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "left",
-        "type": ActionType.MOVEMENT,
-        "default_speed": DEFAULT_SPEED,
-        "description": "Move robot left",
-    },
-    "right": {
-        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "right",
-        "type": ActionType.MOVEMENT,
-        "default_speed": DEFAULT_SPEED,
-        "description": "Move robot right",
-    },
-    "forward": {
-        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "forward",
-        "type": ActionType.MOVEMENT,
-        "default_speed": DEFAULT_SPEED,
-        "description": "Move robot forward",
-    },
-    "back": {
-        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "back",
-        "type": ActionType.MOVEMENT,
-        "default_speed": DEFAULT_SPEED,
-        "description": "Move robot backward",
-    },
-    # Rotation actions
-    "cw": {
-        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "cw",
-        "type": ActionType.ROTATION,
-        "default_speed": DEFAULT_SPEED,
-        "description": "Rotate robot clockwise",
-    },
-    "ccw": {
-        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "ccw",
-        "type": ActionType.ROTATION,
-        "default_speed": DEFAULT_SPEED,
-        "description": "Rotate robot counter-clockwise",
-    },
-    # Posture actions
-    "stand_up": {
-        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "stand_up",
-        "type": ActionType.POSTURE,
-        "default_speed": DEFAULT_SPEED,
-        "description": "Make robot stand up",
-    },
-    "lay_down": {
-        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "lay_down",
-        "type": ActionType.POSTURE,
-        "default_speed": DEFAULT_SPEED,
-        "description": "Make robot lay down",
-    },
-    "hop": {
-        "sleep_time": HOP_ACTION_SLEEP_TIME,
-        "name": "hop",
-        "type": ActionType.SPECIAL,
-        "description": "Make robot hop",
-    },
-    # Status actions
-    "activate": {
-        "sleep_time": STATUS_ACTION_SLEEP_TIME,
-        "name": "activate",
-        "type": ActionType.STATUS,
-        "description": "Toggle robot activation",
-    },
-    "walk_mode": {
-        "sleep_time": STATUS_ACTION_SLEEP_TIME,
-        "name": "walk_mode",
-        "type": ActionType.STATUS,
-        "description": "Toggle walking mode",
-    },
-    "dance_mode": {
-        "sleep_time": STATUS_ACTION_SLEEP_TIME,
-        "name": "dance_mode",
-        "type": ActionType.STATUS,
-        "description": "Toggle dancing mode",
-    },
+    # === Core MovementGroups actions (direct from network_action_server) ===
+    # Basic control
     "stop": {
         "sleep_time": STOP_ACTION_SLEEP_TIME,
         "name": "stop",
         "type": ActionType.CONTROL,
-        "description": "Stop all movement",
+        "description": "Return to default standing position",
     },
-    # Advanced actions
-    "custom_movement": {
+    # Head/vision movements
+    "look_up": {
+        "sleep_time": 1.5,
+        "name": "look_up",
+        "type": ActionType.POSTURE,
+        "description": "Look up 20 degrees",
+    },
+    "look_down": {
+        "sleep_time": 1.5,
+        "name": "look_down",
+        "type": ActionType.POSTURE,
+        "description": "Look down 20 degrees",
+    },
+    "look_left": {
+        "sleep_time": 1.5,
+        "name": "look_left",
+        "type": ActionType.POSTURE,
+        "description": "Look left 30 degrees",
+    },
+    "look_right": {
+        "sleep_time": 1.5,
+        "name": "look_right",
+        "type": ActionType.POSTURE,
+        "description": "Look right 30 degrees",
+    },
+    "look_upperleft": {
+        "sleep_time": 1.5,
+        "name": "look_upperleft",
+        "type": ActionType.POSTURE,
+        "description": "Look up 20° and left 30°",
+    },
+    "look_upperright": {
+        "sleep_time": 1.5,
+        "name": "look_upperright",
+        "type": ActionType.POSTURE,
+        "description": "Look up 20° and right 30°",
+    },
+    "look_leftlower": {
+        "sleep_time": 1.5,
+        "name": "look_leftlower",
+        "type": ActionType.POSTURE,
+        "description": "Look down 20° and left 30°",
+    },
+    "look_rightlower": {
+        "sleep_time": 1.5,
+        "name": "look_rightlower",
+        "type": ActionType.POSTURE,
+        "description": "Look down 20° and right 30°",
+    },
+    # Basic movement (Level 1 - no parameters)
+    "move_forward": {
         "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
-        "name": "custom_movement",
+        "name": "move_forward",
         "type": ActionType.MOVEMENT,
-        "description": "Execute custom movement pattern",
+        "description": "Move forward at 0.15 m/s",
+    },
+    "move_backward": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "move_backward",
+        "type": ActionType.MOVEMENT,
+        "description": "Move backward at 0.15 m/s",
+    },
+    "move_left": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "move_left",
+        "type": ActionType.MOVEMENT,
+        "description": "Move left at 0.15 m/s",
+    },
+    "move_right": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "move_right",
+        "type": ActionType.MOVEMENT,
+        "description": "Move right at 0.15 m/s",
+    },
+    "move_leftfront": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "move_leftfront",
+        "type": ActionType.MOVEMENT,
+        "description": "Move diagonally left-forward",
+    },
+    "move_rightfront": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "move_rightfront",
+        "type": ActionType.MOVEMENT,
+        "description": "Move diagonally right-forward",
+    },
+    "move_leftback": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "move_leftback",
+        "type": ActionType.MOVEMENT,
+        "description": "Move diagonally left-backward",
+    },
+    "move_rightback": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "move_rightback",
+        "type": ActionType.MOVEMENT,
+        "description": "Move diagonally right-backward",
+    },
+    # Parameterized movements (Level 2)
+    "head_move": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "head_move",
+        "type": ActionType.POSTURE,
+        "description": "Move head with pitch_deg, yaw_deg, time_uni, time_acc parameters",
+    },
+    "body_row": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "body_row",
+        "type": ActionType.POSTURE,
+        "description": "Tilt body with row_deg, time_uni, time_acc parameters",
+    },
+    "balance": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "balance",
+        "type": ActionType.POSTURE,
+        "description": "Balance with roll_deg, pitch_deg, time_uni, time_acc parameters",
+    },
+    "gait_uni": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "gait_uni",
+        "type": ActionType.MOVEMENT,
+        "description": "Uniform gait with v_x, v_y, time_uni, time_acc parameters",
+    },
+    "height_move": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "height_move",
+        "type": ActionType.POSTURE,
+        "description": "Change height with ht, time_uni, time_acc parameters",
+    },
+    "foreleg_lift": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "foreleg_lift",
+        "type": ActionType.POSTURE,
+        "description": "Lift foreleg with leg_index, ht, time_uni, time_acc parameters",
+    },
+    "backleg_lift": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "backleg_lift",
+        "type": ActionType.POSTURE,
+        "description": "Lift back leg with leg_index, ht, time_uni, time_acc parameters",
+    },
+    "rotate": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "rotate",
+        "type": ActionType.ROTATION,
+        "description": "Rotate by angle parameter",
+    },
+    "bowback": {
+        "sleep_time": DEFAULT_ACTION_SLEEP_TIME,
+        "name": "bowback",
+        "type": ActionType.POSTURE,
+        "description": "Bow head and move back with angle parameter",
+    },
+    # Complex movements (Level 3)
+    "body_cycle": {
+        "sleep_time": 8.0,  # Longer for complex movement
+        "name": "body_cycle",
+        "type": ActionType.SPECIAL,
+        "description": "Draw circle with body center while keeping orientation",
+    },
+    "head_ellipse": {
+        "sleep_time": 8.0,  # Longer for complex movement
+        "name": "head_ellipse",
+        "type": ActionType.SPECIAL,
+        "description": "Draw ellipse trajectory with head movement",
     },
 }
 
@@ -136,7 +212,7 @@ class DogActionExecutor:
     Enhanced action executor for dog robots with improved API integration.
 
     This class manages a queue of actions to be executed on the dog robot,
-    using the new DogController API for better control and error handling.
+    using only the local network_action_server HTTP API.
     """
 
     def __init__(
@@ -144,8 +220,7 @@ class DogActionExecutor:
         robot_name: str,
         simulator_endpoint: str = "",
         session_key: str = "",
-        robot_ip: str = "127.0.0.1",
-        robot_port: int = 8830,
+        network_server_base: Optional[str] = None,
     ) -> None:
         """
         Initialize the DogActionExecutor.
@@ -161,15 +236,20 @@ class DogActionExecutor:
         self.simulator_endpoint = simulator_endpoint
         self.session_key = session_key
         self.logger = logging.getLogger(__name__)
-        self._walking_mode_enabled = False  # Track walking mode state
+        # Legacy variable retained for backward compatibility (no effect now)
+        self._walking_mode_enabled = False
 
-        # Initialize dog controller
-        try:
-            self.dog_controller = DogController(ip=robot_ip, port=robot_port)
-            self.logger.info(f"Dog controller initialized for {robot_ip}:{robot_port}")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize dog controller: {e}")
-            self.dog_controller = None
+        # Always use network HTTP now
+        self.use_network_http = True
+        if network_server_base:
+            self.network_server_base = network_server_base.rstrip("/")
+        else:
+            self.network_server_base = (
+                f"http://{NETWORK_SERVER_HOST}:{NETWORK_SERVER_PORT}"
+            )
+        self.logger.info(
+            f"DogActionExecutor operating in HTTP-only mode -> {self.network_server_base}"
+        )
 
         # Queue and threading setup
         self.action_queue: queue.Queue = queue.Queue()
@@ -196,8 +276,7 @@ class DogActionExecutor:
     def _execute_dog_action(
         self, action_name: str, parameters: Dict[str, Any] = None
     ) -> bool:
-        """
-        Execute an action using the DogController API.
+        """Execute an action using the network_action_server HTTP API.
 
         Args:
             action_name: Name of the action to execute
@@ -206,136 +285,185 @@ class DogActionExecutor:
         Returns:
             True if action executed successfully, False otherwise
         """
-        if not self.dog_controller:
-            self.logger.error("Dog controller not available")
-            return False
+        return self._execute_via_network_server(action_name, parameters or {})
 
+    # ------------------------------------------------------------------
+    # Network Action Server HTTP integration
+    # ------------------------------------------------------------------
+    def _map_action_to_network(
+        self, action_name: str, parameters: Optional[Dict[str, Any]]
+    ) -> tuple[str, float, Dict[str, Any]]:
+        """Map local executor action to network_action_server semantics.
+
+        Returns a tuple of (network_action, duration, network_parameters).
+        Duration may be 0 if not time-based.
+        """
+        params = parameters or {}
+        duration = params.get(
+            "duration", actions.get(action_name, {}).get("sleep_time", 2.0)
+        )
+
+        # Direct mapping - all actions correspond to MovementGroups methods
+        network_action = action_name
+
+        network_params: Dict[str, Any] = {}
+        # Build parameters based on action type
+
+        # Rotation actions
+        if network_action == "rotate":
+            angle = (parameters or {}).get("angle")
+            if angle is None:
+                # Derive a nominal angle from duration * 30 deg/s
+                angle = duration * 30.0
+            network_params = {"angle": angle}
+
+        # Height/hop movements
+        elif network_action == "height_move":
+            ht = (parameters or {}).get("ht", 0.02)
+            network_params = {
+                "ht": ht,
+                "time_uni": min(duration, 2.0),
+                "time_acc": min(duration * 0.3, 1.0),
+            }
+
+        # Bowback movement
+        elif network_action == "bowback":
+            angle = (parameters or {}).get("angle", 15)
+            network_params = {"angle": angle}
+
+        # Head movements with parameters
+        elif network_action == "head_move":
+            pitch_deg = (parameters or {}).get("pitch_deg", 0)
+            yaw_deg = (parameters or {}).get("yaw_deg", 0)
+            time_uni = (parameters or {}).get("time_uni", duration)
+            time_acc = (parameters or {}).get("time_acc", min(duration * 0.3, 1.0))
+            network_params = {
+                "pitch_deg": pitch_deg,
+                "yaw_deg": yaw_deg,
+                "time_uni": time_uni,
+                "time_acc": time_acc,
+            }
+
+        # Body row/tilt movements
+        elif network_action == "body_row":
+            row_deg = (parameters or {}).get("row_deg", 0)
+            time_uni = (parameters or {}).get("time_uni", duration)
+            time_acc = (parameters or {}).get("time_acc", min(duration * 0.3, 1.0))
+            network_params = {
+                "row_deg": row_deg,
+                "time_uni": time_uni,
+                "time_acc": time_acc,
+            }
+
+        # Balance movements
+        elif network_action == "balance":
+            roll_deg = (parameters or {}).get("roll_deg", 0)
+            pitch_deg = (parameters or {}).get("pitch_deg", 0)
+            time_uni = (parameters or {}).get("time_uni", duration)
+            time_acc = (parameters or {}).get("time_acc", min(duration * 0.3, 1.0))
+            network_params = {
+                "roll_deg": roll_deg,
+                "pitch_deg": pitch_deg,
+                "time_uni": time_uni,
+                "time_acc": time_acc,
+            }
+
+        # Gait movements with velocity parameters
+        elif network_action == "gait_uni":
+            v_x = (parameters or {}).get("v_x", 0)
+            v_y = (parameters or {}).get("v_y", 0)
+            time_uni = (parameters or {}).get("time_uni", duration)
+            time_acc = (parameters or {}).get("time_acc", min(duration * 0.3, 1.0))
+            network_params = {
+                "v_x": v_x,
+                "v_y": v_y,
+                "time_uni": time_uni,
+                "time_acc": time_acc,
+            }
+
+        # Leg lift movements
+        elif network_action in ["foreleg_lift", "backleg_lift"]:
+            leg_index = (parameters or {}).get("leg_index", "left")
+            ht = (parameters or {}).get("ht", 0.01)
+            time_uni = (parameters or {}).get("time_uni", duration)
+            time_acc = (parameters or {}).get("time_acc", min(duration * 0.3, 1.0))
+            network_params = {
+                "leg_index": leg_index,
+                "ht": ht,
+                "time_uni": time_uni,
+                "time_acc": time_acc,
+            }
+
+        # Stop action with time parameter
+        elif network_action == "stop":
+            network_params = {"time": duration}
+
+        # All other actions (look_*, move_*, body_cycle, head_ellipse) - no parameters needed
+        # They use their built-in defaults
+
+        return network_action, duration, network_params
+
+    def _execute_via_network_server(
+        self, action_name: str, parameters: Optional[Dict[str, Any]]
+    ) -> bool:
+        """Execute an action by calling the local network_action_server HTTP API.
+        Returns True if the HTTP request succeeded (action queued), False otherwise.
+        """
         try:
-            from config import (
-                DEFAULT_SPEED,
-                angle_to_duration,
-                distance_to_duration,
-                validate_duration,
-                validate_speed,
+            network_action, duration, network_params = self._map_action_to_network(
+                action_name, parameters
             )
-
-            # Extract and validate parameters
-            speed = (
-                validate_speed(parameters.get("speed", DEFAULT_SPEED))
-                if parameters
-                else DEFAULT_SPEED
+            payload = {
+                "action": network_action,
+                "duration": float(duration),
+                "parameters": network_params,
+            }
+            url = f"{self.network_server_base}/execute"
+            self.logger.debug(
+                f"HTTP executing via network server: {url} payload={payload}"
             )
-            duration = parameters.get("duration") if parameters else None
-            distance = parameters.get("distance") if parameters else None
-            angle = parameters.get("angle") if parameters else None
-
-            # Convert distance/angle to duration if not specified
-            if distance and not duration:
-                duration = distance_to_duration(distance)
-            elif angle and not duration:
-                duration = angle_to_duration(angle)
-
-            if duration:
-                duration = validate_duration(duration)
-
-            # Handle walking mode for movement actions
-            if action_name in ["forward", "back", "left", "right", "cw", "ccw"]:
-                if not self._walking_mode_enabled:
+            resp = requests.post(url, json=payload, timeout=3.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("success"):
                     self.logger.info(
-                        "Walking mode is not enabled, enabling it permanently..."
+                        f"Queued network server action '{network_action}' (mapped from '{action_name}')"
                     )
-                    self.dog_controller.enable_walking()
-                    time.sleep(2)  # Allow time for walking mode to activate
-                    self._walking_mode_enabled = True
-                    self.logger.info(
-                        "Walking mode enabled permanently for movement actions"
+                    return True
+                else:
+                    self.logger.warning(
+                        f"Network server responded without success: {data}"
                     )
-
-            self.logger.info(
-                f"Executing dog action: {action_name} with speed={speed}, duration={duration}, parameters={parameters}"
-            )
-            # Execute action based on type
-            if action_name == "forward":
-                self.dog_controller.movement.move_forward(
-                    speed=speed, duration=duration
-                )
-            elif action_name == "back":
-                self.dog_controller.movement.move_backward(
-                    speed=speed, duration=duration
-                )
-            elif action_name == "left":
-                self.dog_controller.movement.move_left(speed=speed, duration=duration)
-            elif action_name == "right":
-                self.dog_controller.movement.move_right(speed=speed, duration=duration)
-            elif action_name == "cw":
-                self.dog_controller.movement.rotate_right(
-                    speed=speed, duration=duration
-                )
-            elif action_name == "ccw":
-                self.dog_controller.movement.rotate_left(speed=speed, duration=duration)
-            elif action_name == "stand_up":
-                self.dog_controller.movement.stand_up(speed=speed)
-            elif action_name == "lay_down":
-                self.dog_controller.movement.lay_down(speed=speed)
-            elif action_name == "hop":
-                hop_duration = duration if duration else 1.0
-                self.dog_controller.movement.hop(duration=hop_duration)
-            elif action_name == "activate":
-                self.dog_controller.activate()
-            elif action_name == "walk_mode":
-                self._walking_mode_enabled = not self._walking_mode_enabled
-                self.dog_controller.enable_walking()
-            elif action_name == "dance_mode":
-                self.dog_controller.enable_dancing()
-            elif action_name == "stop":
-                self.dog_controller.stop_all()
-                if self._walking_mode_enabled:
-                    self.dog_controller.enable_walking()
-                self._walking_mode_enabled = False
-            elif action_name == "custom_movement":
-                # Handle custom movement with multiple parameters
-                lx = parameters.get("lx", 0.0)
-                ly = parameters.get("ly", 0.0)
-                rx = parameters.get("rx", 0.0)
-                ry = parameters.get("ry", 0.0)
-                dpadx = parameters.get("dpadx", 0.0)
-                dpady = parameters.get("dpady", 0.0)
-                self.dog_controller.movement.custom_movement(
-                    lx=lx,
-                    ly=ly,
-                    rx=rx,
-                    ry=ry,
-                    dpadx=dpadx,
-                    dpady=dpady,
-                    duration=duration,
-                )
             else:
-                self.logger.error(f"Unknown action: {action_name}")
-                return False
-
-            self.logger.info(f"Dog action '{action_name}' executed successfully")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Error executing dog action '{action_name}': {e}")
+                self.logger.warning(
+                    f"Network server HTTP {resp.status_code}: {resp.text}"
+                )
             return False
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"HTTP request error for action '{action_name}': {e}")
+            return False
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Parameter error in network server execution: {e}")
+            return False
+        except RuntimeError as e:
+            self.logger.error(f"Runtime error in network server execution: {e}")
+            return False
+
+    # Deliberately allow unexpected exceptions to propagate for visibility (no broad catch)
 
     def _stop_dog_action(self) -> bool:
-        """
-        Stop current dog action.
-
-        Returns:
-            True if stop was successful, False otherwise
-        """
-        if not self.dog_controller:
-            return False
-
+        """Issue an immediate stop via the network_action_server."""
         try:
-            self.dog_controller.stop_all()
-            self.logger.info("Dog action stopped successfully")
-            return True
-        except Exception as e:
-            self.logger.error(f"Error stopping dog action: {e}")
+            resp = requests.post(f"{self.network_server_base}/stop", timeout=2.0)
+            if resp.status_code == 200:
+                self.logger.info("Network server stop issued successfully")
+                return True
+            self.logger.warning(
+                f"Failed to stop via network server: {resp.status_code} {resp.text}"
+            )
+            return False
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Stop request error: {e}")
             return False
 
     def _execute_action(self, action_item: Dict[str, Any]) -> None:
@@ -394,9 +522,11 @@ class DogActionExecutor:
                 time.sleep(0.1)
                 elapsed += 0.1
 
-        except Exception as e:
-            self.logger.error(f"Error executing action {action_name}: {e}")
-            self.execution_stats["failed_actions"] += 1
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Parameter error executing action {action_name}: {e}")
+        except RuntimeError as e:
+            self.logger.error(f"Runtime error executing action {action_name}: {e}")
+        # Omit broad catch to satisfy strict linting
         finally:
             # Clean up
             self._remove_action_by_id(action_item["id"])
@@ -457,10 +587,15 @@ class DogActionExecutor:
                     self.is_running = False
                     time.sleep(0.5)
 
-            except Exception as e:
-                self.logger.error(f"Error in consumer thread: {e}")
+            except (ValueError, TypeError) as e:
+                self.logger.error(f"Parameter error in consumer thread: {e}")
                 self.is_running = False
                 time.sleep(1)
+            except RuntimeError as e:
+                self.logger.error(f"Runtime error in consumer thread: {e}")
+                self.is_running = False
+                time.sleep(1)
+            # Broad exceptions intentionally not caught to allow visibility
 
         self.logger.info("Action consumer thread stopped")
 
@@ -604,9 +739,7 @@ class DogActionExecutor:
             "queue_size": len(queue_items),
             "current_action": self.current_action,
             "is_running": self.is_running,
-            "robot_status": (
-                self.dog_controller.get_status() if self.dog_controller else None
-            ),
+            "robot_status": self._fetch_network_status(),
             "execution_stats": self.get_execution_stats(),
         }
 
@@ -623,18 +756,18 @@ class DogActionExecutor:
         self._immediate_stop_event.set()
         self.clear_action_queue()
 
-        # Also stop the dog controller if available
-        if self.dog_controller:
-            try:
-                # Remember walking mode state
-                was_walking = self._walking_mode_enabled
-                self.dog_controller.emergency_stop()
-                # Restore walking mode if it was enabled
-                if was_walking:
-                    self.dog_controller.enable_walking()
-                    self._walking_mode_enabled = True
-            except Exception as e:
-                self.logger.error(f"Error during emergency stop: {e}")
+        # Issue network server stop
+        self._stop_dog_action()
+
+    def _fetch_network_status(self) -> Optional[Dict[str, Any]]:
+        """Fetch status from network_action_server /status endpoint."""
+        try:
+            resp = requests.get(f"{self.network_server_base}/status", timeout=2.0)
+            if resp.status_code == 200:
+                return resp.json()
+            return {"error": f"status_http_{resp.status_code}"}
+        except requests.exceptions.RequestException:
+            return {"error": "status_request_failed"}
 
     def shutdown(self) -> None:
         """

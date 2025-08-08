@@ -9,11 +9,15 @@ and helper methods.
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Dict
 
 from config import (
-    MIN_SPEED, MAX_SPEED, MIN_DURATION, MAX_DURATION,
-    CONSUMER_SLEEP_INTERVAL, THREAD_JOIN_TIMEOUT
+    CONSUMER_SLEEP_INTERVAL,
+    MAX_DURATION,
+    MAX_SPEED,
+    MIN_DURATION,
+    MIN_SPEED,
+    THREAD_JOIN_TIMEOUT,
 )
 
 logger = logging.getLogger(__name__)
@@ -340,6 +344,9 @@ def retry_on_exception(
                 logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s...")
                 time.sleep(delay)
             else:
+                logger.error(f"All {max_retries + 1} attempts failed")
+    
+    raise last_exception            else:
                 logger.error(f"All {max_retries + 1} attempts failed")
     
     raise last_exception
