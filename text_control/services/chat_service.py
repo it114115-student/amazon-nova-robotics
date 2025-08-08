@@ -43,7 +43,11 @@ async def get_chat_response(
     If a user asks for something that's not a valid action, politely inform them which actions are available.
 
     Don't reply all commands at once and first drill down to the specific type of thing such as obots, dogs and drones.
-    Dont't reply more than 3 sentances at once, and if the user asks for more information, provide it in a follow-up message.
+    Don't reply more than 3 sentences at once, and if the user asks for more information, provide it in a follow-up message.
+
+    Commands is in format dogMoveForward, droneRotateClockwise, robotMoveBackward, etc., and 
+    you need to rephrase it like "dog move forward", "drone rotate clockwise", "robot move backward" etc for user.
+    
     """
 
     context = get_robot(selected_robot)

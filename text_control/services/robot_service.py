@@ -314,8 +314,3 @@ class RobotService:
 
 # Create service instance
 robot_service = RobotService()
-            return {"valid": False, "error": f"Validation error: {str(e)}"}
-
-
-# Create service instance
-robot_service = RobotService()
