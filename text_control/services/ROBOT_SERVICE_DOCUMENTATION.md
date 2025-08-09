@@ -25,6 +25,7 @@ Robot Clients (PubSub → ActionExecutor → DogController)
 The main service class that routes actions to appropriate publishers based on robot type.
 
 **Key Methods:**
+
 - `execute_robot_action(message, selected_robot, parameters)` - Main action execution method
 - `execute_dog_action(dog_id, action, parameters)` - Direct dog action execution
 - `process_actions(actions_list, robot, parameters)` - Sequential action processing
@@ -36,6 +37,7 @@ The main service class that routes actions to appropriate publishers based on ro
 Handles all dog robot communications with comprehensive action mapping.
 
 **Features:**
+
 - Complete action mapping for all dog capabilities
 - Parameter validation and processing
 - Support for movement, rotation, posture, status, and advanced actions
@@ -44,12 +46,14 @@ Handles all dog robot communications with comprehensive action mapping.
 **Supported Actions:**
 
 #### Movement Actions
+
 - `move_forward` → `forward`
 - `move_backward` → `back`
 - `move_left` → `left`
 - `move_right` → `right`
 
 #### Rotation Actions
+
 - `rotate_clockwise` → `cw`
 - `rotate_counterclockwise` → `ccw`
 - `rotate_left` → `ccw`
@@ -60,11 +64,13 @@ Handles all dog robot communications with comprehensive action mapping.
 - `turn_around` → `cw` (with 180° angle)
 
 #### Posture Actions
+
 - `stand_up` → `stand_up`
 - `lay_down` → `lay_down`
 - `hop` → `hop`
 
 #### Status Actions
+
 - `activate` → `activate`
 - `enable_walking` → `walk_mode`
 - `enable_dancing` → `dance_mode`
@@ -72,10 +78,12 @@ Handles all dog robot communications with comprehensive action mapping.
 - `dance_mode` → `dance_mode`
 
 #### Control Actions
+
 - `stop` → `stop`
 - `emergency_stop` → `stop`
 
 #### Advanced Actions
+
 - `custom_movement` → `custom_movement`
 - `circle_movement` → `custom_movement`
 
@@ -84,6 +92,7 @@ Handles all dog robot communications with comprehensive action mapping.
 The service provides intelligent parameter processing with validation and defaults:
 
 #### Movement Parameters
+
 ```python
 {
     "distance": 50,    # cm (1-1000)
@@ -92,6 +101,7 @@ The service provides intelligent parameter processing with validation and defaul
 ```
 
 #### Rotation Parameters
+
 ```python
 {
     "angle": 90,       # degrees (1-360)
@@ -100,6 +110,7 @@ The service provides intelligent parameter processing with validation and defaul
 ```
 
 #### Posture Parameters
+
 ```python
 {
     "speed": 0.5       # 0.1-1.0
@@ -107,6 +118,7 @@ The service provides intelligent parameter processing with validation and defaul
 ```
 
 #### Special Action Parameters
+
 ```python
 {
     "duration": 1.0    # seconds (0.1-5.0)
@@ -114,6 +126,7 @@ The service provides intelligent parameter processing with validation and defaul
 ```
 
 #### Advanced Movement Parameters
+
 ```python
 {
     "lx": 0.0,         # Left stick X (-1.0 to 1.0)
@@ -142,7 +155,7 @@ success = robot_service.execute_dog_action(
 
 # Rotate dog left 45 degrees
 success = robot_service.execute_dog_action(
-    dog_id="dog_1", 
+    dog_id="dog_1",
     action="rotate_left",
     parameters={"angle": 45, "speed": 0.4}
 )
@@ -192,7 +205,7 @@ robot_service.execute_robot_action("stand_up", "dog_all")
 ```python
 # Validate action before execution
 validation = robot_service.validate_dog_action(
-    "move_forward", 
+    "move_forward",
     {"distance": 150, "speed": 0.7}
 )
 
@@ -208,17 +221,18 @@ The service generates IoT messages in the format expected by the new dog system:
 
 ```json
 {
-    "dogID": "dog_1",
-    "action": "forward",
-    "parameters": {
-        "distance": 100,
-        "speed": 0.5
-    }
+  "dogID": "dog_1",
+  "action": "forward",
+  "parameters": {
+    "distance": 100,
+    "speed": 0.5
+  }
 }
 ```
 
 **Topic Structure:**
-- Individual dogs: `dog_1/topic`, `dog_2/topic`
+
+- Individual dogs: `dog_1/topic`, `dog_2/topic`, `dog_3/topic`
 - All dogs: Publishes to all individual topics in parallel
 
 ## Error Handling
@@ -226,16 +240,19 @@ The service generates IoT messages in the format expected by the new dog system:
 The service provides comprehensive error handling:
 
 ### Parameter Validation
+
 - Type checking and conversion
 - Range validation with automatic clamping
 - Default value assignment for missing parameters
 
 ### Network Error Handling
+
 - Connection timeout handling
 - Retry logic through AWS SDK configuration
 - Graceful degradation on network issues
 
 ### Action Validation
+
 - Supported action verification
 - Parameter compatibility checking
 - Detailed error messages
@@ -245,16 +262,19 @@ The service provides comprehensive error handling:
 The service is fully integrated with the new dog robot architecture:
 
 ### Message Flow
+
 ```
 Text Control → Robot Service → AWS IoT → PubSub Client → Action Executor → Dog Controller → Physical Robot
 ```
 
 ### Action Mapping Chain
+
 ```
 Service Action → SDK Action → Executor Action → Controller Method → UDP Command
 ```
 
 ### Example Flow
+
 ```
 "move_forward" → "forward" → executor.add_action_to_queue("forward", params) → dog_controller.movement.move_forward() → UDP command
 ```
@@ -262,13 +282,15 @@ Service Action → SDK Action → Executor Action → Controller Method → UDP 
 ## Configuration
 
 ### Robot IDs
+
 ```python
-DOG_IDS = ["dog_1", "dog_2"]
-DRONE_IDS = ["drone_1", "drone_2"] 
+DOG_IDS = ["dog_1", "dog_2", "dog_3"]
+DRONE_IDS = ["drone_1", "drone_2"]
 ROBOT_RANGE = range(1, 10)  # robot_1 to robot_9
 ```
 
 ### Default Parameters
+
 ```python
 DEFAULT_DISTANCE = 50  # cm
 DEFAULT_ANGLE = 90     # degrees
@@ -276,6 +298,7 @@ ACTION_DELAY = 0.1     # seconds between actions
 ```
 
 ### AWS IoT Configuration
+
 ```python
 iot_client = boto3.client(
     "iot-data",
@@ -286,11 +309,13 @@ iot_client = boto3.client(
 ## Testing
 
 ### Run Service Tests
+
 ```bash
 python text_control/test_robot_service.py
 ```
 
 ### Test Coverage
+
 - Action mapping validation
 - Parameter processing
 - Message format generation
@@ -300,6 +325,7 @@ python text_control/test_robot_service.py
 ## Monitoring and Logging
 
 The service provides detailed logging for:
+
 - Action execution attempts
 - Parameter validation results
 - IoT message publishing
@@ -307,6 +333,7 @@ The service provides detailed logging for:
 - Performance metrics
 
 ### Log Levels
+
 - `INFO`: Normal operation logging
 - `WARNING`: Non-critical issues
 - `ERROR`: Error conditions with details
@@ -315,18 +342,21 @@ The service provides detailed logging for:
 ## Best Practices
 
 ### Action Execution
+
 1. Always validate actions before execution
 2. Use appropriate parameters for better control
 3. Handle return values to detect failures
 4. Use batch operations for multiple robots
 
 ### Parameter Usage
+
 1. Provide explicit parameters for predictable behavior
 2. Use validation methods before execution
 3. Handle parameter errors gracefully
 4. Consider robot capabilities when setting parameters
 
 ### Error Handling
+
 1. Check return values from all service methods
 2. Use validation methods before execution
 3. Implement retry logic for critical operations
@@ -335,22 +365,25 @@ The service provides detailed logging for:
 ## Migration from Legacy System
 
 ### Old Usage
+
 ```python
 # Legacy approach
 robot_service.execute_robot_action("dogMoveForward", "dog_1")
 ```
 
 ### New Usage
+
 ```python
 # New approach with parameters
 robot_service.execute_dog_action(
-    "dog_1", 
-    "move_forward", 
+    "dog_1",
+    "move_forward",
     {"distance": 100, "speed": 0.5}
 )
 ```
 
 ### Benefits of New System
+
 - Type-safe parameter handling
 - Comprehensive action validation
 - Better error reporting

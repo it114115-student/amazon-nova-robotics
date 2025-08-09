@@ -241,7 +241,7 @@ async def _chat(data):
         # If 'all' is selected, send to all individual robots, drones, and dogs
         individual_robots = [f"robot_{i}" for i in range(1, 10)]  # robot_1 to robot_9
         individual_drones = ["drone_1", "drone_2"]
-        individual_dogs = ["dog_1", "dog_2"]
+        individual_dogs = ["dog_1", "dog_2", "dog_3"]
         robots_to_use = individual_robots + individual_drones + individual_dogs
     else:
         # Handle other selections (individual robots, groups, or combinations)

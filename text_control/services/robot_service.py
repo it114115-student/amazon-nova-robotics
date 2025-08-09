@@ -130,7 +130,7 @@ class RobotService:
         the general robot action routing.
 
         Args:
-            dog_id: ID of the dog robot (e.g., "dog_1", "dog_2")
+            dog_id: ID of the dog robot (e.g., "dog_1", "dog_2", "dog_3")
             action: Action name (e.g., "move_forward", "rotate_left")
             parameters: Action parameters (e.g., {"distance": 100, "speed": 0.5})
 

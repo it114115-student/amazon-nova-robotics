@@ -1,6 +1,6 @@
 # Amazon Nova Robotics
 
-A comprehensive voice-controlled robotics platform powered by AWS IoT, AWS Bedrock, and Amazon Nova. This project enables natural language control of humanoid robots and drones through voice commands, with real-time 3D visualization and simulation capabilities.
+A comprehensive voice-controlled robotics platform powered by AWS IoT, AWS Bedrock, and Amazon Nova. This project enables natural language control of humanoid robots and drones through voice commands, with real-time 3D visualization, simulation capabilities, and secure authentication.
 
 ## 🎯 Project Overview
 
@@ -11,6 +11,7 @@ Amazon Nova Robotics is a multi-component system that combines:
 - **3D Simulation**: Browser-based 3D robot simulator with realistic animations
 - **Text Interface**: Web-based text control for robot commands
 - **MCP Integration**: Model Context Protocol support for extensibility
+- **Authentication**: AWS Cognito-based user authentication for secure access
 
 ## 🏗️ Architecture
 
@@ -24,11 +25,12 @@ The system consists of several interconnected components:
    - WebSocket-based bidirectional communication
    - MCP (Model Context Protocol) integration for extensibility
    - TypeScript/Node.js backend with web interface
+   - AWS Cognito authentication for secure access
 
 2. **Humanoid Robot Simulator** (`humanoid-robot-simulator/`)
 
-   - 3D web interface with Six.js visualization
-   - 6 humanoid robots with 44 realistic actions
+   - 3D web interface with Three.js visualization
+   - 6 humanoid robots with 38 realistic actions
    - Real-time WebSocket communication
    - Python Flask backend with comprehensive API
 
@@ -37,6 +39,8 @@ The system consists of several interconnected components:
    - Web-based text interface for robot control
    - Python Flask application with AWS Bedrock integration
    - Database-backed session management
+   - AWS Cognito authentication integration
+   - Command optimization system for faster response
 
 4. **Robot Client** (`robot_client/`)
 
@@ -64,14 +68,14 @@ The system consists of several interconnected components:
 
 ### Prerequisites
 
-- Node.js 22+ (for speech control)
+- Node.js 23+ (for speech control)
 - Python 3.8+ (for simulators and robot clients)
 - AWS CLI configured with appropriate permissions
 - Docker (optional, for containerized deployment)
 
 ### Environment Setup
 
-#### Update Node.js to version 22
+#### Update Node.js to version 23
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
@@ -80,8 +84,8 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
 Close the terminal and reopen, then:
 
 ```bash
-nvm use 22
-nvm alias default 22
+nvm use 23
+nvm alias default 23
 ```
 
 #### Install and Update CDK
@@ -127,6 +131,11 @@ Deployment
 ./deploy.sh
 ```
 
+This script will:
+
+- Deploy the CDK stack
+- Automatically sync IoT certificates from S3 to local robot_client/certificates/
+
 3. **Destroy Stacks** (when needed):
 
 ```bash
@@ -149,6 +158,13 @@ source load_cdkstack_env.sh
 aws s3 sync s3://$RobotDataBucketName robot_client/certificates/
 ```
 
+#### Create Test Users (for authentication)
+
+```bash
+cd speech_control
+npm run create-test-user
+```
+
 ## 🤖 Component Usage
 
 ### 1. Speech Control Interface
@@ -163,12 +179,20 @@ npm run dev
 
 Access at `http://localhost:3000`
 
+**Authentication**: The system now requires login through AWS Cognito. Create test users with:
+
+```bash
+cd speech_control
+npm run create-test-user
+```
+
 Features:
 
 - Real-time voice interaction with Amazon Nova Sonic
 - Multi-robot selection and control
 - WebSocket-based audio streaming
 - MCP tool integration
+- Secure authentication with session management
 
 ### 2. Humanoid Robot Simulator
 
@@ -185,7 +209,7 @@ Access at `http://localhost:5000?session_key=YOUR_SESSION`
 Features:
 
 - 6 humanoid robots with realistic 3D models
-- 44 different actions (dance, combat, exercise, movement)
+- 38 different actions (dance, combat, exercise, movement)
 - Real-time WebSocket updates
 - Group control capabilities
 
@@ -201,10 +225,11 @@ python app.py
 
 Features:
 
-- Text-based robot commands
-- AWS Bedrock integration
-- Session management
+- Text-based robot commands with intelligent optimization
+- AWS Bedrock integration for complex commands
+- Session management with authentication
 - Database-backed history
+- 2-4 second performance improvement for simple commands
 
 ### 4. Physical Robot Deployment
 
@@ -240,11 +265,12 @@ The system supports:
 
 - **Humanoid Robots**: `robot_1` through `robot_9`
 - **Drones**: `drone_1` and above
+- **Dogs**: `dog_1` through `dog_3` (Raspberry Pi Dog controllers)
 - **Group Control**: Use `"all"` to control all robots simultaneously
 
 ### MCP Integration
 
-The speech control component includes Model Context Protocol support for extensibility. Configure MCP servers in `speech_control/mcp_config.json`:
+The speech control component includes Model Context Protocol support for extensibility with AWS SigV4 authentication. Configure MCP servers in `speech_control/mcp_config.json`:
 
 ```json
 {
@@ -253,55 +279,69 @@ The speech control component includes Model Context Protocol support for extensi
       "command": "command-to-run",
       "args": ["arg1", "arg2"],
       "disabled": false,
-      "autoApprove": ["tool1", "tool2"]
+      "autoApprove": ["tool1", "tool2"],
+      "transportType": "stdio",
+      "headers": {
+        "Authorization": "AWS4-HMAC-SHA256..."
+      }
     }
   }
 }
 ```
 
+The system supports AWS IAM authentication for secure MCP Lambda Function URLs.
+
 ## 📊 Monitoring and Management
 
 ### API Endpoints
 
-- **Speech Control**: `/api/mcp/status`, `/api/tools`
+- **Speech Control**: `/api/mcp/status`, `/api/tools`, `/api/auth/config`, `/api/auth/login`
 - **Robot Simulator**: WebSocket API for real-time control
-- **Text Control**: RESTful API for command execution
+- **Text Control**: RESTful API for command execution with authentication
+- **Authentication**: AWS Cognito integration for secure access
 
 ### Session Management
 
-Each component supports session-based interaction:
+Each component supports session-based interaction with authentication:
 
-- Speech sessions with automatic cleanup
-- Simulator sessions with multi-user support
-- Text sessions with persistent history
+- Speech sessions with automatic cleanup and Cognito authentication
+- Simulator sessions with multi-user support and secure session keys
+- Text sessions with persistent history and JWT token authentication
 
 ## 🔒 Security
 
 - AWS IAM roles and policies for least-privilege access
 - IoT device certificates for secure communication
-- Session-based authentication
+- AWS Cognito authentication for web interfaces
+- Session-based authentication with JWT tokens
+- Socket.IO authentication middleware
 - CORS configuration for web interfaces
+- MCP server AWS SigV4 authentication support
 
 ## 🧩 Component Details
 
 ### Speech Control
 
 - **Technology**: TypeScript, Node.js, Express, Socket.IO
-- **Features**: Real-time audio streaming, MCP integration, multi-robot control
+- **Features**: Real-time audio streaming, MCP integration, multi-robot control, authentication
 - **AI Model**: Amazon Nova Sonic for speech-to-speech processing
+- **Authentication**: AWS Cognito with JWT tokens
+- **MCP Support**: AWS SigV4 authentication for secure Lambda Function URLs
 - **Deployment**: AWS App Runner with auto-scaling
 
 ### Humanoid Robot Simulator
 
 - **Technology**: Python Flask, Three.js, WebSocket
-- **Features**: 6 robots, 44 actions, 3D visualization, session management
-- **Actions**: Dance (10 styles), Combat, Exercise, Movement
+- **Features**: 6 robots, 38 actions, 3D visualization, session management
+- **Actions**: Dance (9 styles), Combat, Exercise, Movement
 - **Deployment**: Docker-ready, Cloud Run compatible
 
 ### Text Control
 
 - **Technology**: Python Flask, AWS Bedrock
-- **Features**: Text-based commands, session history, database integration
+- **Features**: Text-based commands, session history, database integration, command optimization
+- **Performance**: 2-4 second speedup for simple commands, 5x faster multi-robot execution
+- **Commands**: 43+ robot commands automatically extracted from MCP server
 - **Deployment**: AWS Lambda with API Gateway
 
 ### Robot Client
@@ -318,39 +358,43 @@ Each component supports session-based interaction:
 
 ### Infrastructure (CDK)
 
-- **Services**: App Runner, Lambda, IoT Core, DynamoDB, S3
-- **Features**: Auto-scaling, monitoring, secure networking
+- **Services**: App Runner, Lambda, IoT Core, DynamoDB, S3, Cognito
+- **Features**: Auto-scaling, monitoring, secure networking, batch IoT processing
+- **Efficiency**: 92.3% reduction in Lambda functions through batch IoT device creation
+- **Devices**: Single Lambda handles all 13 IoT devices (9 robots + 1 drone + 3 dogs)
 - **Region**: Primary deployment in us-east-1
 
 ## 🎮 Available Actions
 
-### Humanoid Robot Actions (44 total)
+### Humanoid Robot Actions (38 total)
 
-#### Dance Actions (10 styles, 52-85 seconds each)
+#### Dance Actions (9 styles, 52-85 seconds each)
 
-- `dance_1` through `dance_10`
+- `dance_two` through `dance_ten` (note: dance_one not implemented)
 - Professional choreographed sequences
 - Music-synchronized movements
 
 #### Combat Actions
 
-- `kung_fu`, `wing_chun_form`, `kick`, `punch`, `uppercut`
+- `kung_fu`, `wing_chun`, `left_kick`, `right_kick`, `left_uppercut`, `right_uppercut`
+- `left_shot_fast`, `right_shot_fast`
 - Martial arts sequences with proper stances
 
 #### Exercise Actions
 
-- `push_up`, `sit_up`, `squat`, `weightlifting`, `chest_exercise`
+- `push_ups`, `sit_ups`, `squat`, `squat_up`, `weightlifting`, `chest`
 - Realistic exercise movements with proper form
 
 #### Movement Actions
 
-- `move_forward`, `move_backward`, `turn_left`, `turn_right`
-- `fast_forward`, `fast_backward`, `fast_turn_left`, `fast_turn_right`
+- `go_forward`, `back_fast`, `turn_left`, `turn_right`
+- `left_move_fast`, `right_move_fast`, `stepping`
+- Basic movement with directional control
 
 #### Basic Actions
 
-- `wave`, `bow`, `jump`, `celebrate`, `think`
-- `standing_1`, `standing_2`, `standing_3`
+- `wave`, `bow`, `twist`, `stand`, `stand_up_back`, `stand_up_front`
+- Basic interaction and positioning actions
 
 ### Drone Actions
 
@@ -362,12 +406,13 @@ Each component supports session-based interaction:
 
 ### AWS Services
 
-- **Bedrock**: AI model inference and streaming
-- **IoT Core**: Device communication and management
+- **Bedrock**: AI model inference and streaming with Amazon Nova Sonic
+- **IoT Core**: Device communication and management for robots and drones
 - **Lambda**: Serverless compute for MCP and text control
 - **DynamoDB**: Session and robot state storage
 - **S3**: Certificate and asset storage
 - **App Runner**: Containerized web application hosting
+- **Cognito**: User authentication and session management
 
 ### Communication Protocols
 
@@ -407,10 +452,13 @@ Each component supports session-based interaction:
 
 ## 📈 Performance Considerations
 
-- **Concurrent Sessions**: Supports multiple simultaneous voice sessions
-- **Robot Capacity**: Up to 9 humanoid robots + drones per deployment
-- **Auto-scaling**: Automatic scaling based on demand
+- **Concurrent Sessions**: Supports multiple simultaneous voice sessions with authentication
+- **Robot Capacity**: Up to 9 humanoid robots + 1 drone + 3 dogs per deployment (13 devices total)
+- **Infrastructure Efficiency**: 92.3% reduction in Lambda functions through batch IoT processing
+- **Auto-scaling**: Automatic scaling based on demand for App Runner services
 - **Session Cleanup**: Automatic cleanup of inactive sessions (5-minute timeout)
+- **Command Optimization**: Text control bypasses LLM for simple commands (2-4s speedup)
+- **Simulator Capacity**: 6 humanoid robots in 3D visualization with 38 available actions
 
 ## 🛠️ Development
 
@@ -435,8 +483,11 @@ Each component can be developed independently with hot reload support.
 
 1. Fine-grained AWS IoT device permissions
 2. Enhanced robot action choreography
-3. Advanced MCP tool integrations
-4. Multi-language support for voice commands
-5. Robot fleet management interface
-6. Performance analytics and monitoring
-7. Mobile application development
+3. Multi-language support for voice commands
+4. Robot fleet management interface
+5. Mobile application development
+6. Real-time performance analytics dashboard
+7. Advanced MCP tool marketplace integration
+8. Enhanced video streaming with computer vision
+9. Multi-user collaboration features
+10. Robot behavior learning and adaptation

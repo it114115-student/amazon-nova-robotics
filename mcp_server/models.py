@@ -21,6 +21,7 @@ class DogID(str, Enum):
     ALL = "all"
     DOG_1 = "dog_1"
     DOG_2 = "dog_2"
+    DOG_3 = "dog_3"
 
 
 class DroneID(str, Enum):
