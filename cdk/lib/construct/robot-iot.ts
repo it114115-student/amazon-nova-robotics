@@ -1,9 +1,8 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
-import { ThingWithCert } from "cdk-iot-core-certificates-v3";
 import * as iam from "aws-cdk-lib/aws-iam";
+import { BatchIoTThings } from "./iot-things";
 
 export interface RoboticConstructProps {
   thingNames: string[];
@@ -11,39 +10,29 @@ export interface RoboticConstructProps {
 
 export class RoboticConstruct extends Construct {
   public readonly bucket: s3.IBucket;
+  public readonly iotThings: BatchIoTThings;
 
   constructor(scope: Construct, id: string, props: RoboticConstructProps) {
     super(scope, id);
 
     // Example S3 bucket creation
     this.bucket = new s3.Bucket(this, "RoboticBucket", {
-      versioned: true,
+      versioned: false,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    const sources: s3deploy.ISource[] = [];
-
-    props.thingNames.forEach((thingName, index) => {
-      const { certPem, privKey } = new ThingWithCert(this, `Thing${index}`, {
-        thingName,
-        saveToParamStore: false,
-      });
-      sources.push(
-        s3deploy.Source.data(`${thingName}/${thingName}.cert.pem`, certPem),
-        s3deploy.Source.data(`${thingName}/${thingName}.private.key`, privKey)
-      );
-    });
-
-    // Example S3 deployment
-    new s3deploy.BucketDeployment(this, "DeployFiles", {
-      sources,
-      destinationBucket: this.bucket,
+    // Create all IoT things with a single construct
+    this.iotThings = new BatchIoTThings(this, "BatchIoTThings", {
+      thingNames: props.thingNames,
+      saveToParamStore: true,
+      paramPrefix: "iot/robotics",
+      saveFileBucket: this.bucket,
     });
 
     // Create an IAM user for IoT robot access
     const iotUser = new iam.User(this, "IoTRobotUser", {
-      userName: "IoTRobotUser",
+      userName: "AmazonNovaRoboticsIoTRobotUser",
     });
 
     iotUser.addToPolicy(
@@ -82,5 +71,45 @@ export class RoboticConstruct extends Construct {
       value: iotAccessKey.attrSecretAccessKey,
       description: "Secret Access Key for IoT robot user.",
     });
+
+    // Output some information about the created things
+    new cdk.CfnOutput(this, "NumberOfThingsCreated", {
+      key: "NumberOfThingsCreated",
+      value: props.thingNames.length.toString(),
+      description: "Total number of IoT things created.",
+    });
+
+    new cdk.CfnOutput(this, "ThingNames", {
+      key: "ThingNames",
+      value: props.thingNames.join(", "),
+      description: "Names of all created IoT things.",
+    });
+
+    // Output information about certificate storage
+    new cdk.CfnOutput(this, "CertificateStorageLocation", {
+      key: "CertificateStorageLocation",
+      value: `S3 Bucket: ${this.bucket.bucketName}, SSM Parameter Store: iot/robotics/*`,
+      description: "Location where IoT certificates are stored.",
+    });
+
+    new cdk.CfnOutput(this, "CertificateDownloadInstructions", {
+      key: "CertificateDownloadInstructions",
+      value: `Use AWS CLI: aws s3 cp s3://${this.bucket.bucketName}/iot-certificates/ ./certificates/ --recursive`,
+      description: "Command to download all IoT certificates from S3.",
+    });
+  }
+
+  /**
+   * Get certificate information for a specific thing
+   */
+  public getCertificateInfo(thingName: string) {
+    return this.iotThings.getCertificateInfo(thingName);
+  }
+
+  /**
+   * Get all certificate information
+   */
+  public getAllCertificateInfo() {
+    return this.iotThings.getAllCertificateInfo();
   }
 }

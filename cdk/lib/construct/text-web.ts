@@ -38,7 +38,7 @@ export class TextControlWebConstruct extends Construct {
       },
     });
 
-    const awsUserId = this.node.tryGetContext("AwsUserId");
+    const awsUserId = this.node.tryGetContext("AwsUserId") || "default-user";
     console.log("AWS User ID:", awsUserId);
     const hash = crypto.createHash("sha256").update(awsUserId).digest("hex");
 

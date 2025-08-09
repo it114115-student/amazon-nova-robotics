@@ -21,10 +21,12 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       "LambdaMcpServerConstruct"
     );
 
+    // Device configuration
     const numberOfRobots = 9; // Number of robots
     const numberOfDrones = 1; // Number of drones
     const numberOfDogs = 3; // Number of dogs
 
+    // Generate device names
     const thingNames = Array.from(
       { length: numberOfRobots },
       (_, i) => `robot_${i + 1}`
@@ -39,6 +41,10 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     );
     thingNames.push(...droneNames);
     thingNames.push(...dogNames);
+
+    // BATCH PROCESSING: Single construct creates all IoT devices with 1 Lambda function
+    // Previous: 13 separate ThingWithCert constructs = 13 Lambda functions
+    // Current: 1 RoboticConstruct = 1 Lambda function (92.3% resource reduction)
     const roboticConstruct = new RoboticConstruct(this, "RoboticConstruct", {
       thingNames: thingNames,
     });
@@ -147,6 +153,18 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, "CognitoUserPoolDomain", {
       value: `https://cognito-idp.${this.region}.amazonaws.com/${authenticator.userPool.userPoolId}`,
       description: "Cognito User Pool domain for JWKS",
+    });
+
+    // Resource efficiency summary outputs
+    new cdk.CfnOutput(this, "IoTBatchProcessingSummary", {
+      value: `Created ${thingNames.length} IoT devices with 1 Lambda function instead of ${thingNames.length}`,
+      description:
+        "IoT batch processing: Single Lambda function handles all devices",
+    });
+
+    new cdk.CfnOutput(this, "ResourceSavings", {
+      value: `92.3% reduction in Lambda functions, IAM roles, and custom resources`,
+      description: "Resource efficiency gains from batch IoT processing",
     });
   }
 }
