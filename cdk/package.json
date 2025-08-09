@@ -8,7 +8,9 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "clean": "./cleanup.sh",
+    "clean:force": "./cleanup.sh --force"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

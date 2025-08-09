@@ -3,10 +3,12 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as cdk from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import path = require("path");
+import { SsmUserConstruct } from "./ssm-user";
 
 export interface RobotSsmConstructProps {
   prefix: string;
   thingNames: string[];
+  ssmUserConstruct?: SsmUserConstruct;
 }
 
 export class RobotSsmConstruct extends Construct {
@@ -14,7 +16,6 @@ export class RobotSsmConstruct extends Construct {
     super(scope, id);
 
     const ssmServiceRole = new iam.Role(this, "SSMServiceRole", {
-      roleName: "RobotSSMServiceRole",
       assumedBy: new iam.ServicePrincipal("ssm.amazonaws.com", {
         conditions: {
           StringEquals: {
@@ -80,79 +81,6 @@ export class RobotSsmConstruct extends Construct {
       },
       role: functionRole,
       timeout: cdk.Duration.seconds(30),
-    });
-
-    const ssmUser = new iam.User(this, "SsmRunCommandUser", {
-      userName: "RobotSsmRunCommandUser",
-    });
-    ssmUser.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:List*", "ssm:Describe*", "ssm:Get*"],
-        resources: ["*"],
-      })
-    );
-
-    ssmUser.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:SendCommand", "ssm:StartSession"],
-        resources: ["arn:aws:ssm:*:*:document/*"],
-      })
-    );
-    ssmUser.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:SendCommand", "ssm:StartSession"],
-        resources: ["arn:aws:ssm:*:*:managed-instance/*"],
-      })
-    );
-
-    ssmUser.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:CancelCommand"],
-        resources: ["*"],
-      })
-    );
-
-    // Add policy for session resources
-    ssmUser.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:ResumeSession", "ssm:TerminateSession"],
-        resources: ["arn:aws:ssm:*:*:session/${aws:username}-*"],
-      })
-    );
-
-    ssmUser.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "iam:ChangePassword",
-          "iam:GetAccountPasswordPolicy",
-          "ssm:GetDocument",
-          "ssm:ListCommandInvocations",
-          "ssm:ListCommands",
-          "ssm:UpdateInstanceInformation",
-          "sts:GetCallerIdentity",
-        ],
-        resources: ["*"],
-      })
-    );
-
-    new cdk.CfnOutput(this, "SsmRunCommandUserName", {
-      value: ssmUser.userName,
-      description: "IAM user with Run Command access for robots.",
-    });
-
-    const accessKey = new iam.CfnAccessKey(this, "CfnAccessKey", {
-      userName: ssmUser.userName,
-    });
-
-    new cdk.CfnOutput(this, "accessKeyId", { value: accessKey.ref });
-    new cdk.CfnOutput(this, "secretAccessKey", {
-      value: accessKey.attrSecretAccessKey,
     });
 
     for (let thingName of props.thingNames) {

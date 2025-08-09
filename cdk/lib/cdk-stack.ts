@@ -4,6 +4,7 @@ import { RoboticConstruct } from "./construct/robot-iot";
 import { SpeechControlWebConstruct } from "./construct/speech-web";
 import { TextControlWebConstruct } from "./construct/text-web";
 import { RobotSsmConstruct } from "./construct/robot-ssm";
+import { SsmUserConstruct } from "./construct/ssm-user";
 import { DatabaseConstruct } from "./construct/datebase";
 import { LambdaMcpServerConstruct } from "./construct/mcp-server";
 import { RobotSimulatorConstruct } from "./construct/robot-simulator";
@@ -21,12 +22,21 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     );
 
     const numberOfRobots = 9; // Number of robots
+    const numberOfDrones = 1; // Number of drones
+    const numberOfDogs = 3; // Number of dogs
+
     const thingNames = Array.from(
       { length: numberOfRobots },
       (_, i) => `robot_${i + 1}`
     );
-    const droneNames = Array.from({ length: 1 }, (_, i) => `drone_${i + 1}`);
-    const dogNames = Array.from({ length: 2 }, (_, i) => `dog_${i + 1}`);
+    const droneNames = Array.from(
+      { length: numberOfDrones },
+      (_, i) => `drone_${i + 1}`
+    );
+    const dogNames = Array.from(
+      { length: numberOfDogs },
+      (_, i) => `dog_${i + 1}`
+    );
     thingNames.push(...droneNames);
     thingNames.push(...dogNames);
     const roboticConstruct = new RoboticConstruct(this, "RoboticConstruct", {
@@ -59,13 +69,29 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       }
     );
 
-    const ssmNames = Array.from(
+    // Create shared SSM user construct
+    const ssmUserConstruct = new SsmUserConstruct(this, "SsmUserConstruct", {
+      userName: "AmazonNovaRoboticsSsmUser",
+    });
+
+    const ssmRobotNames = Array.from(
       { length: numberOfRobots },
       (_, i) => `RaspberryPiRobot${i + 1}`
     );
     new RobotSsmConstruct(this, "RobotSsmConstruct", {
       prefix: "humanoid",
-      thingNames: ssmNames,
+      thingNames: ssmRobotNames,
+      ssmUserConstruct: ssmUserConstruct,
+    });
+
+    const ssmDogNames = Array.from(
+      { length: numberOfDogs },
+      (_, i) => `RaspberryPiDog${i + 1}`
+    );
+    new RobotSsmConstruct(this, "RobotDogSsmConstruct", {
+      prefix: "dog",
+      thingNames: ssmDogNames,
+      ssmUserConstruct: ssmUserConstruct,
     });
 
     new cdk.CfnOutput(this, "speechUrl", {
