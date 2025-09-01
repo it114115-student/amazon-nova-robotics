@@ -1,9 +1,7 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": {},
-    "ghcr.io/devcontainers/features/aws-cli:1": {},
-    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" }
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
   },
   "hostRequirements": {
     "cpus": 4
@@ -14,24 +12,31 @@
     },
     "vscode": {
       "settings": {
-        "python.defaultInterpreterPath": "/workspaces/amazon-nova-robotic/robot_client/humanoid/venv/bin/python",
+        "python.defaultInterpreterPath": "/usr/bin/python3",
         "python.linting.enabled": true,
         "python.linting.flake8Path": "/usr/local/py-utils/bin/flake8",
         "python.linting.flake8Enabled": true,
-        "flake8.args": ["--max-line-length=120"],
+        "flake8.args": [
+          "--max-line-length=120"
+        ],
         "python.testing.pytestArgs": [],
         "python.testing.unittestEnabled": false,
         "python.testing.pytestEnabled": true,
-        "python.analysis.extraPaths": ["./amazon-nova-robotic/robot_client"],
+        "python.analysis.extraPaths": [
+          "./robot_client"
+        ],
         "pylint.importStrategy": "useBundled",
         "[python]": {
-          "editor.defaultFormatter": "ms-python.black-formatter",
+          "editor.defaultFormatter": null,
           "editor.formatOnSave": true,
           "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit"
           }
         },
-        "isort.args": ["--profile", "black"]
+        "isort.args": [
+          "--profile",
+          "black"
+        ]
       },
       // Add the IDs of extensions you want installed when the container is created.
       "extensions": [
