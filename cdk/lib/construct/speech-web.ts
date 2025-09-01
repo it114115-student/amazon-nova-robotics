@@ -58,6 +58,7 @@ export class SpeechControlWebConstruct extends Construct {
           environmentVariables: {
             IsInCloud: "yes",
             AWS_BEDROCK_REGION: "us-east-1",
+            AWS_DEFAULT_REGION: Stack.of(this).region,
             RobotTable: props.database.robotTable.tableName,
             McpServerUrl: props.mcpServerConstruct.functionUrl.url,
             CognitoUserPoolId: props.userPool.userPoolId,
@@ -83,6 +84,15 @@ export class SpeechControlWebConstruct extends Construct {
           "bedrock:InvokeModelWithResponseStream",
         ],
         resources: ["*"],
+      })
+    );
+
+    // Add explicit Lambda invoke permissions for the MCP server
+    service.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["lambda:InvokeFunction", "lambda:InvokeFunctionUrl"],
+        resources: [props.mcpServerConstruct.mcpFunction.functionArn],
       })
     );
 

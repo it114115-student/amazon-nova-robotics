@@ -6,7 +6,7 @@ import {
 } from "aws-cdk-lib/aws-lambda";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Construct } from "constructs";
-import { Duration } from "aws-cdk-lib";
+import { Duration, Stack } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 
 import path = require("path");
@@ -31,7 +31,7 @@ export class LambdaMcpServerConstruct extends Construct {
     this.mcpFunction.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: ["iot:Publish"],
+        actions: ["iot:Publish", "iot-data:Publish"],
         resources: [
           "arn:aws:iot:*:*:topic/robot_*/topic",
           "arn:aws:iot:*:*:topic/drone_*/topic",
