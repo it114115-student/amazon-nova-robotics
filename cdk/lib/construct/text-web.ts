@@ -100,7 +100,7 @@ export class TextControlWebConstruct extends Construct {
     flaskLambda.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: ["iot:Publish"],
+        actions: ["iot:Publish", "iot-data:Publish"],
         resources: [
           "arn:aws:iot:*:*:topic/robot_*/topic",
           "arn:aws:iot:*:*:topic/drone_*/topic",
@@ -137,7 +137,7 @@ export class TextControlWebConstruct extends Construct {
     );
 
     // Grant permission to invoke the MCP server Lambda function URL
-    props.mcpServerConstruct.functionUrl.grantInvokeUrl(flaskLambda);
+    props.mcpServerConstruct.grantInvokeFunctionUrl(flaskLambda.role!);
 
     const rootResource = restApi.root;
 

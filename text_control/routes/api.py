@@ -174,6 +174,7 @@ async def chat_api():
         }
 
         logger.info(f"Chat API response generated for trace: {trace_id}")
+        logger.info(f"Response data: {mapped_response}")
 
         return jsonify(mapped_response)
 

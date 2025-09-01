@@ -96,8 +96,11 @@ export class SpeechControlWebConstruct extends Construct {
       })
     );
 
-    // Grant permission to invoke the MCP server Lambda function URL
-    props.mcpServerConstruct.functionUrl.grantInvokeUrl(service);
+    // Grant resource-based permission to invoke the MCP server Lambda function URL
+    // Note: App Runner service role is automatically created and managed
+    props.mcpServerConstruct.grantInvokeFunctionUrl(
+      new iam.ServicePrincipal("apprunner.amazonaws.com")
+    );
 
     this.serviceUrl = service.serviceUrl;
   }
