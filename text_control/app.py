@@ -73,5 +73,9 @@ def handler(event, context):
 
 
 if __name__ == "__main__":
+    print("🤖 Starting Robot Text Control with Strands Agents...")
+    print("📡 Streaming endpoint: /api/talk")
+    print("🔄 Non-streaming endpoint: /xiaoice-chat-api-strands")
+    print("🌐 Original endpoint: /xiaoice-chat-api")
     # app.run(debug=DEBUG)
     app.run(host="0.0.0.0", debug=DEBUG)

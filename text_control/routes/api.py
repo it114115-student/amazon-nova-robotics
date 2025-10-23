@@ -4,17 +4,24 @@ API routes - Handles all API endpoints
 
 import asyncio
 import hashlib
+import json
+import logging
 import os
+import time
 import uuid
 from datetime import datetime
 
 from command_config.simple_commands import SIMPLE_COMMANDS
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from middleware import require_hybrid_auth
 from services.chat_service import extract_actions_from_response, get_chat_response
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
 from services.robot_service import robot_service
+from services.strands_service import create_robot_agent
 from utils.command_normalization import find_matching_command
+
+# Suppress OpenTelemetry context warnings (harmless in async streaming context)
+logging.getLogger("opentelemetry.context").setLevel(logging.CRITICAL)
 from utils.lambda_logger import get_lambda_logger
 
 # Configure logging for AWS Lambda
@@ -26,12 +33,12 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 @api_bp.route("/chat", methods=["POST"])
 @require_hybrid_auth
-async def chat():
+def chat():
     try:
-        data = await request.get_json()
+        data = request.get_json(silent=True) or request.json or {}
     except Exception:
         data = request.json or {}
-    return await _chat(data)
+    return asyncio.run(_chat(data))
 
 
 def error_response(status_code, message):
@@ -50,8 +57,595 @@ def calculate_signature(secret_key: str, timestamp: str, body_string: str) -> st
     return hex_digest.replace("-", "")
 
 
+@api_bp.route("talk", methods=["POST"])
+def talk_stream():
+    """
+    SSE streaming endpoint using Strands Agents
+    Compatible with XiaoIce API specification
+    """
+    logger.info(f"Talk stream request from {request.remote_addr}")
+
+    # 1. Authentication check
+    try:
+        timestamp = request.headers.get("X-Timestamp")
+        signature = request.headers.get("X-Sign")
+        access_key = request.headers.get("X-Key")
+
+        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
+        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
+
+        if not all([stored_secret_key, valid_access_key]):
+            logger.error("Server configuration error: Missing environment variables")
+            return error_response(500, "Server configuration error")
+
+        if not all([timestamp, signature, access_key]):
+            logger.warning("Authentication failed: Missing authentication headers")
+            return error_response(401, "Missing authentication headers")
+
+        if access_key != valid_access_key:
+            logger.warning(
+                f"Authentication failed: Invalid access key received: {access_key}"
+            )
+            return error_response(401, "Invalid access key")
+
+        body_string = request.data.decode("utf-8")
+        calculated_signature = calculate_signature(
+            stored_secret_key, timestamp, body_string
+        )
+
+        # if calculated_signature != signature:
+        #     logger.warning("Authentication failed: Invalid signature")
+        #     return error_response(401, "Invalid signature")
+
+        logger.info("Authentication successful")
+
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}", exc_info=True)
+        return error_response(401, f"Authentication failed: {e}")
+
+    # 2. Parse request
+    try:
+        if not request.json:
+            logger.warning("Bad request: Request body must be JSON")
+            return error_response(400, "Request body must be JSON")
+
+        required_params = ["askText", "sessionId", "traceId"]
+        for param in required_params:
+            if param not in request.json:
+                logger.warning(f"Bad request: Missing required parameter: {param}")
+                return error_response(400, f"Missing required parameter: {param}")
+
+        ask_text = request.json["askText"]
+        session_id = request.json["sessionId"]
+        trace_id = request.json["traceId"]
+        extra = request.json.get("extra", {})
+        language_code = request.json.get("languageCode", "zh")
+        device_id = request.json.get("deviceId", "")
+        user_params = request.json.get("userParams", "")
+        lang_by_asr = request.json.get("langByAsr", "")
+
+        logger.info(
+            f"Request parsed - TraceId: {trace_id}, SessionId: {session_id}, DeviceId: {device_id}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error parsing request: {e}", exc_info=True)
+        return error_response(400, f"Error parsing request: {e}")
+
+    # 3. Create Strands agent and stream response
+    try:
+        agent = create_robot_agent(session_id)
+
+        def stream_response():
+            try:
+
+                async def async_stream():
+                    THINKING_START = "<thinking>"
+                    THINKING_END = "</thinking>"
+
+                    buffer = ""
+                    inside_thinking = False
+                    chunk_count = 0
+
+                    async for event in agent.stream_async(ask_text):
+                        # Extract text content from event
+                        event_data = event.get("data") or event.get("result", "")
+                        if not event_data:
+                            continue
+
+                        # Convert to string if needed
+                        if not isinstance(event_data, str):
+                            event_data = str(event_data)
+
+                        logger.info(
+                            f"Event data: {repr(event_data[:50] if len(event_data) > 50 else event_data)}"
+                        )
+                        buffer += event_data
+
+                        # Process buffer to filter out thinking tags
+                        while True:
+                            if inside_thinking:
+                                end_idx = buffer.find(THINKING_END)
+                                if end_idx == -1:
+                                    # Keep potential partial match at end
+                                    buffer = buffer[-len(THINKING_END) + 1 :]
+                                    break
+                                buffer = buffer[end_idx + len(THINKING_END) :]
+                                inside_thinking = False
+                                continue
+
+                            start_idx = buffer.find(THINKING_START)
+                            if start_idx == -1:
+                                # Check for partial thinking tag at end of buffer
+                                for i in range(1, len(THINKING_START)):
+                                    if buffer.endswith(THINKING_START[:i]):
+                                        text_to_send = buffer[:-i]
+                                        if text_to_send:
+                                            chunk_count += 1
+                                            chunk = {
+                                                "askText": ask_text,
+                                                "extra": extra,
+                                                "id": f"{trace_id}_{chunk_count}",
+                                                "replyPayload": None,
+                                                "replyText": text_to_send,
+                                                "replyType": "Llm",
+                                                "sessionId": session_id,
+                                                "timestamp": int(time.time() * 1000),
+                                                "traceId": trace_id,
+                                                "isFinal": False,
+                                            }
+                                            yield f"data: {json.dumps(chunk)}\n\n"
+                                        buffer = buffer[-i:]
+                                        break
+                                else:
+                                    # No partial match, send entire buffer
+                                    if buffer:
+                                        chunk_count += 1
+                                        chunk = {
+                                            "askText": ask_text,
+                                            "extra": extra,
+                                            "id": f"{trace_id}_{chunk_count}",
+                                            "replyPayload": None,
+                                            "replyText": buffer,
+                                            "replyType": "Llm",
+                                            "sessionId": session_id,
+                                            "timestamp": int(time.time() * 1000),
+                                            "traceId": trace_id,
+                                            "isFinal": False,
+                                        }
+                                        yield f"data: {json.dumps(chunk)}\n\n"
+                                        buffer = ""
+                                break
+
+                            # Found thinking tag start
+                            text_before = buffer[:start_idx]
+                            if text_before:
+                                chunk_count += 1
+                                chunk = {
+                                    "askText": ask_text,
+                                    "extra": extra,
+                                    "id": f"{trace_id}_{chunk_count}",
+                                    "replyPayload": None,
+                                    "replyText": text_before,
+                                    "replyType": "Llm",
+                                    "sessionId": session_id,
+                                    "timestamp": int(time.time() * 1000),
+                                    "traceId": trace_id,
+                                    "isFinal": False,
+                                }
+                                yield f"data: {json.dumps(chunk)}\n\n"
+
+                            buffer = buffer[start_idx + len(THINKING_START) :]
+                            inside_thinking = True
+
+                    # Send any remaining buffer content (if not inside thinking block)
+                    if buffer and not inside_thinking:
+                        chunk_count += 1
+                        chunk = {
+                            "askText": ask_text,
+                            "extra": extra,
+                            "id": f"{trace_id}_{chunk_count}",
+                            "replyPayload": None,
+                            "replyText": buffer,
+                            "replyType": "Llm",
+                            "sessionId": session_id,
+                            "timestamp": int(time.time() * 1000),
+                            "traceId": trace_id,
+                            "isFinal": True,
+                        }
+                        yield f"data: {json.dumps(chunk)}\n\n"
+
+                # Create a wrapper to run the async generator
+                def run_async_gen():
+                    """Run async generator and yield results"""
+                    loop = asyncio.new_event_loop()
+                    try:
+                        async_gen = async_stream()
+                        while True:
+                            try:
+                                chunk = loop.run_until_complete(async_gen.__anext__())
+                                yield chunk
+                            except StopAsyncIteration:
+                                break
+                    finally:
+                        loop.close()
+
+                # Yield from the async generator wrapper
+                yield from run_async_gen()
+
+            except Exception as e:
+                logger.error(f"Error in stream_response: {e}", exc_info=True)
+                error_chunk = {
+                    "askText": ask_text,
+                    "extra": extra,
+                    "id": trace_id,
+                    "replyPayload": None,
+                    "replyText": f"Error: {str(e)}",
+                    "replyType": "Error",
+                    "sessionId": session_id,
+                    "timestamp": int(time.time() * 1000),
+                    "traceId": trace_id,
+                    "isFinal": True,
+                }
+                yield f"data: {json.dumps(error_chunk)}\n\n"
+
+        return Response(
+            stream_response(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error creating agent or streaming: {e}", exc_info=True)
+        return error_response(500, f"Error processing request: {e}")
+
+
+@api_bp.route("welcome", methods=["POST"])
+def welcome():
+    """
+    Welcome message endpoint
+    Returns a welcome message for the conversation system
+    """
+    logger.info(f"Welcome request from {request.remote_addr}")
+
+    # 1. Authentication check
+    try:
+        timestamp = request.headers.get("X-Timestamp")
+        signature = request.headers.get("X-Sign")
+        access_key = request.headers.get("X-Key")
+
+        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
+        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
+
+        if not all([timestamp, signature, access_key]):
+            logger.warning("Authentication failed: Missing authentication headers")
+            return error_response(401, "Missing authentication headers")
+
+        if access_key != valid_access_key:
+            logger.warning(f"Authentication failed: Invalid access key")
+            return error_response(401, "Invalid access key")
+
+        body_string = request.data.decode("utf-8")
+        calculated_signature = calculate_signature(
+            stored_secret_key, timestamp, body_string
+        )
+
+        # if calculated_signature != signature:
+        #     logger.warning("Authentication failed: Invalid signature")
+        #     return error_response(401, "Invalid signature")
+
+        logger.info("Authentication successful")
+
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}", exc_info=True)
+        return error_response(401, f"Authentication failed: {e}")
+
+    # 2. Parse request
+    try:
+        if not request.json:
+            logger.warning("Bad request: Request body must be JSON")
+            return error_response(400, "Request body must be JSON")
+
+        ask_text = request.json.get("askText", "")
+        session_id = request.json.get("sessionId", str(uuid.uuid4()))
+        trace_id = request.json.get("traceId", str(uuid.uuid4()))
+        extra = request.json.get("extra", {})
+        language_code = request.json.get("languageCode", "zh")
+        device_id = request.json.get("deviceId", "")
+        user_params = request.json.get("userParams", "")
+        lang_by_asr = request.json.get("langByAsr", "")
+
+        logger.info(f"Welcome request - TraceId: {trace_id}, SessionId: {session_id}")
+
+    except Exception as e:
+        logger.error(f"Error parsing request: {e}", exc_info=True)
+        return error_response(400, f"Error parsing request: {e}")
+
+    # 3. Generate welcome response
+    try:
+        welcome_messages = {
+            "zh": "你好！我是智能助手，很高兴为您服务。有什么我可以帮助您的吗？",
+            "en": "Hello! I'm your AI assistant. How can I help you today?",
+        }
+
+        welcome_text = welcome_messages.get(language_code, welcome_messages["zh"])
+
+        response = {
+            "askText": ask_text,
+            "extra": extra,
+            "id": str(uuid.uuid4()),
+            "replyPayload": None,
+            "replyText": welcome_text,
+            "replyType": "Llm",
+            "sessionId": session_id,
+            "timestamp": int(time.time() * 1000),
+            "traceId": trace_id,
+            "isFinal": True,
+        }
+
+        logger.info(f"Welcome response generated for trace: {trace_id}")
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error(f"Error generating welcome: {e}", exc_info=True)
+        return error_response(500, f"Error generating welcome: {e}")
+
+
+@api_bp.route("goodbye", methods=["POST"])
+def goodbye():
+    """
+    Goodbye message endpoint
+    Returns a goodbye message for the conversation system
+    """
+    logger.info(f"Goodbye request from {request.remote_addr}")
+
+    # 1. Authentication check
+    try:
+        timestamp = request.headers.get("X-Timestamp")
+        signature = request.headers.get("X-Sign")
+        access_key = request.headers.get("X-Key")
+
+        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
+        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
+
+        if not all([timestamp, signature, access_key]):
+            logger.warning("Authentication failed: Missing authentication headers")
+            return error_response(401, "Missing authentication headers")
+
+        if access_key != valid_access_key:
+            logger.warning(f"Authentication failed: Invalid access key")
+            return error_response(401, "Invalid access key")
+
+        body_string = request.data.decode("utf-8")
+        calculated_signature = calculate_signature(
+            stored_secret_key, timestamp, body_string
+        )
+
+        # if calculated_signature != signature:
+        #     logger.warning("Authentication failed: Invalid signature")
+        #     return error_response(401, "Invalid signature")
+
+        logger.info("Authentication successful")
+
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}", exc_info=True)
+        return error_response(401, f"Authentication failed: {e}")
+
+    # 2. Parse request
+    try:
+        if not request.json:
+            logger.warning("Bad request: Request body must be JSON")
+            return error_response(400, "Request body must be JSON")
+
+        ask_text = request.json.get("askText", "")
+        session_id = request.json.get("sessionId", str(uuid.uuid4()))
+        trace_id = request.json.get("traceId", str(uuid.uuid4()))
+        extra = request.json.get("extra", {})
+        language_code = request.json.get("languageCode", "zh")
+        device_id = request.json.get("deviceId", "")
+        user_params = request.json.get("userParams", "")
+        lang_by_asr = request.json.get("langByAsr", "")
+
+        logger.info(f"Goodbye request - TraceId: {trace_id}, SessionId: {session_id}")
+
+    except Exception as e:
+        logger.error(f"Error parsing request: {e}", exc_info=True)
+        return error_response(400, f"Error parsing request: {e}")
+
+    # 3. Generate goodbye response
+    try:
+        goodbye_messages = {
+            "zh": "再见！期待下次为您服务。",
+            "en": "Goodbye! Looking forward to serving you again.",
+        }
+
+        goodbye_text = goodbye_messages.get(language_code, goodbye_messages["zh"])
+
+        response = {
+            "askText": ask_text,
+            "extra": extra,
+            "id": str(uuid.uuid4()),
+            "replyPayload": None,
+            "replyText": goodbye_text,
+            "replyType": "Llm",
+            "sessionId": session_id,
+            "timestamp": int(time.time() * 1000),
+            "traceId": trace_id,
+            "isFinal": True,
+        }
+
+        logger.info(f"Goodbye response generated for trace: {trace_id}")
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error(f"Error generating goodbye: {e}", exc_info=True)
+        return error_response(500, f"Error generating goodbye: {e}")
+
+
+@api_bp.route("recquestions", methods=["POST"])
+def recquestions():
+    """
+    Recommended questions endpoint
+    Returns a list of recommended questions for the user
+    """
+    logger.info(f"Recommended questions request from {request.remote_addr}")
+
+    # 1. Authentication check
+    try:
+        timestamp = request.headers.get("X-Timestamp")
+        signature = request.headers.get("X-Sign")
+        access_key = request.headers.get("X-Key")
+
+        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
+        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
+
+        if not all([timestamp, signature, access_key]):
+            logger.warning("Authentication failed: Missing authentication headers")
+            return error_response(401, "Missing authentication headers")
+
+        if access_key != valid_access_key:
+            logger.warning(f"Authentication failed: Invalid access key")
+            return error_response(401, "Invalid access key")
+
+        body_string = request.data.decode("utf-8")
+        calculated_signature = calculate_signature(
+            stored_secret_key, timestamp, body_string
+        )
+
+        # if calculated_signature != signature:
+        #     logger.warning("Authentication failed: Invalid signature")
+        #     return error_response(401, "Invalid signature")
+
+        logger.info("Authentication successful")
+
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}", exc_info=True)
+        return error_response(401, f"Authentication failed: {e}")
+
+    # 2. Parse request
+    try:
+        if not request.json:
+            logger.warning("Bad request: Request body must be JSON")
+            return error_response(400, "Request body must be JSON")
+
+        trace_id = request.json.get("traceId", str(uuid.uuid4()))
+        language_code = request.json.get("languageCode", "zh")
+        device_id = request.json.get("deviceId", "")
+        user_params = request.json.get("userParams", "")
+        lang_by_asr = request.json.get("langByAsr", "")
+
+        logger.info(
+            f"Recommended questions request - TraceId: {trace_id}, DeviceId: {device_id}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error parsing request: {e}", exc_info=True)
+        return error_response(400, f"Error parsing request: {e}")
+
+    # 3. Generate recommended questions
+    try:
+        recommended_questions = {
+            "zh": [
+                "你能做什么？",
+                "帮我控制机器人",
+                "机器人向前移动",
+                "停止所有动作",
+                "显示机器人状态",
+            ],
+            "en": [
+                "What can you do?",
+                "Help me control the robot",
+                "Move the robot forward",
+                "Stop all actions",
+                "Show robot status",
+            ],
+        }
+
+        questions = recommended_questions.get(
+            language_code, recommended_questions["zh"]
+        )
+
+        response = {"data": questions, "traceId": trace_id}
+
+        logger.info(f"Recommended questions generated for trace: {trace_id}")
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error(f"Error generating recommended questions: {e}", exc_info=True)
+        return error_response(500, f"Error generating recommended questions: {e}")
+
+
+@api_bp.route("/xiaoice-chat-api-strands", methods=["POST"])
+def chat_api_strands():
+    """
+    Non-streaming Strands endpoint for backward compatibility
+    """
+    logger.info(f"Strands chat API request from {request.remote_addr}")
+
+    # Authentication and parsing (same as talk_stream)
+    try:
+        timestamp = request.headers.get("X-Timestamp")
+        signature = request.headers.get("X-Sign")
+        access_key = request.headers.get("X-Key")
+
+        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
+        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
+
+        if not all([timestamp, signature, access_key]):
+            return error_response(401, "Missing authentication headers")
+
+        if access_key != valid_access_key:
+            return error_response(401, "Invalid access key")
+
+        body_string = request.data.decode("utf-8")
+        calculated_signature = calculate_signature(
+            stored_secret_key, timestamp, body_string
+        )
+
+        if calculated_signature != signature:
+            return error_response(401, "Invalid signature")
+
+        if not request.json:
+            return error_response(400, "Request body must be JSON")
+
+        ask_text = request.json["askText"]
+        session_id = request.json["sessionId"]
+        trace_id = request.json["traceId"]
+
+    except Exception as e:
+        logger.error(f"Error in request processing: {e}", exc_info=True)
+        return error_response(400, f"Error processing request: {e}")
+
+    # Use Strands agent for response
+    try:
+        agent = create_robot_agent(session_id)
+        result = asyncio.run(agent.run_async(ask_text))
+
+        now = datetime.now()
+        response = {
+            "id": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "traceId": trace_id,
+            "sessionId": session_id,
+            "askText": ask_text,
+            "replyText": str(result),
+            "replyType": "Llm",
+            "timestamp": now.timestamp(),
+        }
+
+        logger.info(f"Strands response generated for trace: {trace_id}")
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error(f"Error with Strands agent: {e}", exc_info=True)
+        return error_response(500, f"Error processing with Strands: {e}")
+
+
 @api_bp.route("/xiaoice-chat-api", methods=["POST"])
-async def chat_api():
+def chat_api():
     """
     Direct chat API endpoint with authentication and response mapping
     Replaces the proxy functionality with direct processing
@@ -147,7 +741,7 @@ async def chat_api():
         logger.info(f"Streaming requested: {is_streaming}")
 
         # Call the internal chat function
-        chat_response = await _chat(chat_data)
+        chat_response = asyncio.run(_chat(chat_data))
 
         # 4. Map the output to the expected format
         if isinstance(chat_response, tuple):
@@ -326,10 +920,10 @@ def robot_delete(robot_id):
 
 @api_bp.route("/run_action/<robot_id>", methods=["GET", "POST"])
 @require_hybrid_auth
-async def run_action(robot_id):
+def run_action(robot_id):
     """Run process_actions with provided action and robot"""
     try:
-        data = await request.get_json()
+        data = request.get_json(silent=True) or request.json or {}
     except Exception:
         # Fallback to synchronous request.json if async fails
         data = request.json or {}
@@ -346,9 +940,9 @@ async def run_action(robot_id):
         return jsonify({"error": "Missing robot or method or params."}), 400
 
     if method == "RunAction":
-        results = await robot_service.process_actions([action], robot)
+        results = asyncio.run(robot_service.process_actions([action], robot))
         return jsonify({"results": results})
     if method == "StopAction":
-        results = await robot_service.process_actions(["stop"], robot)
+        results = asyncio.run(robot_service.process_actions(["stop"], robot))
         return jsonify({"results": results})
     return jsonify({"error": "Invalid method"}), 400

@@ -1,0 +1,13 @@
+{
+    "servers": {
+        "fetch": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@kazuph/mcp-fetch"
+            ]
+        }
+    },
+    "inputs": []
+}

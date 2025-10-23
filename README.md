@@ -84,6 +84,7 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
 Close the terminal and reopen, then:
 
 ```bash
+nvm install 23
 nvm use 23
 nvm alias default 23
 ```
