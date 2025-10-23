@@ -57,19 +57,61 @@ def calculate_signature(secret_key: str, timestamp: str, body_string: str) -> st
     return hex_digest.replace("-", "")
 
 
-@api_bp.route("talk", methods=["POST"])
-def talk_stream():
+def calculate_signature_v2(secret_key: str, timestamp: str, body_string: str) -> str:
     """
-    SSE streaming endpoint using Strands Agents
-    Compatible with XiaoIce API specification
-    """
-    logger.info(f"Talk stream request from {request.remote_addr}")
+    Calculate signature for authentication following the vendor specification.
 
-    # 1. Authentication check
+    Algorithm:
+    1. Build a parameter Map with: secretKey, timestamp, bodyString
+    2. Sort parameters by key name in ascending order and connect with "&"
+       Format: key1=value1&key2=value2&key3=value3
+    3. Calculate SHA-512 hash and convert to UPPERCASE
+
+    Args:
+        secret_key: Server-side (user) preset secret key
+        timestamp: Request timestamp (milliseconds)
+        body_string: JSON serialized string of request body
+
+    Returns:
+        Uppercase SHA-512 hash string
+    """
+    # Create parameter map
+    params = {
+        "bodyString": body_string,
+        "secretKey": secret_key,
+        "timestamp": timestamp,
+    }
+
+    # Sort by key name in ascending order and create signature string
+    sorted_params = sorted(params.items())
+    signature_string = "&".join([f"{k}={v}" for k, v in sorted_params])
+
+    # Calculate SHA-512 hash
+    sha512 = hashlib.sha512()
+    sha512.update(signature_string.encode("utf-8"))
+    hex_digest = sha512.hexdigest()
+
+    # Convert to uppercase (SHA-512 hex digest doesn't contain "-", but keep the replace for safety)
+    return hex_digest.replace("-", "").upper()
+
+
+def validate_authentication(use_v2=True):
+    """
+    Validates authentication headers and returns error response if invalid.
+
+    Args:
+        use_v2: If True, use calculate_signature_v2, otherwise use calculate_signature
+
+    Returns:
+        None if authentication is successful, error_response tuple otherwise
+    """
     try:
-        timestamp = request.headers.get("X-Timestamp")
-        signature = request.headers.get("X-Sign")
-        access_key = request.headers.get("X-Key")
+        # Get headers (support both X- prefixed and non-prefixed)
+        timestamp = request.headers.get("X-Timestamp") or request.headers.get(
+            "timestamp"
+        )
+        signature = request.headers.get("X-Sign") or request.headers.get("signature")
+        access_key = request.headers.get("X-Key") or request.headers.get("key")
 
         stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
         valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
@@ -89,48 +131,123 @@ def talk_stream():
             return error_response(401, "Invalid access key")
 
         body_string = request.data.decode("utf-8")
-        calculated_signature = calculate_signature(
-            stored_secret_key, timestamp, body_string
-        )
 
-        # if calculated_signature != signature:
-        #     logger.warning("Authentication failed: Invalid signature")
-        #     return error_response(401, "Invalid signature")
+        if use_v2:
+            calculated_signature = calculate_signature_v2(
+                stored_secret_key, timestamp, body_string
+            )
+        else:
+            calculated_signature = calculate_signature(
+                stored_secret_key, timestamp, body_string
+            )
+
+        if calculated_signature != signature:
+            logger.warning("Authentication failed: Invalid signature")
+            return error_response(401, "Invalid signature")
 
         logger.info("Authentication successful")
+        return None
 
     except Exception as e:
         logger.error(f"Authentication failed: {e}", exc_info=True)
         return error_response(401, f"Authentication failed: {e}")
 
-    # 2. Parse request
+
+def parse_request_params(required_params=None):
+    """
+    Parses and validates request parameters.
+
+    Args:
+        required_params: List of required parameter names
+
+    Returns:
+        Tuple of (params_dict, error_response). If error_response is not None,
+        an error occurred and should be returned.
+    """
     try:
         if not request.json:
             logger.warning("Bad request: Request body must be JSON")
-            return error_response(400, "Request body must be JSON")
+            return None, error_response(400, "Request body must be JSON")
 
-        required_params = ["askText", "sessionId", "traceId"]
-        for param in required_params:
+        params = {}
+        required = required_params or []
+
+        # Validate required parameters
+        for param in required:
             if param not in request.json:
                 logger.warning(f"Bad request: Missing required parameter: {param}")
-                return error_response(400, f"Missing required parameter: {param}")
+                return None, error_response(400, f"Missing required parameter: {param}")
 
-        ask_text = request.json["askText"]
-        session_id = request.json["sessionId"]
-        trace_id = request.json["traceId"]
-        extra = request.json.get("extra", {})
-        language_code = request.json.get("languageCode", "zh")
-        device_id = request.json.get("deviceId", "")
-        user_params = request.json.get("userParams", "")
-        lang_by_asr = request.json.get("langByAsr", "")
+        # Extract common parameters
+        params["ask_text"] = request.json.get("askText", "")
+        params["session_id"] = request.json.get("sessionId", str(uuid.uuid4()))
+        params["trace_id"] = request.json.get("traceId", str(uuid.uuid4()))
+        params["extra"] = request.json.get("extra", {})
+        params["language_code"] = request.json.get("languageCode", "zh")
+        params["device_id"] = request.json.get("deviceId", "")
+        params["user_params"] = request.json.get("userParams", "")
+        params["lang_by_asr"] = request.json.get("langByAsr", "")
 
         logger.info(
-            f"Request parsed - TraceId: {trace_id}, SessionId: {session_id}, DeviceId: {device_id}"
+            f"Request parsed - TraceId: {params['trace_id']}, SessionId: {params['session_id']}"
         )
+        return params, None
 
     except Exception as e:
         logger.error(f"Error parsing request: {e}", exc_info=True)
-        return error_response(400, f"Error parsing request: {e}")
+        return None, error_response(400, f"Error parsing request: {e}")
+
+
+def create_response_object(params, reply_text, is_final=True):
+    """
+    Creates a standardized response object.
+
+    Args:
+        params: Dictionary containing request parameters (trace_id, session_id, etc.)
+        reply_text: The reply text to send
+        is_final: Whether this is the final response
+
+    Returns:
+        Dictionary with standardized response format
+    """
+    return {
+        "askText": params.get("ask_text", ""),
+        "extra": params.get("extra", {}),
+        "id": str(uuid.uuid4()),
+        "replyPayload": None,
+        "replyText": reply_text,
+        "replyType": "Llm",
+        "sessionId": params["session_id"],
+        "timestamp": int(time.time() * 1000),
+        "traceId": params["trace_id"],
+        "isFinal": is_final,
+    }
+
+
+@api_bp.route("talk", methods=["POST"])
+def talk_stream():
+    """
+    SSE streaming endpoint using Strands Agents
+    Compatible with XiaoIce API specification
+    """
+    logger.info(f"Talk stream request from {request.remote_addr}")
+
+    # 1. Authentication check
+    auth_error = validate_authentication(use_v2=True)
+    if auth_error:
+        return auth_error
+
+    # 2. Parse request
+    params, parse_error = parse_request_params(
+        required_params=["askText", "sessionId", "traceId"]
+    )
+    if parse_error:
+        return parse_error
+
+    ask_text = params["ask_text"]
+    session_id = params["session_id"]
+    trace_id = params["trace_id"]
+    extra = params["extra"]
 
     # 3. Create Strands agent and stream response
     try:
@@ -157,9 +274,6 @@ def talk_stream():
                         if not isinstance(event_data, str):
                             event_data = str(event_data)
 
-                        logger.info(
-                            f"Event data: {repr(event_data[:50] if len(event_data) > 50 else event_data)}"
-                        )
                         buffer += event_data
 
                         # Process buffer to filter out thinking tags
@@ -313,57 +427,14 @@ def welcome():
     logger.info(f"Welcome request from {request.remote_addr}")
 
     # 1. Authentication check
-    try:
-        timestamp = request.headers.get("X-Timestamp")
-        signature = request.headers.get("X-Sign")
-        access_key = request.headers.get("X-Key")
-
-        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
-        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
-
-        if not all([timestamp, signature, access_key]):
-            logger.warning("Authentication failed: Missing authentication headers")
-            return error_response(401, "Missing authentication headers")
-
-        if access_key != valid_access_key:
-            logger.warning(f"Authentication failed: Invalid access key")
-            return error_response(401, "Invalid access key")
-
-        body_string = request.data.decode("utf-8")
-        calculated_signature = calculate_signature(
-            stored_secret_key, timestamp, body_string
-        )
-
-        # if calculated_signature != signature:
-        #     logger.warning("Authentication failed: Invalid signature")
-        #     return error_response(401, "Invalid signature")
-
-        logger.info("Authentication successful")
-
-    except Exception as e:
-        logger.error(f"Authentication failed: {e}", exc_info=True)
-        return error_response(401, f"Authentication failed: {e}")
+    auth_error = validate_authentication(use_v2=True)
+    if auth_error:
+        return auth_error
 
     # 2. Parse request
-    try:
-        if not request.json:
-            logger.warning("Bad request: Request body must be JSON")
-            return error_response(400, "Request body must be JSON")
-
-        ask_text = request.json.get("askText", "")
-        session_id = request.json.get("sessionId", str(uuid.uuid4()))
-        trace_id = request.json.get("traceId", str(uuid.uuid4()))
-        extra = request.json.get("extra", {})
-        language_code = request.json.get("languageCode", "zh")
-        device_id = request.json.get("deviceId", "")
-        user_params = request.json.get("userParams", "")
-        lang_by_asr = request.json.get("langByAsr", "")
-
-        logger.info(f"Welcome request - TraceId: {trace_id}, SessionId: {session_id}")
-
-    except Exception as e:
-        logger.error(f"Error parsing request: {e}", exc_info=True)
-        return error_response(400, f"Error parsing request: {e}")
+    params, parse_error = parse_request_params()
+    if parse_error:
+        return parse_error
 
     # 3. Generate welcome response
     try:
@@ -372,22 +443,12 @@ def welcome():
             "en": "Hello! I'm your AI assistant. How can I help you today?",
         }
 
-        welcome_text = welcome_messages.get(language_code, welcome_messages["zh"])
+        welcome_text = welcome_messages.get(
+            params["language_code"], welcome_messages["zh"]
+        )
+        response = create_response_object(params, welcome_text)
 
-        response = {
-            "askText": ask_text,
-            "extra": extra,
-            "id": str(uuid.uuid4()),
-            "replyPayload": None,
-            "replyText": welcome_text,
-            "replyType": "Llm",
-            "sessionId": session_id,
-            "timestamp": int(time.time() * 1000),
-            "traceId": trace_id,
-            "isFinal": True,
-        }
-
-        logger.info(f"Welcome response generated for trace: {trace_id}")
+        logger.info(f"Welcome response generated for trace: {params['trace_id']}")
         return jsonify(response)
 
     except Exception as e:
@@ -404,57 +465,14 @@ def goodbye():
     logger.info(f"Goodbye request from {request.remote_addr}")
 
     # 1. Authentication check
-    try:
-        timestamp = request.headers.get("X-Timestamp")
-        signature = request.headers.get("X-Sign")
-        access_key = request.headers.get("X-Key")
-
-        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
-        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
-
-        if not all([timestamp, signature, access_key]):
-            logger.warning("Authentication failed: Missing authentication headers")
-            return error_response(401, "Missing authentication headers")
-
-        if access_key != valid_access_key:
-            logger.warning(f"Authentication failed: Invalid access key")
-            return error_response(401, "Invalid access key")
-
-        body_string = request.data.decode("utf-8")
-        calculated_signature = calculate_signature(
-            stored_secret_key, timestamp, body_string
-        )
-
-        # if calculated_signature != signature:
-        #     logger.warning("Authentication failed: Invalid signature")
-        #     return error_response(401, "Invalid signature")
-
-        logger.info("Authentication successful")
-
-    except Exception as e:
-        logger.error(f"Authentication failed: {e}", exc_info=True)
-        return error_response(401, f"Authentication failed: {e}")
+    auth_error = validate_authentication(use_v2=True)
+    if auth_error:
+        return auth_error
 
     # 2. Parse request
-    try:
-        if not request.json:
-            logger.warning("Bad request: Request body must be JSON")
-            return error_response(400, "Request body must be JSON")
-
-        ask_text = request.json.get("askText", "")
-        session_id = request.json.get("sessionId", str(uuid.uuid4()))
-        trace_id = request.json.get("traceId", str(uuid.uuid4()))
-        extra = request.json.get("extra", {})
-        language_code = request.json.get("languageCode", "zh")
-        device_id = request.json.get("deviceId", "")
-        user_params = request.json.get("userParams", "")
-        lang_by_asr = request.json.get("langByAsr", "")
-
-        logger.info(f"Goodbye request - TraceId: {trace_id}, SessionId: {session_id}")
-
-    except Exception as e:
-        logger.error(f"Error parsing request: {e}", exc_info=True)
-        return error_response(400, f"Error parsing request: {e}")
+    params, parse_error = parse_request_params()
+    if parse_error:
+        return parse_error
 
     # 3. Generate goodbye response
     try:
@@ -463,22 +481,12 @@ def goodbye():
             "en": "Goodbye! Looking forward to serving you again.",
         }
 
-        goodbye_text = goodbye_messages.get(language_code, goodbye_messages["zh"])
+        goodbye_text = goodbye_messages.get(
+            params["language_code"], goodbye_messages["zh"]
+        )
+        response = create_response_object(params, goodbye_text)
 
-        response = {
-            "askText": ask_text,
-            "extra": extra,
-            "id": str(uuid.uuid4()),
-            "replyPayload": None,
-            "replyText": goodbye_text,
-            "replyType": "Llm",
-            "sessionId": session_id,
-            "timestamp": int(time.time() * 1000),
-            "traceId": trace_id,
-            "isFinal": True,
-        }
-
-        logger.info(f"Goodbye response generated for trace: {trace_id}")
+        logger.info(f"Goodbye response generated for trace: {params['trace_id']}")
         return jsonify(response)
 
     except Exception as e:
@@ -495,56 +503,14 @@ def recquestions():
     logger.info(f"Recommended questions request from {request.remote_addr}")
 
     # 1. Authentication check
-    try:
-        timestamp = request.headers.get("X-Timestamp")
-        signature = request.headers.get("X-Sign")
-        access_key = request.headers.get("X-Key")
-
-        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
-        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
-
-        if not all([timestamp, signature, access_key]):
-            logger.warning("Authentication failed: Missing authentication headers")
-            return error_response(401, "Missing authentication headers")
-
-        if access_key != valid_access_key:
-            logger.warning(f"Authentication failed: Invalid access key")
-            return error_response(401, "Invalid access key")
-
-        body_string = request.data.decode("utf-8")
-        calculated_signature = calculate_signature(
-            stored_secret_key, timestamp, body_string
-        )
-
-        # if calculated_signature != signature:
-        #     logger.warning("Authentication failed: Invalid signature")
-        #     return error_response(401, "Invalid signature")
-
-        logger.info("Authentication successful")
-
-    except Exception as e:
-        logger.error(f"Authentication failed: {e}", exc_info=True)
-        return error_response(401, f"Authentication failed: {e}")
+    auth_error = validate_authentication(use_v2=True)
+    if auth_error:
+        return auth_error
 
     # 2. Parse request
-    try:
-        if not request.json:
-            logger.warning("Bad request: Request body must be JSON")
-            return error_response(400, "Request body must be JSON")
-
-        trace_id = request.json.get("traceId", str(uuid.uuid4()))
-        language_code = request.json.get("languageCode", "zh")
-        device_id = request.json.get("deviceId", "")
-        user_params = request.json.get("userParams", "")
-        lang_by_asr = request.json.get("langByAsr", "")
-
-        logger.info(
-            f"Recommended questions request - TraceId: {trace_id}, DeviceId: {device_id}"
-        )
-
-    except Exception as e:
-        logger.error(f"Error parsing request: {e}", exc_info=True)
-        return error_response(400, f"Error parsing request: {e}")
+    params, parse_error = parse_request_params()
+    if parse_error:
+        return parse_error
 
     # 3. Generate recommended questions
     try:
@@ -566,12 +532,12 @@ def recquestions():
         }
 
         questions = recommended_questions.get(
-            language_code, recommended_questions["zh"]
+            params["language_code"], recommended_questions["zh"]
         )
 
-        response = {"data": questions, "traceId": trace_id}
+        response = {"data": questions, "traceId": params["trace_id"]}
 
-        logger.info(f"Recommended questions generated for trace: {trace_id}")
+        logger.info(f"Recommended questions generated for trace: {params['trace_id']}")
         return jsonify(response)
 
     except Exception as e:
@@ -586,57 +552,35 @@ def chat_api_strands():
     """
     logger.info(f"Strands chat API request from {request.remote_addr}")
 
-    # Authentication and parsing (same as talk_stream)
-    try:
-        timestamp = request.headers.get("X-Timestamp")
-        signature = request.headers.get("X-Sign")
-        access_key = request.headers.get("X-Key")
+    # Authentication check (using legacy signature method)
+    auth_error = validate_authentication(use_v2=False)
+    if auth_error:
+        return auth_error
 
-        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
-        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
-
-        if not all([timestamp, signature, access_key]):
-            return error_response(401, "Missing authentication headers")
-
-        if access_key != valid_access_key:
-            return error_response(401, "Invalid access key")
-
-        body_string = request.data.decode("utf-8")
-        calculated_signature = calculate_signature(
-            stored_secret_key, timestamp, body_string
-        )
-
-        if calculated_signature != signature:
-            return error_response(401, "Invalid signature")
-
-        if not request.json:
-            return error_response(400, "Request body must be JSON")
-
-        ask_text = request.json["askText"]
-        session_id = request.json["sessionId"]
-        trace_id = request.json["traceId"]
-
-    except Exception as e:
-        logger.error(f"Error in request processing: {e}", exc_info=True)
-        return error_response(400, f"Error processing request: {e}")
+    # Parse request
+    params, parse_error = parse_request_params(
+        required_params=["askText", "sessionId", "traceId"]
+    )
+    if parse_error:
+        return parse_error
 
     # Use Strands agent for response
     try:
-        agent = create_robot_agent(session_id)
-        result = asyncio.run(agent.run_async(ask_text))
+        agent = create_robot_agent(params["session_id"])
+        result = asyncio.run(agent.run_async(params["ask_text"]))
 
         now = datetime.now()
         response = {
             "id": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "traceId": trace_id,
-            "sessionId": session_id,
-            "askText": ask_text,
+            "traceId": params["trace_id"],
+            "sessionId": params["session_id"],
+            "askText": params["ask_text"],
             "replyText": str(result),
             "replyType": "Llm",
             "timestamp": now.timestamp(),
         }
 
-        logger.info(f"Strands response generated for trace: {trace_id}")
+        logger.info(f"Strands response generated for trace: {params['trace_id']}")
         return jsonify(response)
 
     except Exception as e:
@@ -652,88 +596,40 @@ def chat_api():
     """
     logger.info(f"Chat API request from {request.remote_addr}")
 
-    # 1. Extract request
-    try:
-        if not request.json:
-            logger.warning("Bad request: Request body must be JSON")
-            return error_response(400, "Request body must be JSON")
+    # 1. Parse request first (for xiaoice-chat-api we need to extract extra for validation)
+    params, parse_error = parse_request_params(
+        required_params=["askText", "sessionId", "traceId"]
+    )
+    if parse_error:
+        return parse_error
 
-        # Required parameters
-        required_params = ["askText", "sessionId", "traceId"]
-        for param in required_params:
-            if param not in request.json:
-                logger.warning(f"Bad request: Missing required parameter: {param}")
-                return error_response(400, f"Missing required parameter: {param}")
-
-        ask_text = request.json["askText"]
-        session_id = request.json["sessionId"]
-        trace_id = request.json["traceId"]
-        extra = request.json.get("extra", {})
-
-        if not isinstance(extra, dict) or not all(
-            isinstance(k, str) and isinstance(v, str) for k, v in extra.items()
-        ):
-            logger.warning(
-                "Bad request: 'extra' parameter must be a dictionary with string key-value pairs"
-            )
-            return error_response(
-                400,
-                "'extra' parameter must be a dictionary with string key-value pairs",
-            )
-
-        logger.info(f"Request parsed - TraceId: {trace_id}, SessionId: {session_id}")
-
-    except Exception as e:
-        logger.error(f"Error parsing request: {e}", exc_info=True)
-        return error_response(400, f"Error parsing request: {e}")
-
-    # 2. Authentication check
-    try:
-        timestamp = request.headers.get("timestamp")
-        signature = request.headers.get("signature")
-        access_key = request.headers.get("key")
-
-        stored_secret_key = os.getenv("ChatSecretKey", "your_actual_secret_key")
-        valid_access_key = os.getenv("ChatAccessKey", "your_actual_access_key")
-
-        if not all([stored_secret_key, valid_access_key]):
-            logger.error("Server configuration error: Missing environment variables")
-            return error_response(500, "Server configuration error")
-
-        if not all([timestamp, signature, access_key]):
-            logger.warning("Authentication failed: Missing authentication headers")
-            return error_response(401, "Missing authentication headers")
-
-        if access_key != valid_access_key:
-            logger.warning(
-                f"Authentication failed: Invalid access key received: {access_key}"
-            )
-            return error_response(401, "Invalid access key")
-
-        body_string = request.data.decode("utf-8")
-        calculated_signature = calculate_signature(
-            stored_secret_key, timestamp, body_string
+    # Validate 'extra' parameter if present
+    extra = params.get("extra", {})
+    if not isinstance(extra, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in extra.items()
+    ):
+        logger.warning(
+            "Bad request: 'extra' parameter must be a dictionary with string key-value pairs"
+        )
+        return error_response(
+            400,
+            "'extra' parameter must be a dictionary with string key-value pairs",
         )
 
-        if calculated_signature != signature:
-            logger.warning("Authentication failed: Invalid signature")
-            return error_response(401, "Invalid signature")
-
-        logger.info("Authentication successful")
-
-    except Exception as e:
-        logger.error(f"Authentication failed: {e}", exc_info=True)
-        return error_response(401, f"Authentication failed: {e}")
+    # 2. Authentication check (using legacy signature method)
+    auth_error = validate_authentication(use_v2=False)
+    if auth_error:
+        return auth_error
 
     # 3. Call _chat with mapped parameters
     try:
         # Map the request parameters to the internal _chat format
         chat_data = {
-            "message": ask_text,
+            "message": params["ask_text"],
             "robots": [
                 "all"
             ],  # Default to all robots, can be customized based on extra params
-            "session_id": session_id,
+            "session_id": params["session_id"],
         }
 
         # Check if streaming is requested
@@ -759,15 +655,15 @@ def chat_api():
 
         mapped_response = {
             "id": formatted_time,
-            "traceId": trace_id,
-            "sessionId": session_id,
-            "askText": ask_text,
+            "traceId": params["trace_id"],
+            "sessionId": params["session_id"],
+            "askText": params["ask_text"],
             "replyText": response_data.get("response", ""),
             "replyType": "Llm",
             "timestamp": now.timestamp(),
         }
 
-        logger.info(f"Chat API response generated for trace: {trace_id}")
+        logger.info(f"Chat API response generated for trace: {params['trace_id']}")
         logger.info(f"Response data: {mapped_response}")
 
         return jsonify(mapped_response)
