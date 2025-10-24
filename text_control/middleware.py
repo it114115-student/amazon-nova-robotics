@@ -60,7 +60,10 @@ def validate_jwt_token(token):
             key,
             algorithms=["RS256"],
             audience=COGNITO_CLIENT_ID,
-            issuer=f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}",
+            issuer=(
+                f"https://cognito-idp.{AWS_REGION}.amazonaws.com/"
+                f"{COGNITO_USER_POOL_ID}"
+            ),
         )
 
         return payload
@@ -80,7 +83,8 @@ def extract_api_gateway_auth_context():
         request_context = event.get("requestContext", {})
         authorizer = request_context.get("authorizer", {})
 
-        # API Gateway Cognito authorizer provides claims in the authorizer context
+        # API Gateway Cognito authorizer provides claims in the authorizer
+        # context
         claims = authorizer.get("claims", {})
         if claims:
             return claims
@@ -89,7 +93,8 @@ def extract_api_gateway_auth_context():
 
 
 def require_hybrid_auth(f):
-    """Decorator that supports both session-based (web) and token-based (API) authentication"""
+    """Decorator that supports both session-based (web) and token-based
+    (API) authentication"""
 
     if inspect.iscoroutinefunction(f):
 
@@ -149,7 +154,8 @@ def require_hybrid_auth(f):
 
 
 def require_auth(f):
-    """Decorator to require authentication for routes (handles both sync and async functions)"""
+    """Decorator to require authentication for routes (handles both sync and
+    async functions)"""
 
     if inspect.iscoroutinefunction(f):
 
@@ -165,7 +171,9 @@ def require_auth(f):
             auth_header = request.headers.get("Authorization")
             if not auth_header or not auth_header.startswith("Bearer "):
                 return (
-                    jsonify({"error": "Missing or invalid authorization header"}),
+                    jsonify({
+                        "error": "Missing or invalid authorization header"
+                    }),
                     401,
                 )
 
@@ -224,13 +232,17 @@ def require_web_auth(f):
         # Debug session info
         print(f"DEBUG: Session contents: {dict(session)}")
         print(f"DEBUG: 'user' in session: {'user' in session}")
-        print(f"DEBUG: session.get('authenticated'): {session.get('authenticated')}")
+        print(
+            f"DEBUG: session.get('authenticated'): "
+            f"{session.get('authenticated')}"
+        )
 
         # Check if user is authenticated via session
         if "user" not in session or not session.get("authenticated"):
             # For web routes, redirect to login page
             # Check if we're running behind API Gateway with a stage
-            if hasattr(request, "environ") and "lambda.event" in request.environ:
+            if (hasattr(request, "environ") and
+                    "lambda.event" in request.environ):
                 event = request.environ["lambda.event"]
                 request_context = event.get("requestContext", {})
                 stage = request_context.get("stage", "")
@@ -238,7 +250,10 @@ def require_web_auth(f):
                 # Debug logging
                 print(f"DEBUG: Lambda event detected. Stage: '{stage}'")
                 print(f"DEBUG: Request path: {request.path}")
-                print(f"DEBUG: Request context keys: {list(request_context.keys())}")
+                print(
+                    f"DEBUG: Request context keys: "
+                    f"{list(request_context.keys())}"
+                )
 
                 if stage and stage != "$default":
                     # Construct proper redirect URL with stage prefix

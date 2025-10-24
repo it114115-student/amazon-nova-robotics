@@ -75,7 +75,9 @@ def main():
         print("\nUser created successfully!")
         print(f"Username (email): {email}")
         print(f"Password: {password}")
-        print("\nYou can now use these credentials to log in to the application.")
+        print(
+            "\nYou can now use these credentials to log in to the application."
+        )
     else:
         print("Failed to create user")
         sys.exit(1)

@@ -1,5 +1,6 @@
 """
-MCP Client module - Handles MCP client initialization and management with AWS SigV4 authentication
+MCP Client module - Handles MCP client initialization and management with
+AWS SigV4 authentication
 """
 
 import asyncio
@@ -16,7 +17,8 @@ _mcp_client: Optional["SecureMCPClient"] = None
 
 
 class SecureMCPClient:
-    """MCP Client that supports both AWS SigV4 authentication and standard HTTP requests"""
+    """MCP Client that supports both AWS SigV4 authentication and standard
+    HTTP requests"""
 
     def __init__(self, mcp_url: str, use_aws_auth: bool = True):
         self.mcp_url = mcp_url
@@ -28,11 +30,15 @@ class SecureMCPClient:
             self.aws_auth = AWSSigV4("lambda")
             self.session.auth = self.aws_auth
 
-    async def call_tool(self, tool_name: str, arguments: Dict[str, Any] = None) -> Any:
+    async def call_tool(
+        self, tool_name: str, arguments: Dict[str, Any] = None
+    ) -> Any:
         """Call a tool with optional AWS authentication"""
         return await self._call_tool_http(tool_name, arguments or {})
 
-    async def _call_tool_http(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def _call_tool_http(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Any:
         """Make HTTP tool call to MCP server (with or without auth)"""
         try:
             # Prepare MCP request payload
@@ -70,7 +76,12 @@ class SecureMCPClient:
     async def _list_tools_http(self) -> list:
         """List tools via HTTP (with or without auth)"""
         try:
-            payload = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/list",
+                "params": {}
+            }
 
             # Make request (auth is handled by session if configured)
             response = self.session.post(
@@ -92,13 +103,16 @@ class SecureMCPClient:
             tools = []
             for tool in tools_data:
                 if isinstance(tool, dict):
-                    # Create a simple object with name and description attributes
+                    # Create a simple object with name and description
+                    # attributes
                     tool_obj = type(
                         "Tool",
                         (),
                         {
                             "name": tool.get("name", "unknown"),
-                            "description": tool.get("description", "No description"),
+                            "description": tool.get(
+                                "description", "No description"
+                            ),
                         },
                     )()
                     tools.append(tool_obj)
@@ -141,7 +155,9 @@ def init_mcp_client() -> SecureMCPClient:
             f"Initializing MCP client with "
             f"{'AWS SigV4' if use_aws_auth else 'standard'} authentication"
         )
-        _mcp_client = SecureMCPClient(MCP_SERVER_URL, use_aws_auth=use_aws_auth)
+        _mcp_client = SecureMCPClient(
+            MCP_SERVER_URL, use_aws_auth=use_aws_auth
+        )
 
     return _mcp_client
 

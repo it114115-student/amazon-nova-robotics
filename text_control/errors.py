@@ -29,7 +29,10 @@ def method_not_allowed(error):
 @errors_bp.app_errorhandler(500)
 def internal_server_error(error):
     """Handle 500 Internal Server Error."""
-    return jsonify({"error": "Internal server error", "message": str(error)}), 500
+    return (
+        jsonify({"error": "Internal server error", "message": str(error)}),
+        500,
+    )
 
 
 def register_error_handlers(app):

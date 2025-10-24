@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Extract robot commands from MCP server tools.
-This script looks for @mcp.tool() decorated functions and extracts action names.
+This script looks for @mcp.tool() decorated functions and extracts action
+names.
 """
 
 import re
@@ -9,7 +10,8 @@ from pathlib import Path
 
 
 def extract_commands_from_mcp_tools():
-    """Extract commands from MCP server tools by analyzing @mcp.tool() functions."""
+    """Extract commands from MCP server tools by analyzing @mcp.tool()
+    functions."""
 
     # Get the MCP server path
     script_dir = Path(__file__).parent
@@ -35,7 +37,10 @@ def extract_commands_from_mcp_tools():
             file_commands = extract_commands_from_content(content)
 
             if file_commands:
-                print(f"  Found {len(file_commands)} commands: {sorted(file_commands)}")
+                print(
+                    f"  Found {len(file_commands)} commands: "
+                    f"{sorted(file_commands)}"
+                )
                 all_commands.update(file_commands)
             else:
                 print("  No commands found")
@@ -47,17 +52,22 @@ def extract_commands_from_mcp_tools():
 
 
 def extract_commands_from_content(content):
-    """Extract action names from execute_*_action calls in @mcp.tool() functions."""
+    """Extract action names from execute_*_action calls in @mcp.tool()
+    functions."""
     commands = set()
 
     # Pattern to match @mcp.tool() functions and capture their content
     # This matches from @mcp.tool() to the next @mcp.tool() or end of function
-    tool_pattern = r"@mcp\.tool\(\)\s*def\s+\w+.*?(?=@mcp\.tool\(\)|def\s+register_|$)"
+    tool_pattern = (
+        r"@mcp\.tool\(\)\s*def\s+\w+.*?"
+        r"(?=@mcp\.tool\(\)|def\s+register_|$)"
+    )
 
     tool_functions = re.findall(tool_pattern, content, re.DOTALL)
 
     for func_content in tool_functions:
-        # Look for various execute action patterns within each @mcp.tool() function
+        # Look for various execute action patterns within each @mcp.tool()
+        # function
         patterns = [
             # execute_dog_action(dog_id, "action_name", {})
             r'execute_dog_action\s*\([^,]+,\s*["\']([^"\']+)["\']',
@@ -97,7 +107,9 @@ def update_simple_commands_file(commands):  # pylint: disable=too-many-branches
             categories["basic"].add(cmd)
         elif any(
             word in cmd
-            for word in ["move", "turn", "step", "rotate", "walk", "run", "jump"]
+            for word in [
+                "move", "turn", "step", "rotate", "walk", "run", "jump"
+            ]
         ):
             categories["movement"].add(cmd)
         elif "look" in cmd:
@@ -158,7 +170,9 @@ SIMPLE_COMMANDS = {
     content += "}\n"
 
     # Write to file
-    output_path = Path(__file__).parent / "command_config" / "simple_commands.py"
+    output_path = (
+        Path(__file__).parent / "command_config" / "simple_commands.py"
+    )
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(content)
 

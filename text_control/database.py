@@ -22,7 +22,8 @@ def get_robot(robot_id):
 def upsert_robot(robot_id, data):
     """
     Create or update a robot with the given ID and data.
-    Uses put_item which will automatically overwrite an existing item with the same key.
+    Uses put_item which will automatically overwrite an existing item with
+    the same key.
     """
     item = {"id": robot_id, **data}
     robot_table.put_item(Item=item)
