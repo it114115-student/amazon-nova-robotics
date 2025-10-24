@@ -40,7 +40,7 @@ def extract_commands_from_mcp_tools():
             else:
                 print("  No commands found")
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, OSError) as e:
             print(f"  Error reading {tool_file}: {e}")
 
     return all_commands
@@ -76,7 +76,7 @@ def extract_commands_from_content(content):
     return commands
 
 
-def update_simple_commands_file(commands):
+def update_simple_commands_file(commands):  # pylint: disable=too-many-branches
     """Update the simple_commands.py file with extracted commands."""
 
     if not commands:

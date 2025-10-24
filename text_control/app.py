@@ -1,12 +1,14 @@
+"""Flask application for robot text control with AWS integration."""
 import atexit
 import logging
 import os
 
 import awsgi2
-from config import DEBUG
-from errors import register_error_handlers
 from flask import Flask
 from flask_caching import Cache
+
+from config import DEBUG
+from errors import register_error_handlers
 from mcp_client import cleanup_mcp_client, init_mcp_client
 
 # Configure logging for development environment
@@ -18,9 +20,9 @@ if not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
     print("Initializing MCP client with AWS SigV4 authentication")
 
 # Import and register blueprints after app is created to avoid circular imports
-from routes.api import api_bp
-from routes.auth import auth_bp
-from routes.ui import ui_bp
+from routes.api import api_bp  # pylint: disable=wrong-import-position
+from routes.auth import auth_bp  # pylint: disable=wrong-import-position
+from routes.ui import ui_bp  # pylint: disable=wrong-import-position
 
 config = {
     "DEBUG": DEBUG,  # some Flask specific configs
@@ -44,6 +46,7 @@ app.cache = cache
 # Add CORS headers for API Gateway
 @app.after_request
 def after_request(response):
+    """Add CORS headers to all responses."""
     response.headers.add("Access-Control-Allow-Origin", "*")
     response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
     response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")

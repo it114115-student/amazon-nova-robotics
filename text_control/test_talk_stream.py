@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import time
+import traceback
 import uuid
 
 import requests
@@ -94,7 +95,7 @@ def test_talk_stream(
     print(f"  X-Timestamp: {timestamp}")
     print(f"  X-Sign: {signature}")
     print(f"  X-Key: {access_key}")
-    print(f"Debug - Body:")
+    print("Debug - Body:")
     print(f"  {body_string[:200]}...")
     print("-" * 80)
 
@@ -163,12 +164,11 @@ def test_talk_stream(
         if has_reasoning:
             print("\n❌ TEST FAILED: Reasoning content was not filtered out!")
             return False
-        elif has_data:
+        if has_data:
             print("\n✅ TEST PASSED: Only actual content was streamed (no reasoning)")
             return True
-        else:
-            print("\n⚠️  WARNING: No data content received")
-            return False
+        print("\n⚠️  WARNING: No data content received")
+        return False
 
     except requests.exceptions.ConnectionError:
         print(f"❌ ERROR: Could not connect to {url}")
@@ -176,8 +176,6 @@ def test_talk_stream(
         return False
     except Exception as e:
         print(f"❌ ERROR: {e}")
-        import traceback
-
         traceback.print_exc()
         return False
 

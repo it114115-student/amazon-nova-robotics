@@ -52,6 +52,7 @@ def create_user(email, temporary_password, user_pool_id):
 
 
 def main():
+    """Main function to create a Cognito user from command line arguments."""
     if len(sys.argv) != 3:
         print("Usage: python create_user.py <email> <password>")
         print("Example: python create_user.py test@example.com TestPass123!")

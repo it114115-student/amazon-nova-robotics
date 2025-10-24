@@ -7,9 +7,9 @@ import os
 from typing import Any, Dict, Optional
 
 import requests
-from config import MCP_SERVER_URL
-from fastmcp import Client
 from requests_auth_aws_sigv4 import AWSSigV4
+
+from config import MCP_SERVER_URL
 
 # Global MCP client instance
 _mcp_client: Optional["SecureMCPClient"] = None
@@ -45,7 +45,10 @@ class SecureMCPClient:
 
             # Make request (auth is handled by session if configured)
             response = self.session.post(
-                self.mcp_url, json=payload, headers={"Content-Type": "application/json"}
+                self.mcp_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30
             )
             response.raise_for_status()
 
@@ -53,12 +56,12 @@ class SecureMCPClient:
 
             # Handle MCP response format
             if "error" in result:
-                raise Exception(f"MCP error: {result['error']}")
+                raise MCPError(f"MCP error: {result['error']}")
 
             return result.get("result")
 
         except requests.exceptions.RequestException as e:
-            raise Exception(f"MCP request failed: {e}")
+            raise MCPError(f"MCP request failed: {e}") from e
 
     async def list_tools(self) -> list:
         """List available tools"""
@@ -71,14 +74,17 @@ class SecureMCPClient:
 
             # Make request (auth is handled by session if configured)
             response = self.session.post(
-                self.mcp_url, json=payload, headers={"Content-Type": "application/json"}
+                self.mcp_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30
             )
             response.raise_for_status()
 
             result = response.json()
 
             if "error" in result:
-                raise Exception(f"MCP error: {result['error']}")
+                raise MCPError(f"MCP error: {result['error']}")
 
             tools_data = result.get("result", {}).get("tools", [])
 
@@ -102,7 +108,7 @@ class SecureMCPClient:
             return tools
 
         except requests.exceptions.RequestException as e:
-            raise Exception(f"MCP request failed: {e}")
+            raise MCPError(f"MCP request failed: {e}") from e
 
     async def close(self):
         """Close the client and clean up resources"""
@@ -117,9 +123,13 @@ class SecureMCPClient:
         await self.close()
 
 
+class MCPError(Exception):
+    """Custom exception for MCP-related errors"""
+
+
 def init_mcp_client() -> SecureMCPClient:
     """Initialize MCP client with optional AWS authentication"""
-    global _mcp_client
+    global _mcp_client  # pylint: disable=global-statement
     if _mcp_client is None:
         # Check if AWS authentication should be used
         use_aws_auth = os.getenv("MCP_USE_AWS_AUTH", "true").lower() == "true"
@@ -128,7 +138,8 @@ def init_mcp_client() -> SecureMCPClient:
             raise ValueError("MCP_SERVER_URL not configured")
 
         print(
-            f"Initializing MCP client with {'AWS SigV4' if use_aws_auth else 'standard'} authentication"
+            f"Initializing MCP client with "
+            f"{'AWS SigV4' if use_aws_auth else 'standard'} authentication"
         )
         _mcp_client = SecureMCPClient(MCP_SERVER_URL, use_aws_auth=use_aws_auth)
 
@@ -144,12 +155,12 @@ def get_mcp_client() -> SecureMCPClient:
 
 def cleanup_mcp_client():
     """Clean up MCP client"""
-    global _mcp_client
+    global _mcp_client  # pylint: disable=global-statement
     if _mcp_client is not None:
         try:
             # Run the async close method in a new event loop
             asyncio.run(_mcp_client.close())
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error closing MCP client: {e}")
         finally:
             _mcp_client = None
