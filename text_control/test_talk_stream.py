@@ -47,7 +47,7 @@ def calculate_signature_v2(secret_key: str, timestamp: str, body_string: str) ->
 
 def test_talk_stream(
     url="http://127.0.0.1:5000/api/talk",
-    ask_text="Make robot_1 wave",
+    ask_text="dog_move_forward",
     session_id=None,
 ):
     """Test the talk streaming endpoint"""
@@ -190,7 +190,7 @@ def main():
 
     # Test different scenarios
     test_cases = [
-        "Make robot_1 wave",
+        "dog_move_forward",
         # "Tell all robots to dance",
         # "What actions can the robots perform?",
     ]

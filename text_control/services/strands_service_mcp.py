@@ -52,8 +52,17 @@ def create_robot_agent_with_mcp(session_id: str):
         tool_name = mcp_tool.name
         tool_description = mcp_tool.description
 
-        # Create a closure to capture the tool_name
-        def make_tool_function(name, description):
+        # Determine the correct parameter name based on tool prefix
+        # Handle both snake_case (dog_) and camelCase (dog, drone) prefixes
+        param_name = "robot_id"  # default
+        tool_name_lower = tool_name.lower()
+        if tool_name_lower.startswith("dog"):
+            param_name = "dog_id"
+        elif tool_name_lower.startswith("drone"):
+            param_name = "drone_id"
+
+        # Create a closure to capture the tool_name and param_name
+        def make_tool_function(name, description, parameter_name):
             # Create the function FIRST with correct name
             async def tool_func(robot_id: str) -> str:
                 """
@@ -66,8 +75,12 @@ def create_robot_agent_with_mcp(session_id: str):
                     Result from MCP tool execution
                 """
                 try:
-                    logger.info(f"Calling MCP tool: {name} for {robot_id}")
-                    result = await mcp_client.call_tool(name, {"robot_id": robot_id})
+                    logger.info(
+                        f"Calling MCP tool: {name} for {robot_id} using parameter '{parameter_name}'"
+                    )
+                    result = await mcp_client.call_tool(
+                        name, {parameter_name: robot_id}
+                    )
                     return str(result) if result else f"{name} executed successfully"
                 except Exception as e:
                     logger.error(f"MCP tool {name} failed: {e}")
@@ -80,7 +93,9 @@ def create_robot_agent_with_mcp(session_id: str):
             # Now apply the @tool decorator
             return tool(tool_func)
 
-        strands_tools.append(make_tool_function(tool_name, tool_description))
+        strands_tools.append(
+            make_tool_function(tool_name, tool_description, param_name)
+        )
 
     logger.info(f"Created {len(strands_tools)} Strands tools from MCP")
 
@@ -94,7 +109,7 @@ def create_robot_agent_with_mcp(session_id: str):
 
 DEVICE INVENTORY:
 - Robots: robot_1, robot_2, robot_3, robot_4, robot_5, robot_6
-- Drones: drone_1, drone_2  
+- Drones: drone_1, drone_2
 - Dogs: dog_1, dog_2, dog_3
 
 DEFAULT DEVICE ASSIGNMENT:
@@ -150,8 +165,3 @@ def create_robot_agent(session_id: str):
             logger.warning("MCP_SERVER_URL not configured, using local tools")
     except Exception as e:
         logger.warning(f"MCP agent creation failed: {e}, falling back to local tools")
-
-    # Fall back to original implementation
-    from services.strands_service import create_robot_agent as create_local_agent
-
-    return create_local_agent(session_id)
