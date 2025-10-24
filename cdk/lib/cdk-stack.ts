@@ -22,8 +22,8 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     );
 
     // Device configuration
-    const numberOfRobots = 9; // Number of robots
-    const numberOfDrones = 1; // Number of drones
+    const numberOfRobots = 6; // Number of robots
+    const numberOfDrones = 2; // Number of drones
     const numberOfDogs = 3; // Number of dogs
 
     // Generate device names

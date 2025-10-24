@@ -11,10 +11,6 @@ class RobotID(str, Enum):
     ROBOT_4 = "robot_4"
     ROBOT_5 = "robot_5"
     ROBOT_6 = "robot_6"
-    ROBOT_7 = "robot_7"
-    ROBOT_8 = "robot_8"
-    ROBOT_9 = "robot_9"
-    ROBOT_10 = "robot_10"
 
 
 class DogID(str, Enum):

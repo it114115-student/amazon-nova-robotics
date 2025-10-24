@@ -65,8 +65,8 @@ export class TextControlWebConstruct extends Construct {
         CognitoUserPoolId: props.userPool.userPoolId,
         CognitoUserPoolClientId: props.userPoolClient.userPoolClientId,
         FlaskSecretKey: hash,
-        ChatSecretKey: chatSecretKey,
-        ChatAccessKey: chatAccessKey,
+        XiaoiceChatSecretKey: chatSecretKey,
+        XiaoiceChatAccessKey: chatAccessKey,
       },
       bundling: {
         assetExcludes: [
@@ -190,6 +190,11 @@ export class TextControlWebConstruct extends Construct {
     new CfnOutput(this, "XiaoiceApiUrl", {
       key: "XiaoiceApiUrl",
       value: restApi.url + "api/xiaoice-chat-api",
+    });
+
+    new CfnOutput(this, "XiaoiceStreamingApiUrl", {
+      key: "XiaoiceStreamingApiUrl",
+      value: restApi.url.replace(/\/$/, ""),
     });
   }
 }

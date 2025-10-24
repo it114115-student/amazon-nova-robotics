@@ -14,18 +14,38 @@ import uuid
 import requests
 
 
-def calculate_signature(secret_key: str, timestamp: str, body_string: str) -> str:
-    """Calculate signature for authentication (matching server's calculate_signature)"""
-    # Server uses: body_string + secret_key + timestamp with SHA512
-    string_to_checksum = body_string + secret_key + timestamp
+def calculate_signature_v2(secret_key: str, timestamp: str, body_string: str) -> str:
+    """
+    Calculate signature for authentication following the vendor specification (v2).
+
+    Algorithm:
+    1. Build a parameter Map with: secretKey, timestamp, bodyString
+    2. Sort parameters by key name in ascending order and connect with "&"
+       Format: key1=value1&key2=value2&key3=value3
+    3. Calculate SHA-512 hash and convert to UPPERCASE
+    """
+    # Create parameter map
+    params = {
+        "bodyString": body_string,
+        "secretKey": secret_key,
+        "timestamp": timestamp,
+    }
+
+    # Sort by key name in ascending order and create signature string
+    sorted_params = sorted(params.items())
+    signature_string = "&".join([f"{k}={v}" for k, v in sorted_params])
+
+    # Calculate SHA-512 hash
     sha512 = hashlib.sha512()
-    sha512.update(string_to_checksum.encode("utf-8"))
+    sha512.update(signature_string.encode("utf-8"))
     hex_digest = sha512.hexdigest()
-    return hex_digest.replace("-", "")
+
+    # Convert to uppercase
+    return hex_digest.replace("-", "").upper()
 
 
 def test_talk_stream(
-    url="https://6mz6soy3j3.execute-api.us-east-1.amazonaws.com/prod/api/talk",
+    url="http://127.0.0.1:5000/api/talk",
     ask_text="Make robot_1 wave",
     session_id=None,
 ):
@@ -54,8 +74,8 @@ def test_talk_stream(
     body_string = json.dumps(body)
     timestamp = str(int(time.time()))
 
-    # Calculate signature
-    signature = calculate_signature(secret_key, timestamp, body_string)
+    # Calculate signature using v2 algorithm (matches server's /api/talk endpoint)
+    signature = calculate_signature_v2(secret_key, timestamp, body_string)
 
     # Prepare headers
     headers = {
