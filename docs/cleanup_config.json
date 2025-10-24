@@ -1,0 +1,40 @@
+{
+  "keep_globs": [
+    "README.md",
+    "**/README.md",
+    "**/docs/**",
+    "**/API_REFERENCE.md",
+    "**/DEPLOYMENT.md"
+  ],
+  "rubbish_name_contains": [
+    "PERFORMANCE",
+    "REFACTOR",
+    "FINAL_SOLUTION",
+    "SIGNATURE_ANALYSIS",
+    "TEST_README",
+    "QUICK_REFERENCE",
+    "AUTH_README",
+    "ARCHITECTURE_COMPARISON",
+    "MCP_PERFORMANCE",
+    "MCP_TOOLS_FIX_SUMMARY",
+    "SECURE_MCP_README",
+    "STRANDS_README"
+  ],
+  "exclude_dirs": [
+    ".git",
+    "node_modules",
+    "__pycache__",
+    "cdk.out",
+    ".venv",
+    "venv",
+    ".idea",
+    ".vscode",
+    "dist",
+    "build",
+    ".pytest_cache",
+    ".mypy_cache",
+    "coverage",
+    "docs"
+  ],
+  "archive_dir": "docs/archive"
+}

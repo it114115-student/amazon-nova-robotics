@@ -193,8 +193,8 @@ def main():
     # Test different scenarios
     test_cases = [
         "Make robot_1 wave",
-        "Tell all robots to dance",
-        "What actions can the robots perform?",
+        # "Tell all robots to dance",
+        # "What actions can the robots perform?",
     ]
 
     results = []

@@ -17,7 +17,7 @@ from middleware import require_hybrid_auth
 from services.chat_service import extract_actions_from_response, get_chat_response
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
 from services.robot_service import robot_service
-from services.strands_service import create_robot_agent
+from services.strands_service_mcp import create_robot_agent as create_robot_agent_mcp
 from utils.command_normalization import find_matching_command
 
 # Suppress OpenTelemetry context warnings (harmless in async streaming context)
@@ -251,7 +251,7 @@ def talk_stream():
 
     # 3. Create Strands agent and stream response
     try:
-        agent = create_robot_agent(session_id)
+        agent = create_robot_agent_mcp(session_id)
 
         def stream_response():
             try:
@@ -352,22 +352,22 @@ def talk_stream():
                             buffer = buffer[start_idx + len(THINKING_START) :]
                             inside_thinking = True
 
-                    # Send any remaining buffer content (if not inside thinking block)
-                    if buffer and not inside_thinking:
-                        chunk_count += 1
-                        chunk = {
-                            "askText": ask_text,
-                            "extra": extra,
-                            "id": f"{trace_id}_{chunk_count}",
-                            "replyPayload": None,
-                            "replyText": buffer,
-                            "replyType": "Llm",
-                            "sessionId": session_id,
-                            "timestamp": int(time.time() * 1000),
-                            "traceId": trace_id,
-                            "isFinal": True,
-                        }
-                        yield f"data: {json.dumps(chunk)}\n\n"
+                    # Send final chunk with any remaining buffer
+                    chunk_count += 1
+                    final_text = buffer if (buffer and not inside_thinking) else ""
+                    chunk = {
+                        "askText": ask_text,
+                        "extra": extra,
+                        "id": f"{trace_id}_{chunk_count}",
+                        "replyPayload": None,
+                        "replyText": final_text,
+                        "replyType": "Llm",
+                        "sessionId": session_id,
+                        "timestamp": int(time.time() * 1000),
+                        "traceId": trace_id,
+                        "isFinal": True,
+                    }
+                    yield f"data: {json.dumps(chunk)}\n\n"
 
                 # Create a wrapper to run the async generator
                 def run_async_gen():
@@ -566,7 +566,7 @@ def chat_api_strands():
 
     # Use Strands agent for response
     try:
-        agent = create_robot_agent(params["session_id"])
+        agent = create_robot_agent_mcp(params["session_id"])
         result = asyncio.run(agent.run_async(params["ask_text"]))
 
         now = datetime.now()

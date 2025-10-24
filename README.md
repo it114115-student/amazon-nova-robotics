@@ -2,6 +2,10 @@
 
 A comprehensive voice-controlled robotics platform powered by AWS IoT, AWS Bedrock, and Amazon Nova. This project enables natural language control of humanoid robots and drones through voice commands, with real-time 3D visualization, simulation capabilities, and secure authentication.
 
+## 📚 Documentation
+
+See the consolidated documentation index in [docs/README.md](docs/README.md).
+
 ## 🎯 Project Overview
 
 Amazon Nova Robotics is a multi-component system that combines:
