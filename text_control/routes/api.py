@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 import time
 import uuid
 from datetime import datetime
@@ -249,12 +250,12 @@ def talk_stream():
 
     # 3. Create Strands agent and stream response
     try:
-        agent = create_robot_agent_mcp(session_id)
-
         def stream_response():
             try:
 
                 async def async_stream():
+                    agent = await create_robot_agent_mcp(session_id)
+                    
                     thinking_start = "<thinking>"
                     thinking_end = "</thinking>"
 
@@ -402,7 +403,6 @@ def talk_stream():
                 for chunk in run_async_gen():
                     yield chunk
                     # Force flush to prevent log truncation
-import sys
                     sys.stdout.flush()
                     sys.stderr.flush()
 
@@ -585,8 +585,11 @@ def chat_api_strands():
 
     # Use Strands agent for response
     try:
-        agent = create_robot_agent_mcp(params["session_id"])
-        result = asyncio.run(agent.invoke_async(params["ask_text"]))
+        async def get_response():
+            agent = await create_robot_agent_mcp(params["session_id"])
+            return await agent.invoke_async(params["ask_text"])
+        
+        result = asyncio.run(get_response())
 
         now = datetime.now()
         response = {
