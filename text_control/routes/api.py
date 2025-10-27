@@ -14,11 +14,9 @@ from datetime import datetime
 from command_config.simple_commands import SIMPLE_COMMANDS
 from flask import Blueprint, Response, jsonify, request
 from middleware import require_hybrid_auth
-from services.chat_service import extract_actions_from_response, get_chat_response
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
 from services.robot_service import robot_service
 from services.strands_service_mcp import create_robot_agent as create_robot_agent_mcp
-from utils.command_normalization import find_matching_command
 
 # Suppress OpenTelemetry context warnings (harmless in async streaming context)
 logging.getLogger("opentelemetry.context").setLevel(logging.CRITICAL)
@@ -257,8 +255,8 @@ def talk_stream():
             try:
 
                 async def async_stream():
-                    THINKING_START = "<thinking>"
-                    THINKING_END = "</thinking>"
+                    thinking_start = "<thinking>"
+                    thinking_end = "</thinking>"
 
                     buffer = ""
                     inside_thinking = False
@@ -279,20 +277,20 @@ def talk_stream():
                         # Process buffer to filter out thinking tags
                         while True:
                             if inside_thinking:
-                                end_idx = buffer.find(THINKING_END)
+                                end_idx = buffer.find(thinking_end)
                                 if end_idx == -1:
                                     # Keep potential partial match at end
-                                    buffer = buffer[-len(THINKING_END) + 1 :]
+                                    buffer = buffer[-len(thinking_end) + 1 :]
                                     break
-                                buffer = buffer[end_idx + len(THINKING_END) :]
+                                buffer = buffer[end_idx + len(thinking_end) :]
                                 inside_thinking = False
                                 continue
 
-                            start_idx = buffer.find(THINKING_START)
+                            start_idx = buffer.find(thinking_start)
                             if start_idx == -1:
                                 # Check for partial thinking tag at end of buffer
-                                for i in range(1, len(THINKING_START)):
-                                    if buffer.endswith(THINKING_START[:i]):
+                                for i in range(1, len(thinking_start)):
+                                    if buffer.endswith(thinking_start[:i]):
                                         text_to_send = buffer[:-i]
                                         if text_to_send:
                                             chunk_count += 1
@@ -349,7 +347,7 @@ def talk_stream():
                                 }
                                 yield f"data: {json.dumps(chunk)}\n\n"
 
-                            buffer = buffer[start_idx + len(THINKING_START) :]
+                            buffer = buffer[start_idx + len(thinking_start) :]
                             inside_thinking = True
 
                     # Send final chunk with any remaining buffer
@@ -368,7 +366,7 @@ def talk_stream():
                             "isFinal": False,
                         }
                         yield f"data: {json.dumps(chunk)}\n\n"
-                    
+
                     # Always send final marker
                     chunk_count += 1
                     final_chunk = {
@@ -404,7 +402,7 @@ def talk_stream():
                 for chunk in run_async_gen():
                     yield chunk
                     # Force flush to prevent log truncation
-                    import sys
+import sys
                     sys.stdout.flush()
                     sys.stderr.flush()
 
@@ -703,7 +701,7 @@ async def _chat(data):
     try:
         agent = await create_robot_agent_mcp(session_id)
         response = await agent.invoke_async(user_message)
-        
+
         return jsonify({
             "response": str(response),
             "session_id": session_id,

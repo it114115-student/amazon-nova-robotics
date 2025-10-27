@@ -104,34 +104,34 @@ class SecureMCPClient:
             for tool in tools_data:
                 if isinstance(tool, dict):
                     tool_name = tool.get("name", "unknown")
-                    
+
                     # Create a callable function for this tool
                     def make_tool_func(name):
                         async def tool_func(tool_use, **kwargs):
                             print(f"MCP TOOL CALLED: {name}")
                             print(f"Tool use: {tool_use}")
-                            
+
                             # Extract arguments from tool_use if present
                             arguments = tool_use.get("input", {}) if isinstance(tool_use, dict) else kwargs
                             print(f"Arguments to MCP: {arguments}")
-                            
+
                             result = await self.call_tool(name, arguments)
                             print(f"MCP Result: {result}")
-                            
+
                             # Return result in format expected by Strands
                             return {
                                 "toolUseId": tool_use.get("toolUseId") if isinstance(tool_use, dict) else "unknown",
                                 "content": [{"text": str(result)}]
                             }
                         return tool_func
-                    
+
                     # Create tool spec
                     tool_spec = {
                         "name": tool_name,
                         "description": tool.get("description", "No description"),
                         "inputSchema": tool.get("inputSchema", {"type": "object", "properties": {}})
                     }
-                    
+
                     # Create AgentTool instance
                     agent_tool = PythonAgentTool(
                         tool_name=tool_name,

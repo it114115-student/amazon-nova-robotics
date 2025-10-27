@@ -39,8 +39,8 @@ async def get_chat_response(
     """Get a response from the Nova chatbot using Strands"""
 
     # Nova Chatbot system prompt
-    SYSTEM_PROMPT = f"""
-    You are a helpful robots, dogs and drones assistant. 
+    system_prompt_template = f"""
+    You are a helpful robots, dogs and drones assistant.
     You control various robots, dogs and drones that can perform physical actions.
 
     <background></background>
@@ -55,7 +55,7 @@ async def get_chat_response(
     Don't reply all commands at once and first drill down to the specific type of thing such as obots, dogs and drones.
     Don't reply more than 3 sentences at once, and if the user asks for more information, provide it in a follow-up message.
 
-    Commands is in format dogMoveForward, droneRotateClockwise, robotMoveBackward, etc., and 
+    Commands is in format dogMoveForward, droneRotateClockwise, robotMoveBackward, etc., and
     you need to rephrase it like "dog move forward", "drone rotate clockwise", "robot move backward" etc for user.
     """
 
@@ -66,7 +66,7 @@ async def get_chat_response(
         system_prompt = SYSTEM_PROMPT.replace(
             "<background></background>",
             f"""
-<background>Your Name:{name} 
+<background>Your Name:{name}
 background: {background}
 </background>
             """,
@@ -78,7 +78,7 @@ background: {background}
     session_manager = FileSessionManager(
         session_id=str(session_id), base_dir="./chat_sessions"
     )
-    
+
     agent = Agent(
         model=nova_model,
         system_prompt=system_prompt,
@@ -88,7 +88,7 @@ background: {background}
     try:
         # Get response from agent
         response = await agent.invoke_async(user_message)
-        
+
         return {
             "response": str(response),
             "session_id": session_id,
@@ -114,18 +114,18 @@ async def classify_response_type(
 
     classification_prompt = f"""
     Analyze the following bot response and classify it:
-    
+
     Available robot/drone commands: {actions_list}
-    
+
     User message: "{user_message}"
     Bot response: "{bot_response}"
-    
+
     Classification rules:
     - "rephrase": conversational response, greeting, explanation, or general chat
     - "commands": contains actual robot/drone action commands to execute
     - Only include commands that exist in the available commands list
     - Provide confidence score between 0.0 and 1.0
-    
+
     Use the classify_response tool to provide your analysis.
     """
 
@@ -138,11 +138,11 @@ async def classify_response_type(
 
     try:
         result = await classifier_agent.invoke_async(classification_prompt)
-        
+
         # Parse result if it's a tool call result
         if hasattr(result, 'get') and 'response_type' in result:
             return result
-        
+
         # Fallback parsing
         return {"type": "rephrase", "commands": [], "confidence": 0.5}
 

@@ -3,11 +3,9 @@ Strands Agents service for robot control using existing MCP client
 This version dynamically creates Strands tools from MCP server tools
 """
 
-import asyncio
-
 import config
 from mcp_client import get_mcp_client
-from strands import Agent, tool
+from strands import Agent
 from strands.models import BedrockModel
 from strands.session.file_session_manager import FileSessionManager
 from utils.lambda_logger import get_lambda_logger
@@ -40,7 +38,7 @@ async def create_robot_agent_with_mcp(session_id: str):
     session_manager = FileSessionManager(
         session_id=session_id, base_dir="./agent_sessions"
     )
-    
+
     async with mcp_client:
         mcp_tools = await mcp_client.list_tools()
         return Agent(
@@ -56,7 +54,7 @@ async def create_robot_agent_with_mcp(session_id: str):
             - When NO device ID is specified, ALWAYS assume the command is for ALL devices
             - NEVER ask the user to specify which device - just use the appropriate "all" parameter
             - For robot tools: use robot_id="all"
-            - For dog tools: use dog_id="all" 
+            - For dog tools: use dog_id="all"
             - For drone tools: use drone_id="all"
 
             IMPORTANT BEHAVIOR RULES:
@@ -88,7 +86,7 @@ async def create_robot_agent_with_mcp(session_id: str):
                     tools=mcp_tools,
                     session_manager=session_manager,
                 )
-   
+
 
 async def create_robot_agent(session_id: str):
     """
@@ -104,9 +102,9 @@ async def create_robot_agent(session_id: str):
         if config.MCP_SERVER_URL:
             logger.info("Using MCP-based agent (HTTP client)")
             return await create_robot_agent_with_mcp(session_id)
-        else:
-            logger.warning("MCP_SERVER_URL not configured, using local tools")
-            raise ValueError("MCP_SERVER_URL not configured")
+
+        logger.warning("MCP_SERVER_URL not configured, using local tools")
+        raise ValueError("MCP_SERVER_URL not configured")
     except Exception as e:
-        logger.error(f"MCP agent creation failed: {e}")
+        logger.error("MCP agent creation failed: %s", e)
         raise e
