@@ -99,8 +99,6 @@ class SecureMCPClient:
 
             tools_data = result.get("result", {}).get("tools", [])
 
-
-
             # Return tools as proper AgentTool instances
             tools = []
             for tool in tools_data:
@@ -166,43 +164,25 @@ class MCPError(Exception):
     """Custom exception for MCP-related errors"""
 
 
-def init_mcp_client() -> SecureMCPClient:
-    """Initialize MCP client with optional AWS authentication"""
-    global _mcp_client  # pylint: disable=global-statement
-    if _mcp_client is None:
-        # Check if AWS authentication should be used
-        use_aws_auth = os.getenv("MCP_USE_AWS_AUTH", "true").lower() == "true"
-
-        if not MCP_SERVER_URL:
-            raise ValueError("MCP_SERVER_URL not configured")
-
-        print(
-            f"Initializing MCP client with "
-            f"{'AWS SigV4' if use_aws_auth else 'standard'} authentication"
-        )
-        _mcp_client = SecureMCPClient(
-            MCP_SERVER_URL, use_aws_auth=use_aws_auth
-        )
-
-    return _mcp_client
-
-
 def get_mcp_client() -> SecureMCPClient:
     """Get MCP client instance"""
+    global _mcp_client
     if _mcp_client is None:
-        return init_mcp_client()
+        use_aws_auth = os.getenv("MCP_USE_AWS_AUTH", "true").lower() == "true"
+        if not MCP_SERVER_URL:
+            raise ValueError("MCP_SERVER_URL not configured")
+        print(f"Initializing MCP client with {'AWS SigV4' if use_aws_auth else 'standard'} authentication")
+        _mcp_client = SecureMCPClient(MCP_SERVER_URL, use_aws_auth=use_aws_auth)
     return _mcp_client
 
 
 def cleanup_mcp_client():
     """Clean up MCP client"""
-    global _mcp_client  # pylint: disable=global-statement
+    global _mcp_client
     if _mcp_client is not None:
         try:
-            # Run the async close method in a new event loop
             asyncio.run(_mcp_client.close())
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             print(f"Error closing MCP client: {e}")
         finally:
-            _mcp_client = None
             _mcp_client = None

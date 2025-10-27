@@ -14,7 +14,7 @@ async def get_available_action_and_description():
     client = get_mcp_client()
     async with client:
         tools = await client.list_tools()
-        name_and_description = [tool.name + " - " + tool.description for tool in tools]
+        name_and_description = [getattr(tool, 'tool_name', getattr(tool, 'name', 'unknown')) + " - " + getattr(tool, 'description', getattr(tool, '_tool_spec', {}).get('description', 'No description')) for tool in tools]
         return name_and_description
 
 
@@ -24,5 +24,5 @@ async def get_available_actions() -> Set[str]:
     client = get_mcp_client()
     async with client:
         tools = await client.list_tools()
-        actions = {tool.name for tool in tools}
+        actions = {getattr(tool, 'tool_name', getattr(tool, 'name', 'unknown')) for tool in tools}
         return actions

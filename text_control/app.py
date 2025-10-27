@@ -9,7 +9,7 @@ from flask_caching import Cache
 
 from config import DEBUG
 from errors import register_error_handlers
-from mcp_client import cleanup_mcp_client, init_mcp_client
+from mcp_client import cleanup_mcp_client, get_mcp_client
 
 # Configure logging for development environment
 if not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
@@ -59,7 +59,7 @@ def after_request(response):
 
 # Initialize the MCP client when the app starts
 with app.app_context():
-    init_mcp_client()
+    get_mcp_client()
 
 
 # Register the blueprints

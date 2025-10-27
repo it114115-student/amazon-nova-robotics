@@ -588,7 +588,7 @@ def chat_api_strands():
     # Use Strands agent for response
     try:
         agent = create_robot_agent_mcp(params["session_id"])
-        result = asyncio.run(agent.run_async(params["ask_text"]))
+        result = asyncio.run(agent.invoke_async(params["ask_text"]))
 
         now = datetime.now()
         response = {
@@ -695,102 +695,27 @@ def chat_api():
 
 
 async def _chat(data):
-    """Handle chat requests with Nova Chatbot integration"""
+    """Handle chat requests with Strands MCP agent"""
     user_message = data.get("message")
-    selected_robots = data.get("robots")
-    session_id = data.get("session_id", str(uuid.uuid4()))
+    session_id = str(data.get("session_id", str(uuid.uuid4())))
 
-    # For backward compatibility, if robots is not a list, make it a list
-    if not isinstance(selected_robots, list):
-        selected_robots = [selected_robots] if selected_robots else []
+    # Use Strands MCP agent instead of old chat service
+    try:
+        agent = await create_robot_agent_mcp(session_id)
+        response = await agent.invoke_async(user_message)
+        
+        return jsonify({
+            "response": str(response),
+            "session_id": session_id,
+        })
 
-    # Get response from Nova chatbot (use first robot for context, or None)
-    context_robot = selected_robots[0] if selected_robots else None
-    response_data = await get_chat_response(user_message, context_robot, session_id)
-
-    if "error" in response_data:
-        return jsonify(response_data), 500
-
-    # Optimize classification - check for simple commands first with normalization
-    user_message_lower = user_message.lower().strip()
-    bot_response = response_data["response"]
-
-    # Check if user message is a simple command (with normalization)
-    matched_command = find_matching_command(user_message, SIMPLE_COMMANDS)
-    if matched_command:
-        logger.info(f"Simple command detected: '{user_message}' -> '{matched_command}'")
-        actions_to_execute = [matched_command]
-    else:
-        # Check if any word in the message is a simple command (with normalization)
-        words = user_message_lower.split()
-        simple_action_found = None
-
-        for word in words:
-            matched_word_command = find_matching_command(word, SIMPLE_COMMANDS)
-            if matched_word_command:
-                simple_action_found = matched_word_command
-                logger.info(
-                    f"Simple action found in message: '{word}' -> '{matched_word_command}'"
-                )
-                break
-
-        if simple_action_found:
-            actions_to_execute = [simple_action_found]
-        else:
-            # Fall back to full classification for complex requests
-            logger.info("Complex request detected, using full classification")
-            actions_to_execute = await extract_actions_from_response(
-                bot_response, user_message
-            )
-
-    logger.debug(f"Actions to execute: {actions_to_execute}")
-
-    # Handle special robot selections
-    actions_executed = []
-    robots_to_use = []
-
-    if "all" in selected_robots:
-        # If 'all' is selected, send to all individual robots, drones, and dogs
-        individual_robots = [f"robot_{i}" for i in range(1, 10)]  # robot_1 to robot_9
-        individual_drones = ["drone_1", "drone_2"]
-        individual_dogs = ["dog_1", "dog_2", "dog_3"]
-        robots_to_use = individual_robots + individual_drones + individual_dogs
-    else:
-        # Handle other selections (individual robots, groups, or combinations)
-        robots_to_use = selected_robots
-
-    # Optimization: Process robot actions in parallel instead of sequentially
-    if actions_to_execute and robots_to_use:
-        logger.info(f"Processing actions for {len(robots_to_use)} robots in parallel")
-
-        # Create tasks for parallel execution
-        tasks = []
-        for robot in robots_to_use:
-            task = asyncio.create_task(
-                robot_service.process_actions(actions_to_execute, robot)
-            )
-            tasks.append((robot, task))
-
-        # Execute all tasks concurrently
-        for robot, task in tasks:
-            try:
-                execution_results = await task
-                actions_executed.append({"robot": robot, "results": execution_results})
-            except Exception as e:
-                logger.error(f"Error executing actions for robot {robot}: {e}")
-                actions_executed.append(
-                    {
-                        "robot": robot,
-                        "results": [
-                            {"action": "error", "success": False, "error": str(e)}
-                        ],
-                    }
-                )
-
-    if actions_executed:
-        response_data["actions_executed"] = actions_executed
-
-    return jsonify(response_data)
+    except Exception as e:
+        logger.error(f"Error with Strands MCP agent: {e}", exc_info=True)
+        return jsonify({
+            "response": f"I'm sorry, I encountered an error: {str(e)}",
+            "session_id": session_id,
+            "error": str(e),
+        }), 500
 
 
 @api_bp.route("/robots", methods=["GET"])

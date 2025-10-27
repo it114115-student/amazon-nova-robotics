@@ -1,32 +1,42 @@
 """
-Chat service - Handles Nova chatbot integration
+Chat service - Handles Nova chatbot integration using Strands
 """
 
 from typing import Any, Dict, List
 
-import boto3
 import config
-from botocore.config import Config
 from models.actions import get_available_action_and_description, get_available_actions
 from services.database_service import get_robot
+from strands import Agent, tool
+from strands.models import BedrockModel
+from strands.session.file_session_manager import FileSessionManager
 
-# Session storage for Nova conversation tracking
-active_sessions = {}
-
-# Initialize the Bedrock runtime client
-bedrock_runtime = boto3.client(
-    "bedrock-runtime",
-    config=Config(
-        region_name=config.AWS_BEDROCK_REGION,
-        retries={"max_attempts": 3, "mode": "standard"},
-    ),
+# Configure Nova model
+nova_model = BedrockModel(
+    model_id=config.NOVA_MODEL_ID,
+    temperature=0.7,
+    region_name=config.AWS_BEDROCK_REGION,
 )
+
+
+@tool(name="classify_response", description="Classify a bot response as either conversational rephrase or containing commands")
+async def classify_response_tool(
+    response_type: str,  # "rephrase" or "commands"
+    commands: List[str],  # List of valid robot/drone commands found
+    confidence: float  # Confidence score 0.0-1.0
+) -> Dict[str, Any]:
+    """Tool for classifying bot responses"""
+    return {
+        "response_type": response_type,
+        "commands": commands,
+        "confidence": confidence
+    }
 
 
 async def get_chat_response(
     user_message: str, selected_robot: str, session_id: str
 ) -> Dict[str, Any]:
-    """Get a response from the Nova chatbot"""
+    """Get a response from the Nova chatbot using Strands"""
 
     # Nova Chatbot system prompt
     SYSTEM_PROMPT = f"""
@@ -47,7 +57,6 @@ async def get_chat_response(
 
     Commands is in format dogMoveForward, droneRotateClockwise, robotMoveBackward, etc., and 
     you need to rephrase it like "dog move forward", "drone rotate clockwise", "robot move backward" etc for user.
-    
     """
 
     context = get_robot(selected_robot)
@@ -65,44 +74,28 @@ background: {background}
     else:
         system_prompt = SYSTEM_PROMPT.replace("<background></background>", "")
 
-    # Create or retrieve session history
-    if session_id not in active_sessions:
-        active_sessions[session_id] = []
+    # Create Strands agent with session management
+    session_manager = FileSessionManager(
+        session_id=str(session_id), base_dir="./chat_sessions"
+    )
+    
+    agent = Agent(
+        model=nova_model,
+        system_prompt=system_prompt,
+        session_manager=session_manager,
+    )
 
-    # Add user message to history
-    active_sessions[session_id].append({"role": "user", "content": user_message})
-
-    # Convert message history to the format expected by converse API
-    messages = []
-    for msg in active_sessions[session_id]:
-        messages.append({"role": msg["role"], "content": [{"text": msg["content"]}]})
-
-    system = [{"text": system_prompt}]
-
-    # Call Nova via Bedrock API using converse method
     try:
-        response = bedrock_runtime.converse(
-            modelId=config.NOVA_MODEL_ID,
-            messages=messages,
-            system=system,
-            inferenceConfig={"maxTokens": 1024, "temperature": 0.7, "topP": 0.9},
-            additionalModelRequestFields={"inferenceConfig": {"topK": 20}},
-        )
-
-        bot_response = response["output"]["message"]["content"][0]["text"]
-
-        # Add assistant response to history
-        active_sessions[session_id].append(
-            {"role": "assistant", "content": bot_response}
-        )
-
+        # Get response from agent
+        response = await agent.invoke_async(user_message)
+        
         return {
-            "response": bot_response,
+            "response": str(response),
             "session_id": session_id,
         }
 
     except Exception as e:
-        print(f"Error calling Nova: {str(e)}")
+        print(f"Error calling Nova via Strands: {str(e)}")
         return {
             "response": f"I'm sorry, I encountered an error: {str(e)}",
             "session_id": session_id,
@@ -114,45 +107,11 @@ async def classify_response_type(
     bot_response: str, user_message: str
 ) -> Dict[str, Any]:
     """
-    Use Bedrock tool calling to classify if the bot response is a rephrase or contains commands
-    Returns: {"type": "rephrase" | "commands", "commands": List[str], "confidence": float}
+    Use Strands agent to classify if the bot response is a rephrase or contains commands
     """
     available_actions = await get_available_actions()
     actions_list = ", ".join(available_actions)
 
-    # Define the tool for classification
-    classification_tool = {
-        "toolSpec": {
-            "name": "classify_response",
-            "description": "Classify a bot response as either conversational rephrase or containing commands",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "response_type": {
-                            "type": "string",
-                            "enum": ["rephrase", "commands"],
-                            "description": "Whether the response is conversational (rephrase) or contains action commands",
-                        },
-                        "commands": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "List of valid robot/drone commands found in the response",
-                        },
-                        "confidence": {
-                            "type": "number",
-                            "minimum": 0.0,
-                            "maximum": 1.0,
-                            "description": "Confidence score for the classification",
-                        },
-                    },
-                    "required": ["response_type", "commands", "confidence"],
-                }
-            },
-        }
-    }
-
-    # Improved conversational indicator detection in fallback
     classification_prompt = f"""
     Analyze the following bot response and classify it:
     
@@ -162,7 +121,7 @@ async def classify_response_type(
     Bot response: "{bot_response}"
     
     Classification rules:
-    - "rephrase": conversational response, greeting, explanation, or general chat (including phrases like 'here are the available ... actions')
+    - "rephrase": conversational response, greeting, explanation, or general chat
     - "commands": contains actual robot/drone action commands to execute
     - Only include commands that exist in the available commands list
     - Provide confidence score between 0.0 and 1.0
@@ -170,45 +129,26 @@ async def classify_response_type(
     Use the classify_response tool to provide your analysis.
     """
 
+    # Create classification agent
+    classifier_agent = Agent(
+        model=nova_model,
+        system_prompt="You are a response classifier. Use the classify_response tool to analyze responses.",
+        tools=[classify_response_tool],
+    )
+
     try:
-        response = bedrock_runtime.converse(
-            modelId=config.NOVA_MODEL_ID,
-            messages=[{"role": "user", "content": [{"text": classification_prompt}]}],
-            toolConfig={
-                "tools": [classification_tool],
-                "toolChoice": {"any": {}},
-            },
-            inferenceConfig={"maxTokens": 200, "temperature": 0.1, "topP": 0.9},
-        )
-
-        # Extract tool use from response
-        message_content = response["output"]["message"]["content"]
-        for content in message_content:
-            if "toolUse" in content:
-                tool_input = content["toolUse"]["input"]
-
-                # Validate and filter commands
-                valid_commands = [
-                    cmd
-                    for cmd in tool_input.get("commands", [])
-                    if cmd in available_actions
-                ]
-
-                # If too many commands found, likely a false positive
-                if len(valid_commands) > 4:
-                    valid_commands = []
-
-                return {
-                    "type": tool_input["response_type"],
-                    "commands": valid_commands,
-                    "confidence": tool_input["confidence"],
-                }
+        result = await classifier_agent.invoke_async(classification_prompt)
+        
+        # Parse result if it's a tool call result
+        if hasattr(result, 'get') and 'response_type' in result:
+            return result
+        
+        # Fallback parsing
+        return {"type": "rephrase", "commands": [], "confidence": 0.5}
 
     except Exception as e:
-        print(f"Error in tool-based classification: {str(e)}")
-
-    # Default to rephrase if tool classification fails
-    return {"type": "rephrase", "commands": [], "confidence": 0.5}
+        print(f"Error in Strands classification: {str(e)}")
+        return {"type": "rephrase", "commands": [], "confidence": 0.5}
 
 
 async def extract_actions_from_response(
@@ -216,4 +156,4 @@ async def extract_actions_from_response(
 ) -> List[str]:
     """Extract action commands from bot response or user message"""
     classification = await classify_response_type(bot_response, user_message)
-    return classification["commands"]
+    return classification.get("commands", [])
