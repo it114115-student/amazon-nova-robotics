@@ -8,9 +8,9 @@ import os
 from typing import Any, Dict, Optional
 
 import requests
-from requests_auth_aws_sigv4 import AWSSigV4
-
 from config import MCP_SERVER_URL
+from requests_auth_aws_sigv4 import AWSSigV4
+from strands.tools.tools import PythonAgentTool
 
 # Global MCP client instance
 _mcp_client: Optional["SecureMCPClient"] = None
@@ -99,23 +99,48 @@ class SecureMCPClient:
 
             tools_data = result.get("result", {}).get("tools", [])
 
-            # Convert dict format to object-like format for compatibility
+
+
+            # Return tools as proper AgentTool instances
             tools = []
             for tool in tools_data:
                 if isinstance(tool, dict):
-                    # Create a simple object with name and description
-                    # attributes
-                    tool_obj = type(
-                        "Tool",
-                        (),
-                        {
-                            "name": tool.get("name", "unknown"),
-                            "description": tool.get(
-                                "description", "No description"
-                            ),
-                        },
-                    )()
-                    tools.append(tool_obj)
+                    tool_name = tool.get("name", "unknown")
+                    
+                    # Create a callable function for this tool
+                    def make_tool_func(name):
+                        async def tool_func(tool_use, **kwargs):
+                            print(f"MCP TOOL CALLED: {name}")
+                            print(f"Tool use: {tool_use}")
+                            
+                            # Extract arguments from tool_use if present
+                            arguments = tool_use.get("input", {}) if isinstance(tool_use, dict) else kwargs
+                            print(f"Arguments to MCP: {arguments}")
+                            
+                            result = await self.call_tool(name, arguments)
+                            print(f"MCP Result: {result}")
+                            
+                            # Return result in format expected by Strands
+                            return {
+                                "toolUseId": tool_use.get("toolUseId") if isinstance(tool_use, dict) else "unknown",
+                                "content": [{"text": str(result)}]
+                            }
+                        return tool_func
+                    
+                    # Create tool spec
+                    tool_spec = {
+                        "name": tool_name,
+                        "description": tool.get("description", "No description"),
+                        "inputSchema": tool.get("inputSchema", {"type": "object", "properties": {}})
+                    }
+                    
+                    # Create AgentTool instance
+                    agent_tool = PythonAgentTool(
+                        tool_name=tool_name,
+                        tool_spec=tool_spec,
+                        tool_func=make_tool_func(tool_name)
+                    )
+                    tools.append(agent_tool)
                 else:
                     tools.append(tool)
 
@@ -179,4 +204,5 @@ def cleanup_mcp_client():
         except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error closing MCP client: {e}")
         finally:
+            _mcp_client = None
             _mcp_client = None

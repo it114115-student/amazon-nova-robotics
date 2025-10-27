@@ -353,21 +353,37 @@ def talk_stream():
                             inside_thinking = True
 
                     # Send final chunk with any remaining buffer
+                    if buffer and not inside_thinking:
+                        chunk_count += 1
+                        chunk = {
+                            "askText": ask_text,
+                            "extra": extra,
+                            "id": f"{trace_id}_{chunk_count}",
+                            "replyPayload": None,
+                            "replyText": buffer,
+                            "replyType": "Llm",
+                            "sessionId": session_id,
+                            "timestamp": int(time.time() * 1000),
+                            "traceId": trace_id,
+                            "isFinal": False,
+                        }
+                        yield f"data: {json.dumps(chunk)}\n\n"
+                    
+                    # Always send final marker
                     chunk_count += 1
-                    final_text = buffer if (buffer and not inside_thinking) else ""
-                    chunk = {
+                    final_chunk = {
                         "askText": ask_text,
                         "extra": extra,
                         "id": f"{trace_id}_{chunk_count}",
                         "replyPayload": None,
-                        "replyText": final_text,
+                        "replyText": "",
                         "replyType": "Llm",
                         "sessionId": session_id,
                         "timestamp": int(time.time() * 1000),
                         "traceId": trace_id,
                         "isFinal": True,
                     }
-                    yield f"data: {json.dumps(chunk)}\n\n"
+                    yield f"data: {json.dumps(final_chunk)}\n\n"
 
                 # Create a wrapper to run the async generator
                 def run_async_gen():
@@ -385,7 +401,12 @@ def talk_stream():
                         loop.close()
 
                 # Yield from the async generator wrapper
-                yield from run_async_gen()
+                for chunk in run_async_gen():
+                    yield chunk
+                    # Force flush to prevent log truncation
+                    import sys
+                    sys.stdout.flush()
+                    sys.stderr.flush()
 
             except Exception as e:
                 logger.error(f"Error in stream_response: {e}", exc_info=True)

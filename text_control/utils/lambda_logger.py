@@ -33,6 +33,9 @@ def get_lambda_logger(name: str, level: str = None) -> logging.Logger:
     if not logger.handlers:
         handler = logging.StreamHandler()
         handler.setLevel(numeric_level)
+        
+        # Force flush to prevent truncation
+        handler.stream.flush = lambda: None
 
         # Use a format that works well in CloudWatch
         formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
