@@ -20,7 +20,7 @@ nova_model = BedrockModel(
 )
 
 
-async def create_robot_agent_with_mcp(session_id: str):
+async def create_robot_agent_with_mcp(session_id: str, background: str = "") -> Agent:
     """
     Create a robot control agent using existing MCP client.
     Dynamically creates Strands tools from MCP server tools.
@@ -39,11 +39,8 @@ async def create_robot_agent_with_mcp(session_id: str):
         session_id=session_id, base_dir="./agent_sessions"
     )
 
-    async with mcp_client:
-        mcp_tools = await mcp_client.list_tools()
-        return Agent(
-                model=nova_model,
-                system_prompt="""You are a helpful robot control assistant that executes commands for robots, drones, and dogs.
+    system_prompt = """You are a helpful robot control assistant that executes commands for robots, drones, and dogs.
+            <background></background>
 
             DEVICE INVENTORY:
             - Robots: robot_1, robot_2, robot_3, robot_4, robot_5, robot_6
@@ -83,13 +80,20 @@ async def create_robot_agent_with_mcp(session_id: str):
             7. Don't respond with duplicate messages!
 
             All tools execute immediately via HTTP without any delays.
-            """,
-                    tools=mcp_tools,
-                    session_manager=session_manager,
-                )
+            """.replace("<background></background>", background)
+    logger.info(f"System prompt for MCP agent: {system_prompt}")
+
+    async with mcp_client:
+        mcp_tools = await mcp_client.list_tools()
+        return Agent(
+                model=nova_model,
+                system_prompt=system_prompt,
+                tools=mcp_tools,
+                session_manager=session_manager,
+            )
 
 
-async def create_robot_agent(session_id: str):
+async def create_robot_agent(session_id: str, background: str = "") -> Agent:
     """
     Create robot agent - tries MCP first, falls back to local tools.
 
@@ -102,7 +106,7 @@ async def create_robot_agent(session_id: str):
     try:
         if config.MCP_SERVER_URL:
             logger.info("Using MCP-based agent (HTTP client)")
-            return await create_robot_agent_with_mcp(session_id)
+            return await create_robot_agent_with_mcp(session_id, background)
 
         logger.warning("MCP_SERVER_URL not configured, using local tools")
         raise ValueError("MCP_SERVER_URL not configured")

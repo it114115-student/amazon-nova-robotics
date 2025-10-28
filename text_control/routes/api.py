@@ -73,6 +73,9 @@ def talk_stream():
     trace_id = params["trace_id"]
     extra = params["extra"]
 
+    logger.info(f"Talk stream request details - Session: {session_id}, Trace: {trace_id}, Extra: {extra}")
+
+
     # 3. Create Strands agent and stream response
     try:
         def stream_response():
@@ -341,9 +344,22 @@ async def _chat(data):
     user_message = data.get("message")
     session_id = str(data.get("session_id", str(uuid.uuid4())))
 
+    selected_robots = data.get("robots")
+    context_robot = selected_robots[0] if selected_robots else None
+    context = get_robot(context_robot)
+    background = ""
+    if context:
+        name = context.get("robot_name")
+        background = context.get("context")
+        background = f"""
+<background>Your Name:{name}
+background: {background}
+</background>
+            """
+
     # Use Strands MCP agent instead of old chat service
     try:
-        agent = await create_robot_agent_mcp(session_id)
+        agent = await create_robot_agent_mcp(session_id, background)
         response = await agent.invoke_async(user_message)
 
         return jsonify({
