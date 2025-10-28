@@ -95,3 +95,25 @@ Desktop.ini
 
 # Logs
 *.log
+# Application specific
+agent_sessions/
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# IDE files
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific
+._*
+.Spotlight-V100
+.Trashes
