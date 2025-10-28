@@ -8,9 +8,10 @@ import os
 from typing import Any, Dict, Optional
 
 import requests
-from config import MCP_SERVER_URL
 from requests_auth_aws_sigv4 import AWSSigV4
 from strands.tools.tools import PythonAgentTool
+
+from config import MCP_SERVER_URL
 
 # Global MCP client instance
 _mcp_client: Optional["SecureMCPClient"] = None
@@ -112,7 +113,8 @@ class SecureMCPClient:
                             print(f"Tool use: {tool_use}")
 
                             # Extract arguments from tool_use if present
-                            arguments = tool_use.get("input", {}) if isinstance(tool_use, dict) else kwargs
+                            arguments = (tool_use.get("input", {})
+                                       if isinstance(tool_use, dict) else kwargs)
                             print(f"Arguments to MCP: {arguments}")
 
                             result = await self.call_tool(name, arguments)
@@ -120,7 +122,8 @@ class SecureMCPClient:
 
                             # Return result in format expected by Strands
                             return {
-                                "toolUseId": tool_use.get("toolUseId") if isinstance(tool_use, dict) else "unknown",
+                                "toolUseId": (tool_use.get("toolUseId") 
+                                            if isinstance(tool_use, dict) else "unknown"),
                                 "content": [{"text": str(result)}]
                             }
                         return tool_func
@@ -171,7 +174,8 @@ def get_mcp_client() -> SecureMCPClient:
         use_aws_auth = os.getenv("MCP_USE_AWS_AUTH", "true").lower() == "true"
         if not MCP_SERVER_URL:
             raise ValueError("MCP_SERVER_URL not configured")
-        print(f"Initializing MCP client with {'AWS SigV4' if use_aws_auth else 'standard'} authentication")
+        auth_type = 'AWS SigV4' if use_aws_auth else 'standard'
+        print(f"Initializing MCP client with {auth_type} authentication")
         _mcp_client = SecureMCPClient(MCP_SERVER_URL, use_aws_auth=use_aws_auth)
     return _mcp_client
 
@@ -182,7 +186,7 @@ def cleanup_mcp_client():
     if _mcp_client is not None:
         try:
             asyncio.run(_mcp_client.close())
-        except Exception as e:
+        except (RuntimeError, OSError) as e:
             print(f"Error closing MCP client: {e}")
         finally:
             _mcp_client = None

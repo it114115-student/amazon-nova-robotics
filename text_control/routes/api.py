@@ -3,25 +3,33 @@ API routes - Handles all API endpoints
 """
 
 import asyncio
-import hashlib
 import json
 import logging
-import os
-import sys
-import time
 import uuid
 from datetime import datetime
 
-from command_config.simple_commands import SIMPLE_COMMANDS
 from flask import Blueprint, Response, jsonify, request
 from middleware import require_hybrid_auth
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
 from services.robot_service import robot_service
 from services.strands_service_mcp import create_robot_agent as create_robot_agent_mcp
+from utils.auth import validate_authentication
+from utils.lambda_logger import get_lambda_logger
+from utils.messages import (
+    GOODBYE_MESSAGES,
+    RECOMMENDED_QUESTIONS,
+    WELCOME_MESSAGES,
+    get_message,
+)
+from utils.response_utils import (
+    create_response_object,
+    error_response,
+    parse_request_params,
+)
+from utils.streaming import create_sync_stream_wrapper, stream_agent_response
 
 # Suppress OpenTelemetry context warnings (harmless in async streaming context)
 logging.getLogger("opentelemetry.context").setLevel(logging.CRITICAL)
-from utils.lambda_logger import get_lambda_logger
 
 # Configure logging for AWS Lambda
 logger = get_lambda_logger(__name__)
@@ -38,189 +46,6 @@ def chat():
     except Exception:
         data = request.json or {}
     return asyncio.run(_chat(data))
-
-
-def error_response(status_code, message):
-    """Returns a consistent JSON error response."""
-    response = jsonify({"error": {"code": status_code, "message": message}})
-    response.status_code = status_code
-    return response
-
-
-def calculate_signature(secret_key: str, timestamp: str, body_string: str) -> str:
-    """Calculate signature for authentication"""
-    string_to_checksum = body_string + secret_key + timestamp
-    sha512 = hashlib.sha512()
-    sha512.update(string_to_checksum.encode("utf-8"))
-    hex_digest = sha512.hexdigest()
-    return hex_digest.replace("-", "")
-
-
-def calculate_signature_v2(secret_key: str, timestamp: str, body_string: str) -> str:
-    """
-    Calculate signature for authentication following the vendor specification.
-
-    Algorithm:
-    1. Build a parameter Map with: secretKey, timestamp, bodyString
-    2. Sort parameters by key name in ascending order and connect with "&"
-       Format: key1=value1&key2=value2&key3=value3
-    3. Calculate SHA-512 hash and convert to UPPERCASE
-
-    Args:
-        secret_key: Server-side (user) preset secret key
-        timestamp: Request timestamp (milliseconds)
-        body_string: JSON serialized string of request body
-
-    Returns:
-        Uppercase SHA-512 hash string
-    """
-    # Create parameter map
-    params = {
-        "bodyString": body_string,
-        "secretKey": secret_key,
-        "timestamp": timestamp,
-    }
-
-    # Sort by key name in ascending order and create signature string
-    sorted_params = sorted(params.items())
-    signature_string = "&".join([f"{k}={v}" for k, v in sorted_params])
-
-    # Calculate SHA-512 hash
-    sha512 = hashlib.sha512()
-    sha512.update(signature_string.encode("utf-8"))
-    hex_digest = sha512.hexdigest()
-
-    # Convert to uppercase (SHA-512 hex digest doesn't contain "-", but keep the replace for safety)
-    return hex_digest.replace("-", "").upper()
-
-
-def validate_authentication(use_v2=True):
-    """
-    Validates authentication headers and returns error response if invalid.
-
-    Args:
-        use_v2: If True, use calculate_signature_v2, otherwise use calculate_signature
-
-    Returns:
-        None if authentication is successful, error_response tuple otherwise
-    """
-    try:
-        # Get headers (support both X- prefixed and non-prefixed)
-        timestamp = request.headers.get("X-Timestamp") or request.headers.get(
-            "timestamp"
-        )
-        signature = request.headers.get("X-Sign") or request.headers.get("signature")
-        access_key = request.headers.get("X-Key") or request.headers.get("key")
-
-        stored_secret_key = os.getenv("XiaoiceChatSecretKey")
-        valid_access_key = os.getenv("XiaoiceChatAccessKey")
-
-        if not all([stored_secret_key, valid_access_key]):
-            logger.error("Server configuration error: Missing environment variables")
-            return error_response(500, "Server configuration error")
-
-        if not all([timestamp, signature, access_key]):
-            logger.warning("Authentication failed: Missing authentication headers")
-            return error_response(401, "Missing authentication headers")
-
-        if access_key != valid_access_key:
-            logger.warning(
-                f"Authentication failed: Invalid access key received: {access_key}"
-            )
-            return error_response(401, "Invalid access key")
-
-        body_string = request.data.decode("utf-8")
-
-        if use_v2:
-            calculated_signature = calculate_signature_v2(
-                stored_secret_key, timestamp, body_string
-            )
-        else:
-            calculated_signature = calculate_signature(
-                stored_secret_key, timestamp, body_string
-            )
-
-        if calculated_signature != signature:
-            logger.warning("Authentication failed: Invalid signature")
-            return error_response(401, "Invalid signature")
-
-        logger.info("Authentication successful")
-        return None
-
-    except Exception as e:
-        logger.error(f"Authentication failed: {e}", exc_info=True)
-        return error_response(401, f"Authentication failed: {e}")
-
-
-def parse_request_params(required_params=None):
-    """
-    Parses and validates request parameters.
-
-    Args:
-        required_params: List of required parameter names
-
-    Returns:
-        Tuple of (params_dict, error_response). If error_response is not None,
-        an error occurred and should be returned.
-    """
-    try:
-        if not request.json:
-            logger.warning("Bad request: Request body must be JSON")
-            return None, error_response(400, "Request body must be JSON")
-
-        params = {}
-        required = required_params or []
-
-        # Validate required parameters
-        for param in required:
-            if param not in request.json:
-                logger.warning(f"Bad request: Missing required parameter: {param}")
-                return None, error_response(400, f"Missing required parameter: {param}")
-
-        # Extract common parameters
-        params["ask_text"] = request.json.get("askText", "")
-        params["session_id"] = request.json.get("sessionId", str(uuid.uuid4()))
-        params["trace_id"] = request.json.get("traceId", str(uuid.uuid4()))
-        params["extra"] = request.json.get("extra", {})
-        params["language_code"] = request.json.get("languageCode", "zh")
-        params["device_id"] = request.json.get("deviceId", "")
-        params["user_params"] = request.json.get("userParams", "")
-        params["lang_by_asr"] = request.json.get("langByAsr", "")
-
-        logger.info(
-            f"Request parsed - TraceId: {params['trace_id']}, SessionId: {params['session_id']}"
-        )
-        return params, None
-
-    except Exception as e:
-        logger.error(f"Error parsing request: {e}", exc_info=True)
-        return None, error_response(400, f"Error parsing request: {e}")
-
-
-def create_response_object(params, reply_text, is_final=True):
-    """
-    Creates a standardized response object.
-
-    Args:
-        params: Dictionary containing request parameters (trace_id, session_id, etc.)
-        reply_text: The reply text to send
-        is_final: Whether this is the final response
-
-    Returns:
-        Dictionary with standardized response format
-    """
-    return {
-        "askText": params.get("ask_text", ""),
-        "extra": params.get("extra", {}),
-        "id": str(uuid.uuid4()),
-        "replyPayload": None,
-        "replyText": reply_text,
-        "replyType": "Llm",
-        "sessionId": params["session_id"],
-        "timestamp": int(time.time() * 1000),
-        "traceId": params["trace_id"],
-        "isFinal": is_final,
-    }
 
 
 @api_bp.route("talk", methods=["POST"])
@@ -252,159 +77,16 @@ def talk_stream():
     try:
         def stream_response():
             try:
-
                 async def async_stream():
                     agent = await create_robot_agent_mcp(session_id)
-                    
-                    thinking_start = "<thinking>"
-                    thinking_end = "</thinking>"
-
-                    buffer = ""
-                    inside_thinking = False
-                    chunk_count = 0
-
-                    async for event in agent.stream_async(ask_text):
-                        # Extract text content from event
-                        event_data = event.get("data") or event.get("result", "")
-                        if not event_data:
-                            continue
-
-                        # Convert to string if needed
-                        if not isinstance(event_data, str):
-                            event_data = str(event_data)
-
-                        buffer += event_data
-
-                        # Process buffer to filter out thinking tags
-                        while True:
-                            if inside_thinking:
-                                end_idx = buffer.find(thinking_end)
-                                if end_idx == -1:
-                                    # Keep potential partial match at end
-                                    buffer = buffer[-len(thinking_end) + 1 :]
-                                    break
-                                buffer = buffer[end_idx + len(thinking_end) :]
-                                inside_thinking = False
-                                continue
-
-                            start_idx = buffer.find(thinking_start)
-                            if start_idx == -1:
-                                # Check for partial thinking tag at end of buffer
-                                for i in range(1, len(thinking_start)):
-                                    if buffer.endswith(thinking_start[:i]):
-                                        text_to_send = buffer[:-i]
-                                        if text_to_send:
-                                            chunk_count += 1
-                                            chunk = {
-                                                "askText": ask_text,
-                                                "extra": extra,
-                                                "id": f"{trace_id}_{chunk_count}",
-                                                "replyPayload": None,
-                                                "replyText": text_to_send,
-                                                "replyType": "Llm",
-                                                "sessionId": session_id,
-                                                "timestamp": int(time.time() * 1000),
-                                                "traceId": trace_id,
-                                                "isFinal": False,
-                                            }
-                                            yield f"data: {json.dumps(chunk)}\n\n"
-                                        buffer = buffer[-i:]
-                                        break
-                                else:
-                                    # No partial match, send entire buffer
-                                    if buffer:
-                                        chunk_count += 1
-                                        chunk = {
-                                            "askText": ask_text,
-                                            "extra": extra,
-                                            "id": f"{trace_id}_{chunk_count}",
-                                            "replyPayload": None,
-                                            "replyText": buffer,
-                                            "replyType": "Llm",
-                                            "sessionId": session_id,
-                                            "timestamp": int(time.time() * 1000),
-                                            "traceId": trace_id,
-                                            "isFinal": False,
-                                        }
-                                        yield f"data: {json.dumps(chunk)}\n\n"
-                                        buffer = ""
-                                break
-
-                            # Found thinking tag start
-                            text_before = buffer[:start_idx]
-                            if text_before:
-                                chunk_count += 1
-                                chunk = {
-                                    "askText": ask_text,
-                                    "extra": extra,
-                                    "id": f"{trace_id}_{chunk_count}",
-                                    "replyPayload": None,
-                                    "replyText": text_before,
-                                    "replyType": "Llm",
-                                    "sessionId": session_id,
-                                    "timestamp": int(time.time() * 1000),
-                                    "traceId": trace_id,
-                                    "isFinal": False,
-                                }
-                                yield f"data: {json.dumps(chunk)}\n\n"
-
-                            buffer = buffer[start_idx + len(thinking_start) :]
-                            inside_thinking = True
-
-                    # Send final chunk with any remaining buffer
-                    if buffer and not inside_thinking:
-                        chunk_count += 1
-                        chunk = {
-                            "askText": ask_text,
-                            "extra": extra,
-                            "id": f"{trace_id}_{chunk_count}",
-                            "replyPayload": None,
-                            "replyText": buffer,
-                            "replyType": "Llm",
-                            "sessionId": session_id,
-                            "timestamp": int(time.time() * 1000),
-                            "traceId": trace_id,
-                            "isFinal": False,
-                        }
-                        yield f"data: {json.dumps(chunk)}\n\n"
-
-                    # Always send final marker
-                    chunk_count += 1
-                    final_chunk = {
-                        "askText": ask_text,
-                        "extra": extra,
-                        "id": f"{trace_id}_{chunk_count}",
-                        "replyPayload": None,
-                        "replyText": "",
-                        "replyType": "Llm",
-                        "sessionId": session_id,
-                        "timestamp": int(time.time() * 1000),
-                        "traceId": trace_id,
-                        "isFinal": True,
-                    }
-                    yield f"data: {json.dumps(final_chunk)}\n\n"
-
-                # Create a wrapper to run the async generator
-                def run_async_gen():
-                    """Run async generator and yield results"""
-                    loop = asyncio.new_event_loop()
-                    try:
-                        async_gen = async_stream()
-                        while True:
-                            try:
-                                chunk = loop.run_until_complete(async_gen.__anext__())
-                                yield chunk
-                            except StopAsyncIteration:
-                                break
-                    finally:
-                        loop.close()
+                    async for chunk in stream_agent_response(
+                        agent, ask_text, session_id, trace_id, extra
+                    ):
+                        yield chunk
 
                 # Yield from the async generator wrapper
-                for chunk in run_async_gen():
+                for chunk in create_sync_stream_wrapper(async_stream()):
                     yield chunk
-                    # Force flush to prevent log truncation
-                    sys.stdout.flush()
-                    sys.stderr.flush()
 
             except Exception as e:
                 logger.error(f"Error in stream_response: {e}", exc_info=True)
@@ -416,7 +98,7 @@ def talk_stream():
                     "replyText": f"Error: {str(e)}",
                     "replyType": "Error",
                     "sessionId": session_id,
-                    "timestamp": int(time.time() * 1000),
+                    "timestamp": int(datetime.now().timestamp() * 1000),
                     "traceId": trace_id,
                     "isFinal": True,
                 }
@@ -457,14 +139,7 @@ def welcome():
 
     # 3. Generate welcome response
     try:
-        welcome_messages = {
-            "zh": "你好！我是智能助手，很高兴为您服务。有什么我可以帮助您的吗？",
-            "en": "Hello! I'm your AI assistant. How can I help you today?",
-        }
-
-        welcome_text = welcome_messages.get(
-            params["language_code"], welcome_messages["zh"]
-        )
+        welcome_text = get_message(WELCOME_MESSAGES, params["language_code"])
         response = create_response_object(params, welcome_text)
 
         logger.info(f"Welcome response generated for trace: {params['trace_id']}")
@@ -495,14 +170,7 @@ def goodbye():
 
     # 3. Generate goodbye response
     try:
-        goodbye_messages = {
-            "zh": "再见！期待下次为您服务。",
-            "en": "Goodbye! Looking forward to serving you again.",
-        }
-
-        goodbye_text = goodbye_messages.get(
-            params["language_code"], goodbye_messages["zh"]
-        )
+        goodbye_text = get_message(GOODBYE_MESSAGES, params["language_code"])
         response = create_response_object(params, goodbye_text)
 
         logger.info(f"Goodbye response generated for trace: {params['trace_id']}")
@@ -533,25 +201,8 @@ def recquestions():
 
     # 3. Generate recommended questions
     try:
-        recommended_questions = {
-            "zh": [
-                "你能做什么？",
-                "帮我控制机器人",
-                "机器人向前移动",
-                "停止所有动作",
-                "显示机器人状态",
-            ],
-            "en": [
-                "What can you do?",
-                "Help me control the robot",
-                "Move the robot forward",
-                "Stop all actions",
-                "Show robot status",
-            ],
-        }
-
-        questions = recommended_questions.get(
-            params["language_code"], recommended_questions["zh"]
+        questions = RECOMMENDED_QUESTIONS.get(
+            params["language_code"], RECOMMENDED_QUESTIONS["zh"]
         )
 
         response = {"data": questions, "traceId": params["trace_id"]}
@@ -608,91 +259,6 @@ def chat_api_strands():
     except Exception as e:
         logger.error(f"Error with Strands agent: {e}", exc_info=True)
         return error_response(500, f"Error processing with Strands: {e}")
-
-
-@api_bp.route("/xiaoice-chat-api", methods=["POST"])
-def chat_api():
-    """
-    Direct chat API endpoint with authentication and response mapping
-    Replaces the proxy functionality with direct processing
-    """
-    logger.info(f"Chat API request from {request.remote_addr}")
-
-    # 1. Parse request first (for xiaoice-chat-api we need to extract extra for validation)
-    params, parse_error = parse_request_params(
-        required_params=["askText", "sessionId", "traceId"]
-    )
-    if parse_error:
-        return parse_error
-
-    # Validate 'extra' parameter if present
-    extra = params.get("extra", {})
-    if not isinstance(extra, dict) or not all(
-        isinstance(k, str) and isinstance(v, str) for k, v in extra.items()
-    ):
-        logger.warning(
-            "Bad request: 'extra' parameter must be a dictionary with string key-value pairs"
-        )
-        return error_response(
-            400,
-            "'extra' parameter must be a dictionary with string key-value pairs",
-        )
-
-    # 2. Authentication check (using legacy signature method)
-    auth_error = validate_authentication(use_v2=False)
-    if auth_error:
-        return auth_error
-
-    # 3. Call _chat with mapped parameters
-    try:
-        # Map the request parameters to the internal _chat format
-        chat_data = {
-            "message": params["ask_text"],
-            "robots": [
-                "all"
-            ],  # Default to all robots, can be customized based on extra params
-            "session_id": params["session_id"],
-        }
-
-        # Check if streaming is requested
-        is_streaming = request.args.get("stream", "false").lower() == "true"
-        logger.info(f"Streaming requested: {is_streaming}")
-
-        # Call the internal chat function
-        chat_response = asyncio.run(_chat(chat_data))
-
-        # 4. Map the output to the expected format
-        if isinstance(chat_response, tuple):
-            # Handle error responses
-            response_data, status_code = chat_response
-            if status_code != 200:
-                return chat_response
-            response_data = response_data.get_json()
-        else:
-            response_data = chat_response.get_json()
-
-        # Map to the expected response format
-        now = datetime.now()
-        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
-
-        mapped_response = {
-            "id": formatted_time,
-            "traceId": params["trace_id"],
-            "sessionId": params["session_id"],
-            "askText": params["ask_text"],
-            "replyText": response_data.get("response", ""),
-            "replyType": "Llm",
-            "timestamp": now.timestamp(),
-        }
-
-        logger.info(f"Chat API response generated for trace: {params['trace_id']}")
-        logger.info(f"Response data: {mapped_response}")
-
-        return jsonify(mapped_response)
-
-    except Exception as e:
-        logger.error(f"Error processing chat request: {e}", exc_info=True)
-        return error_response(500, f"Error processing chat request: {e}")
 
 
 async def _chat(data):

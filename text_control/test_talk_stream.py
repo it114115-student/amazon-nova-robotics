@@ -174,7 +174,7 @@ def test_talk_stream(
         print(f"❌ ERROR: Could not connect to {url}")
         print("Make sure the server is running with: python app.py")
         return False
-    except Exception as e:
+    except (requests.RequestException, ValueError, KeyError) as e:
         print(f"❌ ERROR: {e}")
         traceback.print_exc()
         return False
