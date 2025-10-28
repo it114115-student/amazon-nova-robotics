@@ -97,13 +97,25 @@ async def stream_agent_response(
     Yields:
         SSE-formatted data chunks
     """
+    from utils.lambda_logger import get_lambda_logger
+    logger = get_lambda_logger(__name__)
+    
     filter_obj = ThinkingTagFilter()
     chunk_count = 0
     
     try:
         async for event in agent.stream_async(ask_text):
+            # Log the raw event for debugging
+            logger.debug(f"Raw event: {event}")
+            
+            # Skip events that don't have 'data' key
+            # The agent emits duplicate events: one with 'event' and one with 'data'
+            # We only want to process the 'data' events to avoid duplicates
+            if 'data' not in event:
+                continue
+            
             # Extract text content from event
-            event_data = event.get("data") or event.get("result", "")
+            event_data = event.get("data", "")
             if not event_data:
                 continue
             

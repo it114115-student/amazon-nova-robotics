@@ -80,6 +80,7 @@ async def create_robot_agent_with_mcp(session_id: str):
             4. Call the appropriate tool with correct parameter name (robot_id/dog_id/drone_id)
             5. Confirm completion in Traditional Chinese
             6. Just respond human - do NOT show tool calls
+            7. Don't respond with duplicate messages!
 
             All tools execute immediately via HTTP without any delays.
             """,

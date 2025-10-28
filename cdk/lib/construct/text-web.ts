@@ -192,6 +192,11 @@ export class TextControlWebConstruct extends Construct {
       value: restApi.url + "api/xiaoice-chat-api",
     });
 
+    new CfnOutput(this, "XiaoiceSdkStreamingApiUrl", {
+      key: "XiaoiceSdkStreamingApiUrl",
+      value: restApi.url + "api/xiaoice-chat-api-strands-stream",
+    });
+
     new CfnOutput(this, "XiaoiceStreamingApiUrl", {
       key: "XiaoiceStreamingApiUrl",
       value: restApi.url.replace(/\/$/, ""),
