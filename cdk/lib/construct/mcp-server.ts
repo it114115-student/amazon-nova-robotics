@@ -57,14 +57,23 @@ export class LambdaMcpServerConstruct extends Construct {
    * @param principal The AWS principal (role, user, or service) to grant permission to
    */
   public grantInvokeFunctionUrl(principal: iam.IPrincipal): void {
-    // Generate a unique ID using a counter
-    const permissionId = `InvokeFunctionUrlPermission-${++this
+    // Generate unique IDs using a counter
+    const functionUrlPermissionId = `InvokeFunctionUrlPermission-${++this
       .permissionCounter}`;
+    const invokeFunctionPermissionId = `InvokeFunctionPermission-${this.permissionCounter}`;
 
-    this.mcpFunction.addPermission(permissionId, {
+    // Add lambda:InvokeFunctionUrl permission (required for function URL access)
+    this.mcpFunction.addPermission(functionUrlPermissionId, {
       principal: principal,
       action: "lambda:InvokeFunctionUrl",
       functionUrlAuthType: FunctionUrlAuthType.AWS_IAM,
+    });
+
+    // Add lambda:InvokeFunction permission (required as of new authorization model)
+    // AWS Lambda now requires both actions for function URL invocations
+    this.mcpFunction.addPermission(invokeFunctionPermissionId, {
+      principal: principal,
+      action: "lambda:InvokeFunction",
     });
   }
 }

@@ -63,7 +63,7 @@ def talk_stream():
 
     # 2. Parse request
     params, parse_error = parse_request_params(
-        required_params=["askText", "sessionId", "traceId"]
+        required_params=["askText", "sessionId", "traceId", "userParams"]
     )
     if parse_error:
         return parse_error
@@ -72,16 +72,26 @@ def talk_stream():
     session_id = params["session_id"]
     trace_id = params["trace_id"]
     extra = params["extra"]
+    user_params = params["user_params"]
 
-    logger.info(f"Talk stream request details - Session: {session_id}, Trace: {trace_id}, Extra: {extra}")
-
+    logger.info(f"Talk stream request details - Session: {session_id}, Trace: {trace_id}, User Params: {user_params}")
+    context = get_robot(user_params)
+    background = ""
+    if context:
+        name = context.get("robot_name")
+        background = context.get("context")
+        background = f"""
+<background>Your Name:{name}
+background: {background}
+</background>
+            """
 
     # 3. Create Strands agent and stream response
     try:
         def stream_response():
             try:
                 async def async_stream():
-                    agent = await create_robot_agent_mcp(session_id)
+                    agent = await create_robot_agent_mcp(session_id, background)
                     async for chunk in stream_agent_response(
                         agent, ask_text, session_id, trace_id, extra
                     ):
@@ -237,11 +247,22 @@ def chat_api_strands():
     )
     if parse_error:
         return parse_error
+    
+    context = get_robot("Summer")
+    background = ""
+    if context:
+        name = context.get("robot_name")
+        background = context.get("context")
+        background = f"""
+<background>Your Name:{name}
+background: {background}
+</background>
+            """
 
     # Use Strands agent for response
     try:
         async def get_response():
-            agent = await create_robot_agent_mcp(params["session_id"])
+            agent = await create_robot_agent_mcp(params["session_id"], background)
             return await agent.invoke_async(params["ask_text"])
         
         result = asyncio.run(get_response())
@@ -293,12 +314,23 @@ def chat_api_strands_stream():
     trace_id = params["trace_id"]
     extra = params.get("extra", {})
 
+    context = get_robot("Summer")
+
+    background = ""
+    if context:
+        name = context.get("robot_name")
+        background = context.get("context")
+        background = f"""
+<background>Your Name:{name}
+background: {background}
+</background>
+            """
     # 3. Create Strands agent and stream response
     try:
         def stream_response():
             try:
                 async def async_stream():
-                    agent = await create_robot_agent_mcp(session_id)
+                    agent = await create_robot_agent_mcp(session_id, background)
                     async for chunk in stream_agent_response(
                         agent, ask_text, session_id, trace_id, extra
                     ):
@@ -343,6 +375,14 @@ async def _chat(data):
     """Handle chat requests with Strands MCP agent"""
     user_message = data.get("message")
     session_id = str(data.get("session_id", str(uuid.uuid4())))
+    
+    # Validate that message is not empty or blank
+    if not user_message or not user_message.strip():
+        logger.warning("Bad request: Parameter 'message' cannot be empty or blank")
+        return jsonify({
+            "error": "Parameter 'message' cannot be empty or blank",
+            "session_id": session_id,
+        }), 400
 
     selected_robots = data.get("robots")
     context_robot = selected_robots[0] if selected_robots else None

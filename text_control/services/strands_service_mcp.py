@@ -81,7 +81,6 @@ async def create_robot_agent_with_mcp(session_id: str, background: str = "") -> 
 
             All tools execute immediately via HTTP without any delays.
             """.replace("<background></background>", background)
-    logger.info(f"System prompt for MCP agent: {system_prompt}")
 
     async with mcp_client:
         mcp_tools = await mcp_client.list_tools()

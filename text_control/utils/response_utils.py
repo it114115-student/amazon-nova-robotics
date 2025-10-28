@@ -51,6 +51,13 @@ def parse_request_params(required_params=None):
             if param not in request.json:
                 logger.warning(f"Bad request: Missing required parameter: {param}")
                 return None, error_response(400, f"Missing required parameter: {param}")
+            
+            # Validate that askText is not empty or blank if it's required
+            if param == "askText":
+                ask_text_value = request.json.get("askText", "")
+                if not ask_text_value or not ask_text_value.strip():
+                    logger.warning(f"Bad request: Parameter 'askText' cannot be empty or blank")
+                    return None, error_response(400, "Parameter 'askText' cannot be empty or blank")
 
         # Extract common parameters
         params["ask_text"] = request.json.get("askText", "")
