@@ -19,7 +19,12 @@ Self-contained, independently runnable robot control skills for AWS IoT.
 
 ```bash
 cd <skill_folder>
+
+# With named profile
 ./run.sh --profile my-aws-profile --robot-id robot_1 --action wave
+
+# Uses 'default' profile if --profile is omitted
+./run.sh --robot-id robot_1 --action wave
 ```
 
 Each skill is fully independent — its own venv, its own deps, no shared imports.
