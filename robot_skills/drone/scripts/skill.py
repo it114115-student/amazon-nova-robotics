@@ -65,7 +65,7 @@ def publish(profile, robot_id, action, region="us-east-1"):
     session = boto3.Session(profile_name=profile, region_name=region)
     client = session.client("iot-data", config=Config(retries={"max_attempts": 3, "mode": "standard"}))
 
-    topic = "drone_1/topic"
+    topic = f"{robot_id}/topic"
     try:
         client.publish(topic=topic, qos=0, retain=False, payload=bytes(json.dumps(data), "utf-8"))
         logger.info("Published to %s: %s", topic, data)

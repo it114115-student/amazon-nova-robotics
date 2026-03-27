@@ -11,6 +11,7 @@ Publishes action commands to humanoid robots through AWS IoT Core.
 
 - AWS CLI profile configured: `aws configure --profile <name>`
 - IoT Core permissions for `iot:Publish` on `robot_*/topic`
+- Python dependencies installed: run `pip install -r requirements.txt` (or via `run.sh`)
 
 ## Usage
 
@@ -20,6 +21,16 @@ Publishes action commands to humanoid robots through AWS IoT Core.
 
 # Uses 'default' profile if --profile is omitted
 ./run.sh --robot-id robot_1 --action wave
+```
+
+## Troubleshooting
+
+If `run.sh` fails, ensure dependencies are installed in the local virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ## Available Actions

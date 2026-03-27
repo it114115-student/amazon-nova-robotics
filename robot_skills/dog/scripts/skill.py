@@ -16,8 +16,8 @@ DEVICE_PREFIXES = ["robot", "drone", "dog"]
 
 
 def camel_to_snake(text):
-    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", text)
-    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+    text = text.lstrip("_")
+    return re.sub(r"([A-Z])", r"_\1", text).lower().lstrip("_")
 
 
 def has_other_device_prefix(message, target):
@@ -30,15 +30,17 @@ def has_other_device_prefix(message, target):
     return False
 
 
+def remove_prefix(text, prefix):
+    return text[len(prefix):] if text.startswith(prefix) else None
+
+
 def publish(profile, robot_id, action, parameters=None, region="us-east-1"):
     if has_other_device_prefix(action, "dog"):
         logger.info("Skipping action '%s' for %s - wrong device type", action, robot_id)
         return True
 
-    if action.startswith("dog"):
-        processed = camel_to_snake(action[3:])
-    else:
-        processed = action
+    processed = remove_prefix(action, "dog")
+    processed = camel_to_snake(processed if processed is not None else action)
 
     data = {"dogID": robot_id.lower(), "action": processed, "parameters": parameters or {}}
 
