@@ -86,6 +86,14 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       userName: "AmazonNovaRoboticsSkillUser",
     });
     mcpServerConstruct.grantInvokeFunctionUrl(skillUser);
+    // Identity-based policy so the IAM user can invoke the function URL with SigV4
+    skillUser.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["lambda:InvokeFunctionUrl", "lambda:InvokeFunction"],
+        resources: [mcpServerConstruct.mcpFunction.functionArn],
+      })
+    );
     const skillAccessKey = new iam.CfnAccessKey(this, "SkillMcpUserAccessKey", {
       userName: skillUser.userName,
     });
