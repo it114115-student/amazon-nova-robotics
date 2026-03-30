@@ -1,4 +1,5 @@
 import * as cdk from "aws-cdk-lib";
+import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import { RoboticConstruct } from "./construct/robot-iot";
 import { SpeechControlWebConstruct } from "./construct/speech-web";
@@ -80,6 +81,15 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       userName: "AmazonNovaRoboticsSsmUser",
     });
 
+    // Create IAM user for robot skills to invoke MCP server
+    const skillUser = new iam.User(this, "SkillMcpUser", {
+      userName: "AmazonNovaRoboticsSkillUser",
+    });
+    mcpServerConstruct.grantInvokeFunctionUrl(skillUser);
+    const skillAccessKey = new iam.CfnAccessKey(this, "SkillMcpUserAccessKey", {
+      userName: skillUser.userName,
+    });
+
     const ssmRobotNames = Array.from(
       { length: numberOfRobots },
       (_, i) => `RaspberryPiRobot${i + 1}`
@@ -133,6 +143,16 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, "McpServerUrl", {
       value: mcpServerConstruct.functionUrl.url,
       description: "The URL of the MCP Server Lambda Function",
+    });
+
+    new cdk.CfnOutput(this, "SkillMcpUserAccessKeyId", {
+      value: skillAccessKey.ref,
+      description: "Access Key ID for the skill user to invoke MCP server",
+    });
+
+    new cdk.CfnOutput(this, "SkillMcpUserSecretAccessKey", {
+      value: skillAccessKey.attrSecretAccessKey,
+      description: "Secret Access Key for the skill user to invoke MCP server",
     });
 
     new cdk.CfnOutput(this, "RobotImageBucketName", {

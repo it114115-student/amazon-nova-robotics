@@ -1,6 +1,6 @@
 ---
 name: humanoid
-description: Publish actions to humanoid robots via AWS IoT. Supports robot_1 through robot_9.
+description: Publish actions to humanoid robots via AWS IoT. Supports robot_1 through robot_9. Includes image capture from robot camera.
 ---
 
 # Humanoid Skill
@@ -9,18 +9,24 @@ Publishes action commands to humanoid robots through AWS IoT Core.
 
 ## Prerequisites
 
-- AWS CLI profile configured: `aws configure --profile <name>`
-- IoT Core permissions for `iot:Publish` on `robot_*/topic`
+- AWS CLI profile configured with `SkillMcpUserAccessKeyId` / `SkillMcpUserSecretAccessKey` from CDK output
+- MCP server URL from CDK output (`McpServerUrl`)
 - Python dependencies installed: run `pip install -r requirements.txt` (or via `run.sh`)
 
 ## Usage
 
 ```bash
-# With named profile
-./run.sh --profile my-robot-profile --robot-id robot_1 --action wave
+# Set MCP URL (required for all actions)
+export MCP_SERVER_URL=https://<McpServerUrl>
 
-# Uses 'default' profile if --profile is omitted
-./run.sh --robot-id robot_1 --action wave
+# Execute an action
+./run.sh --profile skill-profile --robot-id robot_1 --action wave
+
+# Or pass MCP URL directly
+./run.sh --profile skill-profile --robot-id robot_1 --action wave --mcp-url https://<McpServerUrl>
+
+# Capture image (downloads locally to captured_images/)
+./run.sh --profile skill-profile --robot-id robot_1 --action capture_image
 ```
 
 ## Troubleshooting
@@ -58,6 +64,10 @@ stand, stand_up_back, stand_up_front
 ### Gesture
 
 wave, bow, twist
+
+### Image
+
+capture_image (requires --mcp-url or MCP_SERVER_URL env var; downloads image locally)
 
 ### Control
 

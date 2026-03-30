@@ -53,6 +53,6 @@ def register_image_tools(mcp: MCPLambdaHandler):
 
         if uploaded:
             read_url = generate_presigned_get_url(object_key)
-            return f"Image captured successfully. image_key={object_key} image_url={read_url}"
+            return f"Image captured successfully. image_url={read_url}"
         else:
             return "Cannot read image from robot. The robot did not upload the image in time."
