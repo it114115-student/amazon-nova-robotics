@@ -153,10 +153,20 @@ async function sendMessage() {
     userMessageElement.innerHTML = `<strong>You:</strong> ${message}`;
     messagesDiv.appendChild(userMessageElement);
 
-    // Add bot message
+    // Add bot message — render presigned S3 image URLs as clickable images
     const botMessageElement = document.createElement("div");
     botMessageElement.className = "message bot-message mb-2";
-    botMessageElement.innerHTML = `<strong>Bot:</strong> ${data.response}`;
+    const botText = data.response;
+    const urlPattern = /(https:\/\/[^\s]+\.s3[^\s]*\.amazonaws\.com[^\s]*)/gi;
+    const hasImageUrl = urlPattern.test(botText);
+    if (hasImageUrl) {
+      const htmlWithImages = botText.replace(urlPattern, (url) =>
+        `<br><a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="Robot captured image" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;" /></a>`
+      );
+      botMessageElement.innerHTML = `<strong>Bot:</strong> ${htmlWithImages}`;
+    } else {
+      botMessageElement.innerHTML = `<strong>Bot:</strong> ${botText}`;
+    }
     messagesDiv.appendChild(botMessageElement);
 
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
