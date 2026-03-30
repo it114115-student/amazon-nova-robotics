@@ -17,6 +17,7 @@ nova_model = BedrockModel(
     model_id=config.NOVA_MODEL_ID,
     temperature=0.7,
     region_name=config.AWS_BEDROCK_REGION,
+    max_tokens=4096,
 )
 
 

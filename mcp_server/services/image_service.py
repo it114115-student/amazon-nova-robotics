@@ -6,6 +6,7 @@ import uuid
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 s3_client = boto3.client(
     "s3",
@@ -61,7 +62,11 @@ def wait_for_image_upload(
         try:
             s3_client.head_object(Bucket=IMAGE_BUCKET_NAME, Key=object_key)
             return True
-        except s3_client.exceptions.ClientError:
-            time.sleep(interval)
-            elapsed += interval
+        except ClientError as e:
+            # 404 means not uploaded yet, anything else is a real error
+            if e.response["Error"]["Code"] == "404":
+                time.sleep(interval)
+                elapsed += interval
+            else:
+                raise
     return False

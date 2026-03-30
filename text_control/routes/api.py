@@ -498,3 +498,26 @@ def capture_image(robot_id):
     result = robot_service.capture_image(robot_id)
     status_code = 200 if result.get("success") else 504
     return jsonify(result), status_code
+
+
+@api_bp.route("/image/<path:object_key>", methods=["GET"])
+@require_hybrid_auth
+def get_image_url(object_key):
+    """Generate a short-lived presigned GET URL for a robot-captured image."""
+    import os
+    import boto3
+    from botocore.config import Config
+
+    bucket = os.environ.get("IMAGE_BUCKET_NAME", "")
+    if not bucket:
+        return jsonify({"error": "Image bucket not configured"}), 500
+
+    s3_client = boto3.client(
+        "s3", config=Config(retries={"max_attempts": 3, "mode": "standard"})
+    )
+    url = s3_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": object_key},
+        ExpiresIn=300,
+    )
+    return jsonify({"image_url": url})

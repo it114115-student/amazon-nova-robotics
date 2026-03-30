@@ -153,19 +153,51 @@ async function sendMessage() {
     userMessageElement.innerHTML = `<strong>You:</strong> ${message}`;
     messagesDiv.appendChild(userMessageElement);
 
-    // Add bot message — render presigned S3 image URLs as clickable images
+    // Add bot message — render captured images
     const botMessageElement = document.createElement("div");
     botMessageElement.className = "message bot-message mb-2";
     const botText = data.response;
-    const urlPattern = /(https:\/\/[^\s]+\.s3[^\s]*\.amazonaws\.com[^\s]*)/gi;
-    const hasImageUrl = urlPattern.test(botText);
-    if (hasImageUrl) {
-      const htmlWithImages = botText.replace(urlPattern, (url) =>
-        `<br><a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="Robot captured image" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;" /></a>`
-      );
-      botMessageElement.innerHTML = `<strong>Bot:</strong> ${htmlWithImages}`;
+
+    // Check for image_key in response (from get_image MCP tool)
+    const imageKeyMatch = botText.match(/image_key=(\S+)/);
+    if (imageKeyMatch) {
+      const imageKey = imageKeyMatch[1];
+      const displayText = botText.replace(/image_key=\S+/, "").replace(/image_url=\S+/g, "").trim();
+      botMessageElement.innerHTML = `<strong>Bot:</strong> ${displayText}<br><span class="text-muted small">Loading image...</span>`;
+      messagesDiv.appendChild(botMessageElement);
+
+      // Fetch presigned URL from our proxy endpoint
+      const pathParts = window.location.pathname.split('/');
+      const basePath = (pathParts.length > 1 && pathParts[1] === 'prod') ? '/prod' : '';
+      const imageApiUrl = basePath + "/api/image/" + encodeURIComponent(imageKey);
+
+      try {
+        let imgResp;
+        if (window.authManager && window.authManager.getAuthToken()) {
+          imgResp = await window.authManager.makeAuthenticatedRequest(imageApiUrl);
+        } else {
+          imgResp = await fetch(imageApiUrl);
+        }
+        const imgData = await imgResp.json();
+        if (imgData.image_url) {
+          botMessageElement.innerHTML = `<strong>Bot:</strong> ${displayText}<br><a href="${imgData.image_url}" target="_blank" rel="noopener noreferrer"><img src="${imgData.image_url}" alt="Robot captured image" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;" /></a>`;
+        }
+      } catch (imgErr) {
+        console.error("Failed to load image:", imgErr);
+      }
     } else {
-      botMessageElement.innerHTML = `<strong>Bot:</strong> ${botText}`;
+      // Fallback: detect raw S3 presigned URLs
+      const urlPattern = /(https:\/\/[^\s]+\.s3[^\s]*\.amazonaws\.com[^\s]*)/gi;
+      const hasImageUrl = urlPattern.test(botText);
+      if (hasImageUrl) {
+        const htmlWithImages = botText.replace(urlPattern, (url) =>
+          `<br><a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="Robot captured image" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;" /></a>`
+        );
+        botMessageElement.innerHTML = `<strong>Bot:</strong> ${htmlWithImages}`;
+      } else {
+        botMessageElement.innerHTML = `<strong>Bot:</strong> ${botText}`;
+      }
+      messagesDiv.appendChild(botMessageElement);
     }
     messagesDiv.appendChild(botMessageElement);
 
