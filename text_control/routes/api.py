@@ -486,3 +486,15 @@ def run_action(robot_id):
         results = asyncio.run(robot_service.process_actions(["stop"], robot))
         return jsonify({"results": results})
     return jsonify({"error": "Invalid method"}), 400
+
+
+@api_bp.route("/capture_image/<robot_id>", methods=["POST"])
+@require_hybrid_auth
+def capture_image(robot_id):
+    """Capture an image from a robot's camera and return a presigned URL to view it."""
+    if not robot_id:
+        return jsonify({"error": "Missing robot_id"}), 400
+
+    result = robot_service.capture_image(robot_id)
+    status_code = 200 if result.get("success") else 504
+    return jsonify(result), status_code

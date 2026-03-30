@@ -135,6 +135,11 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       description: "The URL of the MCP Server Lambda Function",
     });
 
+    new cdk.CfnOutput(this, "RobotImageBucketName", {
+      value: mcpServerConstruct.imageBucket.bucketName,
+      description: "The name of the S3 bucket for robot captured images",
+    });
+
     new cdk.CfnOutput(this, "CognitoUserPoolId", {
       value: authenticator.userPool.userPoolId,
       description: "Cognito User Pool ID for authentication",

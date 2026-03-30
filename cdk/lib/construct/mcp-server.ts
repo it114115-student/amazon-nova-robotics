@@ -6,18 +6,34 @@ import {
 } from "aws-cdk-lib/aws-lambda";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Construct } from "constructs";
-import { Duration, Stack } from "aws-cdk-lib";
+import { Duration, Stack, RemovalPolicy } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as s3 from "aws-cdk-lib/aws-s3";
 
 import path = require("path");
 
 export class LambdaMcpServerConstruct extends Construct {
   public readonly mcpFunction: PythonFunction;
   public readonly functionUrl: FunctionUrl;
+  public readonly imageBucket: s3.Bucket;
   private permissionCounter = 0;
 
   constructor(scope: Construct, id: string) {
     super(scope, id);
+
+    // S3 bucket for robot captured images
+    this.imageBucket = new s3.Bucket(this, "RobotImageBucket", {
+      versioned: false,
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
+          allowedOrigins: ["*"],
+          allowedHeaders: ["*"],
+        },
+      ],
+    });
 
     this.mcpFunction = new PythonFunction(this, "McpFunction", {
       entry: path.join(__dirname, "../../../mcp_server"), // required
@@ -27,7 +43,13 @@ export class LambdaMcpServerConstruct extends Construct {
         // translates to `rsync --exclude='.venv'`
         assetExcludes: [".venv", "create_virtual_env.sh"],
       },
+      environment: {
+        IMAGE_BUCKET_NAME: this.imageBucket.bucketName,
+      },
     });
+
+    // Grant the Lambda function read/write access to the image bucket
+    this.imageBucket.grantReadWrite(this.mcpFunction);
 
     this.mcpFunction.addToRolePolicy(
       new iam.PolicyStatement({

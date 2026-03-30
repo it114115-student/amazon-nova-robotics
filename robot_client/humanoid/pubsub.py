@@ -13,6 +13,7 @@ import yaml
 from action_executor import ActionExecutor
 from awscrt import auth, mqtt5
 from awsiot import mqtt5_client_builder
+import requests
 
 TIMEOUT = 5
 
@@ -65,7 +66,13 @@ class PubSubClient:
             try:
                 payload = json.loads(publish_packet.payload)
                 action_name = payload.get("toolName")
-                if action_name:
+                if action_name == "capture_image":
+                    upload_url = payload.get("upload_url")
+                    if upload_url:
+                        self._handle_capture_image(upload_url)
+                    else:
+                        logging.warning("capture_image received without upload_url")
+                elif action_name:
                     self.executor.add_action_to_queue(action_name)
                 else:
                     logging.warning("No action specified in the payload")
@@ -73,6 +80,30 @@ class PubSubClient:
                 logging.error("Invalid JSON payload received")
         except Exception as e:
             logging.error("Exception in on_publish_received: %s", e)
+
+    def _handle_capture_image(self, upload_url: str):
+        """Capture an image from localhost:6000 and upload it to S3 via presigned URL."""
+        try:
+            logging.info("Capturing image from localhost:6000...")
+            resp = requests.get("http://localhost:8080/?action=snapshot", timeout=10)
+            resp.raise_for_status()
+            image_data = resp.content
+            logging.info(
+                "Image captured, size=%d bytes. Uploading to S3...", len(image_data)
+            )
+
+            put_resp = requests.put(
+                upload_url,
+                data=image_data,
+                headers={"Content-Type": "image/jpeg"},
+                timeout=30,
+            )
+            put_resp.raise_for_status()
+            logging.info(
+                "Image uploaded to S3 successfully (status=%d)", put_resp.status_code
+            )
+        except requests.exceptions.RequestException as e:
+            logging.error("Failed to capture/upload image: %s", e)
 
     def on_lifecycle_stopped(self, lifecycle_stopped_data: mqtt5.LifecycleStoppedData):
         logging.info("Lifecycle Stopped")

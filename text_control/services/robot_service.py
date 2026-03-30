@@ -5,10 +5,16 @@ This module provides a refactored robot service with improved structure,
 better error handling, and separation of concerns.
 """
 
+import json
+import os
+import time
+import uuid as uuid_mod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 from typing import Any, Dict, List
 
+import boto3
+from botocore.config import Config
 from models.actions import get_available_actions
 from utils.lambda_logger import get_lambda_logger
 
@@ -310,6 +316,81 @@ class RobotService:
         except Exception as e:
             logger.error(f"Error validating dog action: {e}")
             return {"valid": False, "error": f"Validation error: {str(e)}"}
+
+    def capture_image(self, robot_id: str) -> Dict[str, Any]:
+        """Capture an image from a robot's camera.
+
+        Generates a presigned S3 PUT URL, publishes a capture_image command
+        with the URL to the robot via IoT, then polls S3 until the image is
+        uploaded (every 0.5s, up to 15s).
+
+        Returns:
+            Dict with 'success', 'image_url' (presigned GET URL) or 'error'.
+        """
+        bucket = os.environ.get("IMAGE_BUCKET_NAME", "")
+        if not bucket:
+            logger.error("IMAGE_BUCKET_NAME not configured")
+            return {"success": False, "error": "Image bucket not configured"}
+
+        s3_client = boto3.client(
+            "s3", config=Config(retries={"max_attempts": 3, "mode": "standard"})
+        )
+        iot_client = boto3.client(
+            "iot-data", config=Config(retries={"max_attempts": 3, "mode": "standard"})
+        )
+
+        # 1. Generate presigned PUT URL
+        object_key = f"robot-images/{robot_id}/{uuid_mod.uuid4()}.jpg"
+        upload_url = s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": bucket,
+                "Key": object_key,
+                "ContentType": "image/jpeg",
+            },
+            ExpiresIn=300,
+        )
+
+        # 2. Publish capture_image command with upload URL via IoT
+        topic = f"{robot_id}/topic"
+        payload = json.dumps({
+            "toolName": "capture_image",
+            "upload_url": upload_url,
+        })
+        try:
+            iot_client.publish(
+                topic=topic,
+                qos=0,
+                retain=False,
+                payload=payload.encode("utf-8"),
+            )
+            logger.info("Published capture_image to %s", topic)
+        except Exception as e:
+            logger.error("Failed to publish capture_image to %s: %s", topic, e)
+            return {"success": False, "error": f"IoT publish failed: {e}"}
+
+        # 3. Poll S3 every 0.5s for up to 15s
+        elapsed = 0.0
+        while elapsed < 15.0:
+            try:
+                s3_client.head_object(Bucket=bucket, Key=object_key)
+                # Image uploaded — generate presigned GET URL
+                read_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": bucket, "Key": object_key},
+                    ExpiresIn=300,
+                )
+                logger.info("Image uploaded by %s, presigned GET URL generated", robot_id)
+                return {"success": True, "image_url": read_url}
+            except s3_client.exceptions.ClientError:
+                time.sleep(0.5)
+                elapsed += 0.5
+
+        logger.warning("Robot %s did not upload image within timeout", robot_id)
+        return {
+            "success": False,
+            "error": "Cannot read image from robot. The robot did not upload the image in time.",
+        }
 
 
 # Create service instance
