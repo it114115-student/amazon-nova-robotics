@@ -1,33 +1,74 @@
 ---
 name: humanoid
-description: Publish actions to humanoid robots via AWS IoT. Supports robot_1 through robot_9. Includes image capture from robot camera.
+description: Control a single humanoid robot via MCP server. Supports action sequences, image capture, and JSON output for agent consumption.
 ---
 
 # Humanoid Skill
 
-Publishes action commands to humanoid robots through AWS IoT Core.
-
-## Prerequisites
-
-- AWS CLI profile configured with `SkillMcpUserAccessKeyId` / `SkillMcpUserSecretAccessKey` from CDK output
-- MCP server URL from CDK output (`McpServerUrl`)
-- Python dependencies installed: run `pip install -r requirements.txt` (or via `run.sh`)
+Controls a single humanoid robot through the MCP server (Lambda function URL with SigV4 auth). Designed for 1 agent = 1 robot.
 
 ## Usage
 
 ```bash
-# Set MCP URL (required for all actions)
-export MCP_SERVER_URL=https://<McpServerUrl>
+# Single action
+./run.sh --robot-id robot_1 --action wave
 
-# Execute an action
-./run.sh --profile skill-profile --robot-id robot_1 --action wave
+# Sequence of actions
+./run.sh --robot-id robot_1 --sequence "wave,push_ups,bow"
 
-# Or pass MCP URL directly
-./run.sh --profile skill-profile --robot-id robot_1 --action wave --mcp-url https://<McpServerUrl>
+# Sequence with auto-wait (waits for each action's duration before next)
+./run.sh --robot-id robot_1 --sequence "wave,push_ups,bow" --wait
 
-# Capture image (downloads locally to captured_images/)
-./run.sh --profile skill-profile --robot-id robot_1 --action capture_image
+# Sequence with fixed wait between steps
+./run.sh --robot-id robot_1 --sequence "wave,push_ups,bow" --wait 3
+
+# Capture image
+./run.sh --robot-id robot_1 --action capture_image
+
+# List all available actions with durations
+./run.sh --list-actions
+
+# JSON output (for agent consumption)
+./run.sh --robot-id robot_1 --action wave --json
 ```
+
+## Supported Robots
+
+robot_1, robot_2, robot_3, robot_4, robot_5, robot_6, robot_7, robot_8, robot_9
+
+## Available Actions
+
+### Movement
+
+go_forward (3.5s), back_fast (4.5s), turn_left (4s), turn_right (4s), left_move_fast (3s), right_move_fast (3s), stepping (3s)
+
+### Dance (10 styles)
+
+dance_one (85s), dance_two (52s), dance_three (70s), dance_four (83s), dance_five (59s), dance_six (69s), dance_seven (67s), dance_eight (85s), dance_nine (84s), dance_ten (85s)
+
+### Combat
+
+kung_fu (2s), wing_chun (2s), left_kick (2s), right_kick (2s), left_uppercut (2s), right_uppercut (2s), left_shot_fast (4s), right_shot_fast (4s)
+
+### Exercise
+
+push_ups (9s), sit_ups (12s), squat (1s), squat_up (6s), weightlifting (9s), chest (9s)
+
+### Posture
+
+stand (2s), stand_up_back (5s), stand_up_front (5s)
+
+### Gesture
+
+wave (3.5s), bow (4s), twist (4s)
+
+### Image
+
+capture_image (~15s, downloads image locally to captured_images/)
+
+### Control
+
+stop
 
 ## Troubleshooting
 
@@ -38,37 +79,3 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
-
-## Available Actions
-
-### Movement
-
-go_forward, back_fast, turn_left, turn_right, left_move_fast, right_move_fast, stepping
-
-### Dance (9 styles)
-
-dance_two, dance_three, dance_four, dance_five, dance_six, dance_seven, dance_eight, dance_nine, dance_ten
-
-### Combat
-
-kung_fu, wing_chun, left_kick, right_kick, left_uppercut, right_uppercut, left_shot_fast, right_shot_fast
-
-### Exercise
-
-push_ups, sit_ups, squat, squat_up, weightlifting, chest
-
-### Posture
-
-stand, stand_up_back, stand_up_front
-
-### Gesture
-
-wave, bow, twist
-
-### Image
-
-capture_image (requires --mcp-url or MCP_SERVER_URL env var; downloads image locally)
-
-### Control
-
-stop
