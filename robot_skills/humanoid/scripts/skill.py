@@ -222,7 +222,7 @@ def main():
   %(prog)s --list-actions
 """,
     )
-    parser.add_argument("--profile", default="default", help="AWS CLI profile name")
+    parser.add_argument("--profile", default="skill-profile", help="AWS CLI profile name")
     parser.add_argument("--robot-id", help="Robot ID (e.g. robot_1)")
     parser.add_argument("--action", help="Single action to execute")
     parser.add_argument("--sequence", help="Comma-separated list of actions to execute in order")
