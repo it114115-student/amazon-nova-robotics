@@ -82,18 +82,8 @@ class SpeechPubSubClient:
                     else:
                         logging.warning("Speech command received with empty message")
 
-                elif action == "stop_speech":
-                    logging.info("Stop speech command received")
-                    self.executor.stop_speech()
-
                 else:
-                    # Check for legacy toolName-based format
-                    metadata = payload.get("metadata", {})
-                    if metadata.get("action") == "stop_speech":
-                        logging.info("Stop speech command received (via metadata)")
-                        self.executor.stop_speech()
-                    else:
-                        logging.warning("Unknown action in payload: %s", action)
+                    logging.warning("Unknown action in payload: %s", action)
 
             except json.JSONDecodeError:
                 logging.error("Invalid JSON payload received")

@@ -159,8 +159,3 @@ class SpeechExecutor:
         finally:
             with self._lock:
                 self._is_running = False
-
-    def stop_speech(self) -> None:
-        """Immediately close the chat (used for stop_speech commands)."""
-        logger.info("Stop speech requested, closing chat immediately")
-        self.close_chat()

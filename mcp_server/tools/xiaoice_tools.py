@@ -44,24 +44,3 @@ def register_xiaoice_tools(mcp: MCPLambdaHandler):
             return f"Xiaoice ({xiaoice_id}) is now speaking: \"{message}\""
         else:
             return f"Failed to send speech command to xiaoice ({xiaoice_id})."
-
-    @mcp.tool()
-    def xiaoice_stop_speech(xiaoice_id: XiaoiceID) -> str:
-        """Command the xiaoice Digital Human to stop speaking.
-
-        Args:
-            xiaoice_id (XiaoiceID): The xiaoice device ID (e.g. xiaoice_1 or all)
-
-        Returns:
-            str: Confirmation that the stop command was sent.
-        """
-        success = execute_xiaoice_speech(
-            xiaoice_id=xiaoice_id,
-            message="",
-            metadata={"action": "stop_speech"},
-        )
-
-        if success:
-            return f"Xiaoice ({xiaoice_id}) has stopped speaking."
-        else:
-            return f"Failed to send stop command to xiaoice ({xiaoice_id})."
