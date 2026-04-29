@@ -10,3 +10,5 @@ input_endpoint: "a1qlex7vqi1791-ats.iot.us-east-1.amazonaws.com"
 input_clientId: "arn:aws:iot:us-east-1:111964674713:thing/{robot_name}"
 # Duration in seconds to keep chat open before closing
 chat_open_duration: 30
+# ADB device IP for connection
+adb_ip: "192.168.137.211:5555"

@@ -9,24 +9,52 @@ When a speech message is received via IoT, this executor:
 """
 
 import logging
+import os
 import subprocess
 import threading
 import time
 
+import yaml
+
 logger = logging.getLogger(__name__)
+
+
+def load_settings(settings_path: str) -> dict:
+    try:
+        with open(settings_path, "r", encoding="utf-8") as file:
+            return yaml.safe_load(file)
+    except Exception as e:
+        logging.error("Failed to load settings: %s", e)
+        raise
 
 
 class SpeechExecutor:
     """Executes speech actions on the xiaoice Digital Human device via adb."""
 
-    def __init__(self, chat_open_duration: int = 30):
+    def __init__(self, settings_path: str = "settings.yaml"):
         """
         Args:
-            chat_open_duration: Seconds to keep the chat open before closing.
+            settings_path: Path to the settings YAML file.
         """
-        self.chat_open_duration = chat_open_duration
+        self.settings = load_settings(settings_path)
+        self.chat_open_duration = self.settings.get("chat_open_duration", 30)
+        self.adb_ip = self.settings.get("adb_ip")
+        
         self._lock = threading.Lock()
         self._is_running = False
+        
+        # Connect to ADB device on initialization
+        if self.adb_ip:
+            self._connect_adb_device()
+        else:
+            logger.warning("No adb_ip specified in settings, device may not be connected")
+
+    def _connect_adb_device(self) -> bool:
+        """Connect to the ADB device using the IP from settings."""
+        return self._run_adb_command(
+            ["connect", self.adb_ip],
+            f"Connect to ADB device at {self.adb_ip}",
+        )
 
     def _run_adb_command(self, args: list, description: str) -> bool:
         """Run an adb command and return True on success."""
