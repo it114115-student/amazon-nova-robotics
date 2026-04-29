@@ -3,33 +3,62 @@ Speech executor for xiaoice Digital Human.
 
 When a speech message is received via IoT, this executor:
 1. Opens the chat UI via adb swipe (tap at 1900, 775)
-2. Waits for the configured duration (default 30s) for the speech to finish
-3. Closes the chat UI via adb swipe (tap at 1650, 2275)
+2. Closes the chat UI via adb swipe (tap at 1650, 2275)
+3. Waits 2 seconds
+4. Opens the chat UI again via adb swipe (tap at 1900, 775)
 """
 
 import logging
+import os
 import subprocess
 import threading
 import time
 
+import yaml
+
 logger = logging.getLogger(__name__)
+
+
+def load_settings(settings_path: str) -> dict:
+    try:
+        with open(settings_path, "r", encoding="utf-8") as file:
+            return yaml.safe_load(file)
+    except Exception as e:
+        logging.error("Failed to load settings: %s", e)
+        raise
 
 
 class SpeechExecutor:
     """Executes speech actions on the xiaoice Digital Human device via adb."""
 
-    def __init__(self, chat_open_duration: int = 30):
+    def __init__(self, settings_path: str = "settings.yaml"):
         """
         Args:
-            chat_open_duration: Seconds to keep the chat open before closing.
+            settings_path: Path to the settings YAML file.
         """
-        self.chat_open_duration = chat_open_duration
+        self.settings = load_settings(settings_path)
+        self.chat_open_duration = self.settings.get("chat_open_duration", 30)
+        self.adb_ip = self.settings.get("adb_ip")
+        
         self._lock = threading.Lock()
         self._is_running = False
+        
+        # Connect to ADB device on initialization
+        if self.adb_ip:
+            self._connect_adb_device()
+        else:
+            logger.warning("No adb_ip specified in settings, device may not be connected")
+
+    def _connect_adb_device(self) -> bool:
+        """Connect to the ADB device using the IP from settings."""
+        return self._run_adb_command(
+            ["connect", self.adb_ip],
+            f"Connect to ADB device at {self.adb_ip}",
+        )
 
     def _run_adb_command(self, args: list, description: str) -> bool:
         """Run an adb command and return True on success."""
-        cmd = ["adb"] + args
+        cmd = [r"C:\platform-tools\adb.exe"] + args
         try:
             result = subprocess.run(
                 cmd,
@@ -53,7 +82,7 @@ class SpeechExecutor:
             logger.error("%s timed out: %s", description, " ".join(cmd))
             return False
         except FileNotFoundError:
-            logger.error("adb not found. Make sure adb is installed and in PATH.")
+            logger.error("adb not found at C:\\platform-tools\\adb.exe")
             return False
         except Exception as e:
             logger.error("%s error: %s", description, e)
@@ -77,8 +106,9 @@ class SpeechExecutor:
         """
         Execute the full speech flow:
         1. Open chat
-        2. Wait for chat_open_duration seconds
-        3. Close chat
+        2. Close chat
+        3. Wait 2 seconds
+        4. Open chat again
 
         This runs in a background thread so it doesn't block the MQTT listener.
         """
@@ -103,21 +133,23 @@ class SpeechExecutor:
         try:
             logger.info("Speech flow started for message: %s", message[:100])
 
-            # Step 1: Open chat
+            # Step 1: Open chat (first time)
             if not self.open_chat():
                 logger.error("Failed to open chat, aborting speech flow")
                 return
 
-            # Step 2: Wait for the speech duration
-            logger.info(
-                "Chat opened. Waiting %d seconds for speech to complete...",
-                self.chat_open_duration,
-            )
-            time.sleep(self.chat_open_duration)
-
-            # Step 3: Close chat
+            # Step 2: Close chat
             if not self.close_chat():
                 logger.error("Failed to close chat")
+                return
+
+            # Step 3: Wait 2 seconds
+            logger.info("Chat closed. Waiting 2 seconds...")
+            time.sleep(2)
+
+            # Step 4: Open chat again
+            if not self.open_chat():
+                logger.error("Failed to open chat on second attempt")
                 return
 
             logger.info("Speech flow completed for message: %s", message[:100])

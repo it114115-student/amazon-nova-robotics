@@ -273,8 +273,7 @@ def main():
 
         logging.info("Settings loaded: %s", json.dumps(settings, indent=2))
 
-        chat_open_duration = settings.get("chat_open_duration", 30)
-        executor = SpeechExecutor(chat_open_duration=chat_open_duration)
+        executor = SpeechExecutor()
         client = SpeechPubSubClient(settings, executor)
         client.run()
     except Exception as e:
