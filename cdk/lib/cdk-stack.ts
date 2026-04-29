@@ -101,6 +101,11 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["lambda:InvokeFunctionUrl", "lambda:InvokeFunction"],
         resources: [mcpServerConstruct.mcpFunction.functionArn],
+        conditions: {
+          StringEquals: {
+            "lambda:FunctionUrlAuthType": "AWS_IAM",
+          },
+        },
       })
     );
     const skillAccessKey = new iam.CfnAccessKey(this, "SkillMcpUserAccessKey", {
