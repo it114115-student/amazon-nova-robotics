@@ -26,6 +26,11 @@ class DroneID(str, Enum):
     DRONE_2 = "drone_2"
 
 
+class XiaoiceID(str, Enum):
+    ALL = "all"
+    XIAOICE_1 = "xiaoice_1"
+
+
 class Direction(str, Enum):
     UP = "up"
     DOWN = "down"

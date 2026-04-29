@@ -17,15 +17,21 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
 
     const authenticator = new Authenticator(this, "Authenticator");
 
+    const databaseConstruct = new DatabaseConstruct(this, "DatabaseConstruct");
+
     const mcpServerConstruct = new LambdaMcpServerConstruct(
       this,
-      "LambdaMcpServerConstruct"
+      "LambdaMcpServerConstruct",
+      {
+        database: databaseConstruct,
+      }
     );
 
     // Device configuration
     const numberOfRobots = 6; // Number of robots
     const numberOfDrones = 2; // Number of drones
     const numberOfDogs = 3; // Number of dogs
+    const numberOfXiaoice = 1; // Number of xiaoice Digital Humans
 
     // Generate device names
     const thingNames = Array.from(
@@ -40,8 +46,13 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       { length: numberOfDogs },
       (_, i) => `dog_${i + 1}`
     );
+    const xiaoiceNames = Array.from(
+      { length: numberOfXiaoice },
+      (_, i) => `xiaoice_${i + 1}`
+    );
     thingNames.push(...droneNames);
     thingNames.push(...dogNames);
+    thingNames.push(...xiaoiceNames);
 
     // BATCH PROCESSING: Single construct creates all IoT devices with 1 Lambda function
     // Previous: 13 separate ThingWithCert constructs = 13 Lambda functions
@@ -49,8 +60,6 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     const roboticConstruct = new RoboticConstruct(this, "RoboticConstruct", {
       thingNames: thingNames,
     });
-
-    const databaseConstruct = new DatabaseConstruct(this, "DatabaseConstruct");
 
     const webConstruct = new SpeechControlWebConstruct(this, "WebConstruct", {
       database: databaseConstruct,

@@ -67,6 +67,7 @@ export class TextControlWebConstruct extends Construct {
         FlaskSecretKey: hash,
         XiaoiceChatSecretKey: chatSecretKey,
         XiaoiceChatAccessKey: chatAccessKey,
+        SpeechTable: props.mcpServerConstruct.speechTable.tableName,
       },
       bundling: {
         assetExcludes: [
@@ -97,6 +98,9 @@ export class TextControlWebConstruct extends Construct {
 
     props.database.robotTable.grantFullAccess(flaskLambda);
 
+    // Grant read/write access to the speech table for xiaoice welcome flow
+    props.mcpServerConstruct.speechTable.grantReadWriteData(flaskLambda);
+
     flaskLambda.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -105,6 +109,7 @@ export class TextControlWebConstruct extends Construct {
           "arn:aws:iot:*:*:topic/robot_*/topic",
           "arn:aws:iot:*:*:topic/drone_*/topic",
           "arn:aws:iot:*:*:topic/dog_*/topic",
+          "arn:aws:iot:*:*:topic/xiaoice_*/topic",
         ],
       })
     );

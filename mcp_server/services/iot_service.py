@@ -74,6 +74,57 @@ def execute_drone_action(message: Dict) -> bool:
         return False
 
 
+def execute_xiaoice_speech(xiaoice_id: str, message: str, presenter_id: str = None, metadata: Dict = None) -> bool:
+    """Execute a xiaoice speech action by publishing to the appropriate IoT topic.
+    
+    The xiaoice Digital Human will receive the message and speak it aloud.
+    """
+    payload = {
+        "action": "speech",
+        "message": message,
+    }
+    if presenter_id:
+        payload["presenterId"] = presenter_id
+    if metadata:
+        payload["metadata"] = metadata
+
+    payload_json = json.dumps(payload)
+
+    if xiaoice_id == "all":
+        def publish_to_xiaoice(num):
+            topic = f"xiaoice_{num}/topic"
+            try:
+                iot_client.publish(
+                    topic=topic,
+                    qos=0,
+                    retain=False,
+                    payload=bytes(payload_json, "utf-8"),
+                )
+                print(f"Published to {topic}: {payload_json}")
+                return True
+            except Exception as e:
+                print(f"Error publishing to {topic}: {e}")
+                return False
+
+        with ThreadPoolExecutor() as executor:
+            futures = list(executor.map(publish_to_xiaoice, range(1, 2)))
+            return all(futures)
+    else:
+        topic = f"{xiaoice_id}/topic"
+        try:
+            iot_client.publish(
+                topic=topic,
+                qos=0,
+                retain=False,
+                payload=bytes(payload_json, "utf-8"),
+            )
+            print(f"Published to {topic}: {payload_json}")
+            return True
+        except Exception as e:
+            print(f"Error publishing to {topic}: {e}")
+            return False
+
+
 def execute_dog_action(message: Dict) -> bool:
     """Execute a dog action by publishing to the appropriate IoT topic"""
     

@@ -9,17 +9,44 @@ import { Construct } from "constructs";
 import { Duration, Stack, RemovalPolicy } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import { DatabaseConstruct } from "./datebase";
+import { AttributeType, Billing, TableV2 } from "aws-cdk-lib/aws-dynamodb";
+import * as cdk from "aws-cdk-lib";
 
 import path = require("path");
+
+export interface LambdaMcpServerConstructProps {
+  readonly database: DatabaseConstruct;
+}
 
 export class LambdaMcpServerConstruct extends Construct {
   public readonly mcpFunction: PythonFunction;
   public readonly functionUrl: FunctionUrl;
   public readonly imageBucket: s3.Bucket;
+  public readonly speechTable: TableV2;
   private permissionCounter = 0;
 
-  constructor(scope: Construct, id: string) {
+  constructor(scope: Construct, id: string, props: LambdaMcpServerConstructProps) {
     super(scope, id);
+
+    // DynamoDB table for xiaoice speech messages
+    this.speechTable = new TableV2(this, "SpeechTable", {
+      partitionKey: {
+        name: "id",
+        type: AttributeType.STRING,
+      },
+      billing: Billing.onDemand(),
+      removalPolicy: RemovalPolicy.DESTROY,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: false,
+      },
+    });
+
+    new cdk.CfnOutput(this, "SpeechTableName", {
+      key: "SpeechTable",
+      value: this.speechTable.tableName,
+      description: "The name of the DynamoDB table for xiaoice speech messages",
+    });
 
     // S3 bucket for robot captured images
     this.imageBucket = new s3.Bucket(this, "RobotImageBucket", {
@@ -45,11 +72,19 @@ export class LambdaMcpServerConstruct extends Construct {
       },
       environment: {
         IMAGE_BUCKET_NAME: this.imageBucket.bucketName,
+        SpeechTable: this.speechTable.tableName,
+        RobotTable: props.database.robotTable.tableName,
       },
     });
 
     // Grant the Lambda function read/write access to the image bucket
     this.imageBucket.grantReadWrite(this.mcpFunction);
+
+    // Grant the Lambda function read/write access to the speech table
+    this.speechTable.grantReadWriteData(this.mcpFunction);
+
+    // Grant the Lambda function read access to the robot table (for presenter context)
+    props.database.robotTable.grantReadData(this.mcpFunction);
 
     this.mcpFunction.addToRolePolicy(
       new iam.PolicyStatement({
@@ -59,6 +94,7 @@ export class LambdaMcpServerConstruct extends Construct {
           "arn:aws:iot:*:*:topic/robot_*/topic",
           "arn:aws:iot:*:*:topic/drone_*/topic",
           "arn:aws:iot:*:*:topic/dog_*/topic",
+          "arn:aws:iot:*:*:topic/xiaoice_*/topic",
         ],
       })
     );

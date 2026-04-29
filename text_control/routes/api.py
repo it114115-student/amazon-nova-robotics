@@ -11,6 +11,7 @@ from datetime import datetime
 from flask import Blueprint, Response, jsonify, request
 from middleware import require_hybrid_auth
 from services.database_service import delete_robot, get_robot, list_robots, upsert_robot
+from services.speech_db_service import delete_speech_message, get_pending_speech_message
 from services.robot_service import robot_service
 from services.strands_service_mcp import create_robot_agent as create_robot_agent_mcp
 from utils.auth import validate_authentication
@@ -136,7 +137,10 @@ background: {background}
 def welcome():
     """
     Welcome message endpoint
-    Returns a welcome message for the conversation system
+    Returns a welcome message for the conversation system.
+    For xiaoice: checks the SpeechTable for a pending speech message by presenter_id.
+    If found, returns that message as the welcome text and deletes it.
+    Otherwise falls back to the standard welcome message.
     """
     logger.info(f"Welcome request from {request.remote_addr}")
 
@@ -150,8 +154,41 @@ def welcome():
     if parse_error:
         return parse_error
 
-    # 3. Generate welcome response
+    # 3. Extract presenter_id from userParams
+    user_params = params.get("user_params", {})
+    presenter_id = None
+
+    if isinstance(user_params, dict):
+        presenter_id = user_params.get("presenterId")
+    elif isinstance(user_params, str):
+        # Handle string format like "summer-presentation" or just "summer"
+        if "-" in user_params:
+            parts = user_params.split("-")
+            if len(parts) > 0:
+                presenter_id = parts[0]
+        else:
+            presenter_id = user_params if user_params else None
+
+    logger.debug(f"Extracted presenter_id: {presenter_id}")
+
+    # 4. For xiaoice: try to get a pending speech message from the SpeechTable
     try:
+        if presenter_id:
+            speech_msg = get_pending_speech_message(presenter_id)
+            if speech_msg:
+                welcome_text = speech_msg.get("message", "")
+                response = create_response_object(params, welcome_text)
+                response["presenterId"] = presenter_id
+
+                # Delete the message after reading it
+                delete_speech_message(speech_msg["id"])
+                logger.info(
+                    f"Xiaoice welcome: delivered speech message {speech_msg['id']} "
+                    f"for presenter {presenter_id}"
+                )
+                return jsonify(response)
+
+        # 5. Fallback: standard welcome message
         welcome_text = get_message(WELCOME_MESSAGES, params["language_code"])
         response = create_response_object(params, welcome_text)
 

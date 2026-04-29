@@ -6,6 +6,7 @@ from services.iot_service import (
     execute_dog_action,
     execute_drone_action,
     execute_robot_action,
+    execute_xiaoice_speech,
 )
 
 
@@ -66,6 +67,10 @@ class RobotExecutor:
     def execute_action(self, robot_id: str, action: str) -> bool:
         """Execute a robot action"""
         return execute_robot_action(action, robot_id.lower())
+
+    def execute_xiaoice_speech(self, xiaoice_id: str, message: str, presenter_id: str = None) -> bool:
+        """Execute a xiaoice speech action"""
+        return execute_xiaoice_speech(xiaoice_id.lower(), message, presenter_id)
 
 
 # Global executor instance
