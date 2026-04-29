@@ -66,6 +66,11 @@ document.addEventListener("DOMContentLoaded", function () {
       if (selected.some(val => val.startsWith("dog_"))) {
         deselectOptions(["all_dogs", "all"]);
       }
+
+      // If xiaoice is selected, deselect 'all'
+      if (selected.some(val => val.startsWith("xiaoice_"))) {
+        deselectOptions(["all"]);
+      }
     }
 
     updateSummary();
