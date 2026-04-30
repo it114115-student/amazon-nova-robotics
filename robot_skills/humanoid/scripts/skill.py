@@ -281,6 +281,7 @@ def main():
     if args.speak:
         ok, text = execute_speech(args.mcp_url, auth, robot_id, args.speak, args.language)
         results = [{"action": "speak", "robot_id": robot_id, "success": ok, "response": text}]
+        actions = ["speak"]
     else:
         # Build action list from either --action or --sequence
         if args.sequence:
