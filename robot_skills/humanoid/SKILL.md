@@ -22,6 +22,15 @@ Controls a single humanoid robot through the MCP server (Lambda function URL wit
 # Sequence with fixed wait between steps
 ./run.sh --robot-id robot_1 --sequence "wave,push_ups,bow" --wait 3
 
+# Speech (Cantonese, default)
+./run.sh --robot-id robot_1 --speak "你好，歡迎嚟到我哋嘅展覽"
+
+# Speech (English)
+./run.sh --robot-id robot_1 --speak "Hello, welcome to our exhibition" --language en
+
+# Speech (Mandarin)
+./run.sh --robot-id robot_1 --speak "你好，欢迎来到我们的展览" --language cmn
+
 # Capture image
 ./run.sh --robot-id robot_1 --action capture_image
 
@@ -65,6 +74,17 @@ wave (3.5s), bow (4s), twist (4s)
 ### Image
 
 capture_image (~15s, downloads image locally to captured_images/)
+
+### Speech (Amazon Polly TTS)
+
+speak — Synthesizes speech via Amazon Polly, uploads audio to S3, publishes presigned URL to IoT for playback.
+
+Supported languages:
+- `yue` — Cantonese (voice: Hiujin, default)
+- `cmn` — Mandarin Chinese (voice: Zhiyu)
+- `en` — English (voice: Joanna)
+- `ja` — Japanese (voice: Kazuha)
+- `ko` — Korean (voice: Seoyeon)
 
 ### Control
 

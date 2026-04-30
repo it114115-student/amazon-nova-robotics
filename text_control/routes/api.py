@@ -537,6 +537,67 @@ def capture_image(robot_id):
     return jsonify(result), status_code
 
 
+@api_bp.route("/speech/<robot_id>", methods=["POST"])
+@require_hybrid_auth
+def robot_speech(robot_id):
+    """Make a robot speak using Amazon Polly TTS via the MCP server.
+
+    Request body:
+        {
+            "text": "你好，歡迎",
+            "language": "yue"       // optional, default "yue"
+        }
+
+    Supported languages: yue (Cantonese), cmn (Mandarin), en (English),
+                         ja (Japanese), ko (Korean)
+
+    The MCP server synthesizes speech with Polly, uploads to S3, and
+    publishes the presigned audio URL to the robot's IoT topic.
+    """
+    if not robot_id:
+        return jsonify({"error": "Missing robot_id"}), 400
+
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "").strip()
+    language = data.get("language", "yue")
+
+    if not text:
+        return jsonify({"error": "Missing or empty 'text' parameter"}), 400
+
+    try:
+        from mcp_client import get_mcp_client
+
+        mcp_client = get_mcp_client()
+        result = asyncio.run(
+            mcp_client.call_tool(
+                "robot_speak",
+                {"robot_id": robot_id, "text": text, "language": language},
+            )
+        )
+
+        # Extract text from MCP response
+        content = result.get("content", []) if isinstance(result, dict) else []
+        response_text = next(
+            (c.get("text", "") for c in content if c.get("type") == "text"),
+            str(result),
+        )
+
+        success = "Failed" not in response_text and "Error" not in response_text
+        status_code = 200 if success else 500
+
+        return jsonify({
+            "success": success,
+            "robot_id": robot_id,
+            "text": text,
+            "language": language,
+            "response": response_text,
+        }), status_code
+
+    except Exception as e:
+        logger.error("Error in robot_speech for %s: %s", robot_id, e, exc_info=True)
+        return jsonify({"error": f"Speech failed: {e}"}), 500
+
+
 @api_bp.route("/image/<path:object_key>", methods=["GET"])
 @require_hybrid_auth
 def get_image_url(object_key):

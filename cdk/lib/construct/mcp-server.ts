@@ -99,6 +99,15 @@ export class LambdaMcpServerConstruct extends Construct {
       })
     );
 
+    // Grant the Lambda function permission to use Amazon Polly for speech synthesis
+    this.mcpFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["polly:SynthesizeSpeech"],
+        resources: ["*"],
+      })
+    );
+
     // Enable Function URL
     this.functionUrl = this.mcpFunction.addFunctionUrl({
       authType: FunctionUrlAuthType.AWS_IAM,

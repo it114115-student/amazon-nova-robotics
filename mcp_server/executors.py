@@ -8,6 +8,7 @@ from services.iot_service import (
     execute_robot_action,
     execute_xiaoice_speech,
 )
+from services.polly_service import synthesize_and_upload
 
 
 class RobotExecutor:
@@ -71,6 +72,27 @@ class RobotExecutor:
     def execute_xiaoice_speech(self, xiaoice_id: str, message: str, presenter_id: str = None) -> bool:
         """Execute a xiaoice speech action"""
         return execute_xiaoice_speech(xiaoice_id.lower(), message, presenter_id)
+
+    def execute_robot_speech(self, robot_id: str, text: str, language: str = "yue") -> dict:
+        """Synthesize speech with Polly, upload to S3, and publish URL to IoT.
+
+        Returns dict with url and success status, or None on failure.
+        """
+        robot_id_str = robot_id.value if hasattr(robot_id, "value") else str(robot_id).lower()
+
+        result = synthesize_and_upload(text=text.strip(), language=language)
+        if result is None:
+            return {"success": False, "error": "Polly synthesis failed"}
+
+        from tools.speech_tools import _publish_speech_url
+        published = _publish_speech_url(robot_id_str, result["url"], text.strip())
+
+        return {
+            "success": published,
+            "url": result["url"],
+            "voice_id": result["voice_id"],
+            "language": language,
+        }
 
 
 # Global executor instance

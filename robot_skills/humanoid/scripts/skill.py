@@ -115,6 +115,20 @@ def execute_action(mcp_url, auth, robot_id, action):
     return False, f"Failed to execute {action}"
 
 
+def execute_speech(mcp_url, auth, robot_id, text, language="yue"):
+    """Make the robot speak via Polly TTS. Returns (success, message)."""
+    arguments = {
+        "robot_id": robot_id,
+        "text": text,
+        "language": language,
+    }
+    result = call_mcp_tool(mcp_url, auth, "robot_speak", arguments, timeout=30)
+    if result is not None:
+        logger.info("[%s] speak(%s) -> %s", robot_id, language, result)
+        return True, result
+    return False, f"Failed to send speech to {robot_id}"
+
+
 def capture_image(mcp_url, auth, robot_id):
     """Capture an image via MCP get_image tool. Downloads locally and returns the file path."""
     text = call_mcp_tool(mcp_url, auth, "get_image", {"robot_id": robot_id}, timeout=30)
@@ -219,6 +233,8 @@ def main():
   %(prog)s --robot-id robot_1 --action wave
   %(prog)s --robot-id robot_1 --sequence "wave,bow,dance_one"
   %(prog)s --robot-id robot_1 --sequence "wave,push_ups,bow" --wait
+  %(prog)s --robot-id robot_1 --speak "你好，歡迎嚟到我哋嘅展覽"
+  %(prog)s --robot-id robot_1 --speak "Hello, welcome" --language en
   %(prog)s --list-actions
 """,
     )
@@ -226,6 +242,10 @@ def main():
     parser.add_argument("--robot-id", help="Robot ID (e.g. robot_1)")
     parser.add_argument("--action", help="Single action to execute")
     parser.add_argument("--sequence", help="Comma-separated list of actions to execute in order")
+    parser.add_argument("--speak", help="Text for the robot to speak aloud (uses Amazon Polly TTS)")
+    parser.add_argument("--language", default="yue",
+                        choices=["yue", "cmn", "en", "ja", "ko"],
+                        help="Speech language: yue (Cantonese), cmn (Mandarin), en (English), ja (Japanese), ko (Korean). Default: yue")
     parser.add_argument("--wait", nargs="?", const=-1, type=float, default=0,
                         help="Wait for action duration between sequence steps. "
                              "Use --wait for auto-duration or --wait 5 for fixed seconds.")
@@ -245,8 +265,8 @@ def main():
     # Validate required args for execution
     if not args.robot_id:
         parser.error("--robot-id is required (unless using --list-actions)")
-    if not args.action and not args.sequence:
-        parser.error("--action or --sequence is required")
+    if not args.action and not args.sequence and not args.speak:
+        parser.error("--action, --sequence, or --speak is required")
 
     if not args.mcp_url:
         logger.error("--mcp-url or MCP_SERVER_URL env var is required")
@@ -257,13 +277,18 @@ def main():
 
     robot_id = args.robot_id
 
-    # Build action list from either --action or --sequence
-    if args.sequence:
-        actions = [a.strip() for a in args.sequence.split(",")]
+    # Handle speech command
+    if args.speak:
+        ok, text = execute_speech(args.mcp_url, auth, robot_id, args.speak, args.language)
+        results = [{"action": "speak", "robot_id": robot_id, "success": ok, "response": text}]
     else:
-        actions = [args.action]
+        # Build action list from either --action or --sequence
+        if args.sequence:
+            actions = [a.strip() for a in args.sequence.split(",")]
+        else:
+            actions = [args.action]
 
-    results = run_sequence(args.mcp_url, auth, robot_id, actions, args.wait)
+        results = run_sequence(args.mcp_url, auth, robot_id, actions, args.wait)
 
     # Output
     success = all(r.get("success") for r in results)

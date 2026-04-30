@@ -13,6 +13,7 @@ import yaml
 from action_executor import ActionExecutor
 from awscrt import auth, mqtt5
 from awsiot import mqtt5_client_builder
+from speech_player import SpeechPlayer
 import requests
 
 TIMEOUT = 5
@@ -48,6 +49,7 @@ class PubSubClient:
     def __init__(self, settings: Dict[str, Any], executor: ActionExecutor):
         self.settings = settings
         self.executor = executor
+        self.speech_player = SpeechPlayer()
         self.client: Optional[mqtt5.Client] = None
         self.future_stopped = Future()
         self.future_connection_success = Future()
@@ -65,6 +67,18 @@ class PubSubClient:
             )
             try:
                 payload = json.loads(publish_packet.payload)
+
+                # Handle speech action (Polly TTS audio URL)
+                action = payload.get("action")
+                if action == "speech" and payload.get("audio_url"):
+                    audio_url = payload["audio_url"]
+                    text = payload.get("text", "")
+                    logging.info("Speech command received: '%s' url=%s", text[:80], audio_url[:100])
+                    self.speech_player.play(audio_url, text)
+                    self._send_speech_to_simulator(audio_url, text)
+                    return
+
+                # Handle regular robot actions
                 action_name = payload.get("toolName")
                 if action_name == "capture_image":
                     upload_url = payload.get("upload_url")
@@ -104,6 +118,30 @@ class PubSubClient:
             )
         except requests.exceptions.RequestException as e:
             logging.error("Failed to capture/upload image: %s", e)
+
+    def _send_speech_to_simulator(self, audio_url: str, text: str) -> None:
+        """Forward speech audio URL to the 3D simulator for browser playback."""
+        simulator_endpoint = self.settings.get("simulator_endpoint", "")
+        session_key = self.settings.get("session_key", "")
+        robot_name = self.settings.get("robot_name", "")
+
+        if not simulator_endpoint:
+            return
+
+        url = f"{simulator_endpoint}/speech/{robot_name}?session_key={session_key}"
+        payload = {"audio_url": audio_url, "text": text}
+
+        try:
+            resp = requests.post(
+                url,
+                json=payload,
+                timeout=3.0,
+                headers={"Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+            logging.info("Speech forwarded to simulator: %s", resp.json())
+        except requests.exceptions.RequestException as e:
+            logging.warning("Failed to forward speech to simulator: %s", e)
 
     def on_lifecycle_stopped(self, lifecycle_stopped_data: mqtt5.LifecycleStoppedData):
         logging.info("Lifecycle Stopped")
