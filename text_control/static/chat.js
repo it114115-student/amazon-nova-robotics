@@ -191,14 +191,46 @@ async function sendMessage() {
         console.error("Failed to load image:", imgErr);
       }
     } else {
-      // Fallback: detect raw S3 presigned URLs
-      const urlPattern = /(https:\/\/[^\s]+\.s3[^\s]*\.amazonaws\.com[^\s]*)/gi;
-      const hasImageUrl = urlPattern.test(botText);
-      if (hasImageUrl) {
-        const htmlWithImages = botText.replace(urlPattern, (url) =>
-          `<br><a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="Robot captured image" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;" /></a>`
-        );
-        botMessageElement.innerHTML = `<strong>Bot:</strong> ${htmlWithImages}`;
+      // Detect S3 presigned URLs and render appropriately:
+      //  - URLs with "speech-audio/" in the path → <audio> player
+      //  - Other S3 URLs → <img> tag
+      //  - Also handle explicit audio_url= prefix from MCP tool responses
+
+      // Pattern to match any S3 presigned URL
+      const s3UrlPattern = /(https:\/\/[^\s"'<>]+\.s3[^\s"'<>]*\.amazonaws\.com[^\s"'<>]*)/gi;
+      const allUrls = botText.match(s3UrlPattern) || [];
+
+      // Also catch audio_url=<url> where URL might not be S3
+      const audioUrlPrefixMatch = botText.match(/audio_url=(https?:\/\/[^\s"'<>]+)/);
+      if (audioUrlPrefixMatch && !allUrls.includes(audioUrlPrefixMatch[1])) {
+        allUrls.push(audioUrlPrefixMatch[1]);
+      }
+
+      if (allUrls.length > 0) {
+        // Separate audio vs image URLs
+        const audioUrls = allUrls.filter(u => u.includes('speech-audio') || u.includes('.mp3') || u.includes('.ogg'));
+        const imageUrls = allUrls.filter(u => !audioUrls.includes(u));
+
+        // Strip all matched URLs and the audio_url= prefix from display text
+        let displayText = botText;
+        for (const url of allUrls) {
+          displayText = displayText.replace(url, '');
+        }
+        displayText = displayText.replace(/audio_url=\s*/g, '').replace(/image_url=\s*/g, '').trim();
+
+        let html = `<strong>Bot:</strong> ${displayText}`;
+
+        // Render audio players
+        for (const url of audioUrls) {
+          html += `<br><audio controls preload="auto" style="width:100%;margin-top:8px;border-radius:8px;"><source src="${url}" type="audio/mpeg">Your browser does not support audio.</audio>`;
+        }
+
+        // Render images
+        for (const url of imageUrls) {
+          html += `<br><a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="Robot captured image" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;" /></a>`;
+        }
+
+        botMessageElement.innerHTML = html;
       } else {
         botMessageElement.innerHTML = `<strong>Bot:</strong> ${botText}`;
       }
