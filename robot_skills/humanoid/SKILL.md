@@ -1,6 +1,6 @@
 ---
 name: humanoid
-description: Control a single humanoid robot via MCP server. Supports action sequences, image capture, and JSON output for agent consumption.
+description: Control a single humanoid robot via MCP server. Supports action sequences, speak, image capture, and JSON output for agent consumption.
 ---
 
 # Humanoid Skill
