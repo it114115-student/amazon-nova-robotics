@@ -13,8 +13,6 @@ from requests_auth_aws_sigv4 import AWSSigV4
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-VALID_XIAOICE_IDS = ["all", "xiaoice_1"]
-
 
 def call_mcp_tool(mcp_url, auth, tool_name, arguments, timeout=30):
     """Call an MCP tool on the Lambda server via JSON-RPC. Returns the text result or None."""
@@ -46,23 +44,23 @@ def call_mcp_tool(mcp_url, auth, tool_name, arguments, timeout=30):
     return next((c.get("text", "") for c in content if c.get("type") == "text"), "")
 
 
-def execute_speech(mcp_url, auth, xiaoice_id, message, presenter_id=None):
+def execute_speech(mcp_url, auth, message):
     """Send a speech command to the xiaoice Digital Human via MCP server.
+
+    There is only one xiaoice device. The presenter_id is handled
+    automatically by the MCP server (always "current_presenter").
 
     Returns (success, response_text).
     """
     arguments = {
-        "xiaoice_id": xiaoice_id,
         "message": message,
     }
-    if presenter_id:
-        arguments["presenter_id"] = presenter_id
 
     text = call_mcp_tool(mcp_url, auth, "xiaoice_speech", arguments)
     if text is not None:
-        logger.info("[%s] speech -> %s", xiaoice_id, text)
+        logger.info("speech -> %s", text)
         return True, text
-    return False, f"Failed to send speech to {xiaoice_id}"
+    return False, "Failed to send speech to xiaoice"
 
 
 def main():
@@ -70,27 +68,16 @@ def main():
         description="Digital Human Skill - Control xiaoice Digital Human speech via MCP server",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
-  %(prog)s --xiaoice-id xiaoice_1 --message "Hello, welcome"
-  %(prog)s --xiaoice-id xiaoice_1 --message "Welcome" --presenter-id Summer
-  %(prog)s --xiaoice-id all --message "The show is starting"
+  %(prog)s --message "Hello, welcome"
+  %(prog)s --message "The show is starting"
+  %(prog)s --message "歡迎嚟到我哋嘅展覽" --json
 """,
     )
     parser.add_argument(
         "--profile", default="skill-profile", help="AWS CLI profile name"
     )
     parser.add_argument(
-        "--xiaoice-id",
-        required=True,
-        choices=VALID_XIAOICE_IDS,
-        help="Xiaoice device ID (e.g. xiaoice_1 or all)",
-    )
-    parser.add_argument(
         "--message", required=True, help="Text message for the Digital Human to speak"
-    )
-    parser.add_argument(
-        "--presenter-id",
-        default=None,
-        help="Optional presenter ID for context lookup",
     )
     parser.add_argument(
         "--region", default="us-east-1", help="AWS region"
@@ -122,9 +109,7 @@ def main():
     success, response_text = execute_speech(
         mcp_url=args.mcp_url,
         auth=auth,
-        xiaoice_id=args.xiaoice_id,
         message=args.message,
-        presenter_id=args.presenter_id,
     )
 
     if args.json_output:
@@ -132,9 +117,7 @@ def main():
             json.dumps(
                 {
                     "success": success,
-                    "xiaoice_id": args.xiaoice_id,
                     "message": args.message,
-                    "presenter_id": args.presenter_id,
                     "response": response_text,
                 },
                 indent=2,

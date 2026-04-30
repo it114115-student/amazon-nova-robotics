@@ -12,16 +12,20 @@ logger = logging.getLogger(__name__)
 
 dynamodb = boto3.resource("dynamodb")
 
+# Fixed presenter key — matches what the MCP server saves
+CURRENT_PRESENTER = "current_presenter"
+
 
 def get_pending_speech_message(presenter_id: str = None):
     """
-    Get the latest pending speech message for a presenter from the SpeechTable.
+    Get the latest pending speech message from the SpeechTable.
 
-    Scans for items with status='pending' matching the presenter_id,
-    returns the most recent one by timestamp.
+    The presenter_id parameter is accepted for interface compatibility but
+    the query always uses "current_presenter" as the lookup key, since all
+    speech messages are saved under that fixed key.
 
     Args:
-        presenter_id: The presenter ID to look up
+        presenter_id: Ignored — always queries "current_presenter"
 
     Returns:
         The speech message item dict, or None if not found
@@ -30,15 +34,12 @@ def get_pending_speech_message(presenter_id: str = None):
         logger.debug("SpeechTable not configured, skipping speech lookup")
         return None
 
-    if not presenter_id:
-        return None
-
     try:
         table = dynamodb.Table(SPEECH_TABLE)
 
-        # Scan with filter for pending messages matching this presenter
+        # Always query with the fixed presenter key
         filter_expr = Attr("status").eq("pending") & Attr("presenter_id").eq(
-            presenter_id
+            CURRENT_PRESENTER
         )
 
         response = table.scan(FilterExpression=filter_expr)
@@ -52,7 +53,7 @@ def get_pending_speech_message(presenter_id: str = None):
         return items[0]
 
     except Exception as e:
-        logger.error(f"Error fetching speech message for {presenter_id}: {e}")
+        logger.error(f"Error fetching speech message: {e}")
         return None
 
 
