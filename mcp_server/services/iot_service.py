@@ -18,6 +18,9 @@ iot_client = boto3.client(
 
 def execute_robot_action(message: str, selected_robot: str) -> bool:
     """Execute a robot action by publishing to the appropriate IoT topic"""
+    # Resolve enum to its raw string value if needed
+    selected_robot = selected_robot.value if hasattr(selected_robot, "value") else str(selected_robot)
+
     if selected_robot == "all":
         # If 'all' is selected, publish to all robots 1-7
         def publish_to_robot(robot_id):
@@ -79,6 +82,10 @@ def execute_xiaoice_speech(xiaoice_id: str, message: str, presenter_id: str = No
     
     The xiaoice Digital Human will receive the message and speak it aloud.
     """
+    # Resolve enum to its raw string value so the IoT topic is correct
+    # (e.g. "xiaoice_1" instead of "XiaoiceID.XIAOICE_1")
+    xiaoice_id_str = xiaoice_id.value if hasattr(xiaoice_id, "value") else str(xiaoice_id)
+
     payload = {
         "action": "speech",
         "message": message,
@@ -90,7 +97,7 @@ def execute_xiaoice_speech(xiaoice_id: str, message: str, presenter_id: str = No
 
     payload_json = json.dumps(payload)
 
-    if xiaoice_id == "all":
+    if xiaoice_id_str == "all":
         def publish_to_xiaoice(num):
             topic = f"xiaoice_{num}/topic"
             try:
@@ -110,7 +117,7 @@ def execute_xiaoice_speech(xiaoice_id: str, message: str, presenter_id: str = No
             futures = list(executor.map(publish_to_xiaoice, range(1, 2)))
             return all(futures)
     else:
-        topic = f"{xiaoice_id}/topic"
+        topic = f"{xiaoice_id_str}/topic"
         try:
             iot_client.publish(
                 topic=topic,
@@ -127,8 +134,10 @@ def execute_xiaoice_speech(xiaoice_id: str, message: str, presenter_id: str = No
 
 def execute_dog_action(message: Dict) -> bool:
     """Execute a dog action by publishing to the appropriate IoT topic"""
-    
+
     dog_id = message.get("dogID", "dog_1")
+    # Resolve enum to its raw string value if needed
+    dog_id = dog_id.value if hasattr(dog_id, "value") else str(dog_id)
     message_json = json.dumps(message)
 
     if dog_id == "all":

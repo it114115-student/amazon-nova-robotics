@@ -28,8 +28,6 @@ Controls the xiaoice Digital Human through the MCP server (Lambda function URL w
 # JSON output (for agent consumption)
 ./run.sh --xiaoice-id xiaoice_1 --message "Hello" --json
 
-# Custom MCP server URL
-./run.sh --xiaoice-id xiaoice_1 --message "Hello" --mcp-url https://your-lambda-url.lambda-url.us-east-1.on.aws/
 ```
 
 ## Supported Devices
