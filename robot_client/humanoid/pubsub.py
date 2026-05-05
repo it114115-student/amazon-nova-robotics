@@ -68,7 +68,8 @@ class PubSubClient:
             try:
                 payload = json.loads(publish_packet.payload)
 
-                # Handle speech action (Polly TTS audio URL)
+                # 1. Handle speech action (Polly TTS audio URL)
+                # This runs in a background thread in SpeechPlayer
                 action = payload.get("action")
                 if action == "speech" and payload.get("audio_url"):
                     audio_url = payload["audio_url"]
@@ -76,9 +77,9 @@ class PubSubClient:
                     logging.info("Speech command received: '%s' url=%s", text[:80], audio_url[:100])
                     self.speech_player.play(audio_url, text)
                     self.executor._send_to_simulator(audio_url=audio_url, text=text)
-                    return
 
-                # Handle regular robot actions
+                # 2. Handle regular robot actions
+                # This adds to a queue consumed by a background thread in ActionExecutor
                 action_name = payload.get("toolName")
                 if action_name == "capture_image":
                     upload_url = payload.get("upload_url")
@@ -88,8 +89,7 @@ class PubSubClient:
                         logging.warning("capture_image received without upload_url")
                 elif action_name:
                     self.executor.add_action_to_queue(action_name)
-                else:
-                    logging.warning("No action specified in the payload")
+
             except json.JSONDecodeError:
                 logging.error("Invalid JSON payload received")
         except Exception as e:
