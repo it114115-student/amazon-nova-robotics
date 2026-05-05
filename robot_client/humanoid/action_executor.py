@@ -262,35 +262,43 @@ class ActionExecutor:
 
     def _send_to_simulator(
         self,
-        action_name: str,
+        action_name: str = None,
+        audio_url: str = None,
+        text: str = None,
         log_success_msg: str = None,
         log_error_msg: str = None,
     ) -> Optional[Dict[str, Any]]:
         """
-        Send an action command to the robot simulator.
+        Send an action or speech command to the robot simulator.
 
         Args:
             action_name: The name of the action to execute
-            robot_id: The ID of the robot to control
-            session_key: The session key for authentication
-            simulator_base_url: The base URL of the simulator (default: http://localhost:5000)
+            audio_url: The URL of the audio file to play
+            text: The text message being spoken
             log_success_msg: Message to log on successful API call
             log_error_msg: Message to log on failed API call
 
         Returns:
             Optional response data from the simulator API call
         """
+        if not self.simulator_endpoint:
+            return None
+
+        if action_name:
+            # Action: POST /run_action/{robot_name}
+            url = f"{self.simulator_endpoint}/run_action/{self.robot_name}?session_key={self.session_key}"
+            payload = {"action": action_name}
+            msg_type = f"action {action_name}"
+        else:
+            # Speech: POST /speech/{robot_name}
+            url = f"{self.simulator_endpoint}/speech/{self.robot_name}?session_key={self.session_key}"
+            payload = {"audio_url": audio_url or "", "text": text or ""}
+            msg_type = f"speech: {text[:50]}"
 
         if log_success_msg is None:
-            log_success_msg = f"Simulator action {action_name} for robot {self.robot_name} successful."
+            log_success_msg = f"Simulator {msg_type} for robot {self.robot_name} successful."
         if log_error_msg is None:
-            log_error_msg = f"Error sending action {action_name} to simulator for robot {self.robot_name}:"
-
-        # Construct the URL in the format:
-        url = f"{self.simulator_endpoint}/run_action/{self.robot_name}?session_key={self.session_key}"
-
-        # Prepare the payload in the expected format: {"action": "bow"}
-        payload = {"action": action_name}
+            log_error_msg = f"Error sending {msg_type} to simulator for robot {self.robot_name}:"
 
         try:
             response = requests.post(

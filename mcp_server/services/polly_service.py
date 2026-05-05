@@ -52,6 +52,7 @@ def synthesize_and_upload(
         or None on failure.
     """
     voice_cfg = VOICE_MAP.get(language, VOICE_MAP[DEFAULT_LANGUAGE])
+    print(f"Synthesizing speech: '{text[:50]}' [lang={language}, voice={voice_cfg['voice_id']}, engine={voice_cfg['engine']}]")
 
     try:
         response = polly_client.synthesize_speech(
@@ -71,6 +72,7 @@ def synthesize_and_upload(
         return None
 
     audio_bytes = audio_stream.read()
+    print(f"Polly synthesis successful: {len(audio_bytes)} bytes generated")
 
     # Upload to S3
     ext = "mp3" if output_format == "mp3" else "ogg"

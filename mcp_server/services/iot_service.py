@@ -5,7 +5,7 @@ Robot service - Handles robot action execution
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Optional
+from typing import Dict
 
 import requests
 import boto3
@@ -22,24 +22,24 @@ SIMULATOR_ENDPOINT = os.getenv("SIMULATOR_ENDPOINT", "")
 
 
 def _send_to_simulator(
-    simulator_endpoint: str,
     robot_name: str,
     action_name: str = None,
     audio_url: str = None,
     text: str = None,
 ) -> bool:
     """Send an action or speech command to the 3D simulator for browser playback."""
-    if not simulator_endpoint:
+    if not SIMULATOR_ENDPOINT:
+        print("SIMULATOR_ENDPOINT not configured, skipping simulator call")
         return False
 
     try:
         if action_name is not None:
             # Robot action: POST /run_action/{robot_name}
-            url = f"https://{simulator_endpoint}/run_action/{robot_name}?session_key=mcpserver"
+            url = f"https://{SIMULATOR_ENDPOINT}/run_action/{robot_name}?session_key=mcpserver"
             payload = {"action": action_name}
         else:
             # Speech: POST /speech/{robot_name}
-            url = f"https://{simulator_endpoint}/speech/{robot_name}?session_key=mcpserver"
+            url = f"https://{SIMULATOR_ENDPOINT}/speech/{robot_name}?session_key=mcpserver"
             payload = {"audio_url": audio_url or "", "text": text or ""}
 
         resp = requests.post(
@@ -56,7 +56,7 @@ def _send_to_simulator(
         return False
 
 
-def execute_robot_action(message: str, selected_robot: str) -> bool:
+def execute_robot_action(message: str, selected_robot: str, parameters: Dict = None) -> bool:
     """Execute a robot action by publishing to the appropriate IoT topic.
 
     Also sends the action to the 3D simulator if SIMULATOR_ENDPOINT is configured.
@@ -68,6 +68,24 @@ def execute_robot_action(message: str, selected_robot: str) -> bool:
         else str(selected_robot)
     )
 
+    # Determine payload and simulator arguments
+    if message == "speech" and parameters:
+        payload = {
+            "action": "speech",
+            "audio_url": parameters.get("audio_url"),
+            "text": parameters.get("text"),
+        }
+        audio_url = parameters.get("audio_url")
+        text = parameters.get("text")
+        sim_action = None
+    else:
+        payload = {"toolName": message}
+        audio_url = None
+        text = None
+        sim_action = message
+
+    payload_json = json.dumps(payload)
+
     if selected_robot == "all":
         # If 'all' is selected, publish to all robots 1-7
         def publish_to_robot(robot_id):
@@ -78,15 +96,12 @@ def execute_robot_action(message: str, selected_robot: str) -> bool:
                     topic=topic,
                     qos=0,
                     retain=False,
-                    payload=bytes(f'{{ "toolName": "{message}" }}', "utf-8"),
+                    payload=payload_json.encode("utf-8"),
                 )
-                print(f"Published to {topic}: {message}")
+                print(f"Published to {topic}: {payload_json}")
 
                 # Send to simulator if endpoint is configured
-                if SIMULATOR_ENDPOINT:
-                    _send_to_simulator(
-                        SIMULATOR_ENDPOINT, robot_name, action_name=message
-                    )
+                _send_to_simulator(robot_name, action_name=sim_action, audio_url=audio_url, text=text)
 
                 return True
             except Exception as e:
@@ -103,15 +118,12 @@ def execute_robot_action(message: str, selected_robot: str) -> bool:
                 topic=topic,
                 qos=0,
                 retain=False,
-                payload=bytes(f'{{ "toolName": "{message}" }}', "utf-8"),
+                payload=payload_json.encode("utf-8"),
             )
-            print(f"Published to {topic}: {message}")
+            print(f"Published to {topic}: {payload_json}")
 
             # Send to simulator if endpoint is configured
-            if SIMULATOR_ENDPOINT:
-                _send_to_simulator(
-                    SIMULATOR_ENDPOINT, selected_robot, action_name=message
-                )
+            _send_to_simulator(selected_robot, action_name=sim_action, audio_url=audio_url, text=text)
 
             return True
         except Exception as e:

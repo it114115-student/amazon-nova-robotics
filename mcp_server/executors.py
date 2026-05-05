@@ -84,8 +84,12 @@ class RobotExecutor:
         if result is None:
             return {"success": False, "error": "Polly synthesis failed"}
 
-        from tools.speech_tools import _publish_speech_url
-        published = _publish_speech_url(robot_id_str, result["url"], text.strip())
+        # Use unified execute_robot_action which handles IoT publish and Simulator notification
+        published = execute_robot_action(
+            "speech",
+            robot_id_str,
+            {"audio_url": result["url"], "text": text.strip()}
+        )
 
         return {
             "success": published,

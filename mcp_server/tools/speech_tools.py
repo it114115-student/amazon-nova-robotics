@@ -8,50 +8,17 @@ so the client can play it.
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
 from models import RobotID
 from services.polly_service import synthesize_and_upload, VOICE_MAP
-from services.iot_service import iot_client
 
 import json
 
 
 def _publish_speech_url(robot_id_str: str, audio_url: str, text: str) -> bool:
-    """Publish a speech audio URL to the robot's IoT topic."""
-    payload = json.dumps({
-        "action": "speech",
-        "audio_url": audio_url,
-        "text": text,
-    })
+    """Publish a speech audio URL to the robot's IoT topic and simulator."""
+    from services.iot_service import execute_robot_action
 
-    if robot_id_str == "all":
-        from concurrent.futures import ThreadPoolExecutor
-
-        def publish_one(num):
-            topic = f"robot_{num}/topic"
-            try:
-                iot_client.publish(
-                    topic=topic, qos=0, retain=False,
-                    payload=bytes(payload, "utf-8"),
-                )
-                print(f"Published speech to {topic}")
-                return True
-            except Exception as e:
-                print(f"Error publishing speech to {topic}: {e}")
-                return False
-
-        with ThreadPoolExecutor() as executor:
-            results = list(executor.map(publish_one, range(1, 10)))
-            return all(results)
-    else:
-        topic = f"{robot_id_str}/topic"
-        try:
-            iot_client.publish(
-                topic=topic, qos=0, retain=False,
-                payload=bytes(payload, "utf-8"),
-            )
-            print(f"Published speech to {topic}")
-            return True
-        except Exception as e:
-            print(f"Error publishing speech to {topic}: {e}")
-            return False
+    return execute_robot_action(
+        "speech", robot_id_str, {"audio_url": audio_url, "text": text}
+    )
 
 
 def register_speech_tools(mcp: MCPLambdaHandler):
