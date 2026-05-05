@@ -17,6 +17,7 @@ import path = require("path");
 
 export interface LambdaMcpServerConstructProps {
   readonly database: DatabaseConstruct;
+  readonly simulatorEndpoint?: string;
 }
 
 export class LambdaMcpServerConstruct extends Construct {
@@ -74,6 +75,7 @@ export class LambdaMcpServerConstruct extends Construct {
         IMAGE_BUCKET_NAME: this.imageBucket.bucketName,
         SpeechTable: this.speechTable.tableName,
         RobotTable: props.database.robotTable.tableName,
+        SIMULATOR_ENDPOINT: props.simulatorEndpoint || "",
       },
     });
 

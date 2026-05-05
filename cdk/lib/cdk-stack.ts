@@ -19,11 +19,19 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
 
     const databaseConstruct = new DatabaseConstruct(this, "DatabaseConstruct");
 
+    // Create robot simulator first to get its URL
+    const humanoidRobotSimulatorConstruct = new RobotSimulatorConstruct(
+      this,
+      "RobotSimulatorConstruct",
+      {}
+    );
+
     const mcpServerConstruct = new LambdaMcpServerConstruct(
       this,
       "LambdaMcpServerConstruct",
       {
         database: databaseConstruct,
+        simulatorEndpoint: humanoidRobotSimulatorConstruct.serviceUrl,
       }
     );
 
@@ -67,12 +75,6 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       userPool: authenticator.userPool,
       userPoolClient: authenticator.userPoolClient,
     });
-
-    const humanoidRobotSimulatorConstruct = new RobotSimulatorConstruct(
-      this,
-      "RobotSimulatorConstruct",
-      {}
-    );
 
     const textControlWebConstruct = new TextControlWebConstruct(
       this,
