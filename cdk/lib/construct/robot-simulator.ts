@@ -4,7 +4,8 @@ import * as assets from "aws-cdk-lib/aws-ecr-assets";
 import * as apprunner from "@aws-cdk/aws-apprunner-alpha";
 import * as path from "path";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import { RemovalPolicy } from "aws-cdk-lib";
+import * as cdk from "aws-cdk-lib";
+import { RemovalPolicy, Stack } from "aws-cdk-lib";
 import { PolicyStatement, AnyPrincipal } from "aws-cdk-lib/aws-iam";
 
 export interface RobotSimulatorConstructProps {}
@@ -23,6 +24,31 @@ export class RobotSimulatorConstruct extends Construct {
     const imageAsset = new assets.DockerImageAsset(this, "ImageAssets", {
       directory: path.join(__dirname, "../../../humanoid-robot-simulator"),
     });
+
+    const websiteBucket = new s3.Bucket(this, "RobotSimulatorWebsiteBucket", {
+      websiteIndexDocument: "index.html",
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      publicReadAccess: true,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS_ONLY,
+      cors: [
+        {
+          allowedHeaders: ["*"],
+          allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+          allowedOrigins: ["*"], // You can restrict this to specific origins if needed
+          exposedHeaders: ["Date", "ETag", "x-amz-request-id"],
+          maxAge: 3000,
+        },
+      ],
+    });
+
+    websiteBucket.addToResourcePolicy(
+      new PolicyStatement({
+        actions: ["s3:GetObject"],
+        resources: [websiteBucket.arnForObjects("*")],
+        principals: [new AnyPrincipal()],
+      })
+    );
 
     const autoScalingConfiguration = new apprunner.AutoScalingConfiguration(
       this,
@@ -55,6 +81,7 @@ export class RobotSimulatorConstruct extends Construct {
             AWS_BEDROCK_REGION: "us-east-1",
             LOG_LEVEL: "INFO",
             DEBUG: "false",
+            VIDEO_BUCKET_URL: `https://${websiteBucket.bucketName}.s3.${Stack.of(this).region}.amazonaws.com/`,
           },
         },
         asset: imageAsset,
@@ -65,31 +92,6 @@ export class RobotSimulatorConstruct extends Construct {
       observabilityConfiguration,
       autoScalingConfiguration,
     });
-
-    const websiteBucket = new s3.Bucket(this, "RobotSimulatorWebsiteBucket", {
-      websiteIndexDocument: "index.html",
-      removalPolicy: RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-      publicReadAccess: true,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS_ONLY,
-      cors: [
-        {
-          allowedHeaders: ["*"],
-          allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.HEAD],
-          allowedOrigins: ["*"], // You can restrict this to specific origins if needed
-          exposedHeaders: ["Date", "ETag", "x-amz-request-id"],
-          maxAge: 3000,
-        },
-      ],
-    });
-
-    websiteBucket.addToResourcePolicy(
-      new PolicyStatement({
-        actions: ["s3:GetObject"],
-        resources: [websiteBucket.arnForObjects("*")],
-        principals: [new AnyPrincipal()],
-      })
-    );
 
     this.songWebsiteBucket = websiteBucket;
 
