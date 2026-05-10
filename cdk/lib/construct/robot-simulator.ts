@@ -12,7 +12,7 @@ export interface RobotSimulatorConstructProps {}
 
 export class RobotSimulatorConstruct extends Construct {
   public readonly serviceUrl: string;
-  songWebsiteBucket: s3.Bucket;
+  public readonly songWebsiteBucket: s3.Bucket;
 
   constructor(
     scope: Construct,
@@ -35,7 +35,7 @@ export class RobotSimulatorConstruct extends Construct {
         {
           allowedHeaders: ["*"],
           allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.HEAD],
-          allowedOrigins: ["*"], // You can restrict this to specific origins if needed
+          allowedOrigins: ["*"],
           exposedHeaders: ["Date", "ETag", "x-amz-request-id"],
           maxAge: 3000,
         },
@@ -70,8 +70,6 @@ export class RobotSimulatorConstruct extends Construct {
       }
     );
 
-    // To create a Service from local docker image asset directory built and pushed to Amazon ECR
-    // https://docs.aws.amazon.com/cdk/api/v2/docs/aws-apprunner-alpha-readme.html#ecr
     const service = new apprunner.Service(this, "AppRunnerService", {
       source: apprunner.Source.fromAsset({
         imageConfiguration: {
@@ -96,5 +94,16 @@ export class RobotSimulatorConstruct extends Construct {
     this.songWebsiteBucket = websiteBucket;
 
     this.serviceUrl = service.serviceUrl;
+
+    // Grant permission to read SSM parameters for service discovery
+    service.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/robotics/*`,
+        ],
+      })
+    );
   }
 }
+

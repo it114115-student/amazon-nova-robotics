@@ -93,25 +93,33 @@ def extract_api_gateway_auth_context():
 
 
 def require_hybrid_auth(f):
-    """Decorator that supports both session-based (web) and token-based
-    (API) authentication"""
+    """Decorator that supports session-based (web), token-based (API), and internal secret (M2M) authentication"""
+    
+    # Internal secret for service-to-service communication
+    INTERNAL_SECRET = os.getenv("INTERNAL_ROBOT_SECRET", "hktiit_robot_internal_bypass_2026")
 
     if inspect.iscoroutinefunction(f):
 
         @wraps(f)
         async def async_decorated_function(*args, **kwargs):
-            # Try session-based authentication first (for web UI)
+            # 1. Try Internal Secret (Fastest for Simulator-to-Robot communication)
+            internal_key = request.headers.get("X-Internal-Secret")
+            if internal_key == INTERNAL_SECRET:
+                g.current_user = {"username": "internal_system", "roles": ["admin"]}
+                return await f(*args, **kwargs)
+
+            # 2. Try session-based authentication first (for web UI)
             if "user" in session and session.get("authenticated"):
                 g.current_user = session["user"]
                 return await f(*args, **kwargs)
 
-            # Try API Gateway auth context
+            # 3. Try API Gateway auth context
             auth_context = extract_api_gateway_auth_context()
             if auth_context:
                 g.current_user = auth_context
                 return await f(*args, **kwargs)
 
-            # Try JWT token validation for direct API requests
+            # 4. Try JWT token validation for direct API requests
             auth_header = request.headers.get("Authorization")
             if auth_header and auth_header.startswith("Bearer "):
                 token = auth_header.split(" ")[1]
@@ -127,18 +135,24 @@ def require_hybrid_auth(f):
 
     @wraps(f)
     def sync_decorated_function(*args, **kwargs):
-        # Try session-based authentication first (for web UI)
+        # 1. Try Internal Secret (Fastest for Simulator-to-Robot communication)
+        internal_key = request.headers.get("X-Internal-Secret")
+        if internal_key == INTERNAL_SECRET:
+            g.current_user = {"username": "internal_system", "roles": ["admin"]}
+            return f(*args, **kwargs)
+
+        # 2. Try session-based authentication first (for web UI)
         if "user" in session and session.get("authenticated"):
             g.current_user = session["user"]
             return f(*args, **kwargs)
 
-        # Try API Gateway auth context
+        # 3. Try API Gateway auth context
         auth_context = extract_api_gateway_auth_context()
         if auth_context:
             g.current_user = auth_context
             return f(*args, **kwargs)
 
-        # Try JWT token validation for direct API requests
+        # 4. Try JWT token validation for direct API requests
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]

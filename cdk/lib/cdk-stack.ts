@@ -75,17 +75,16 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       userPool: authenticator.userPool,
       userPoolClient: authenticator.userPoolClient,
     });
-
-    const textControlWebConstruct = new TextControlWebConstruct(
-      this,
-      "TextControlWebConstruct",
-      {
-        database: databaseConstruct,
-        mcpServerConstruct: mcpServerConstruct,
-        userPool: authenticator.userPool,
-        userPoolClient: authenticator.userPoolClient,
-      }
-    );
+const textControlWebConstruct = new TextControlWebConstruct(
+  this,
+  "TextControlWebConstruct",
+  {
+    database: databaseConstruct,
+    mcpServerConstruct: mcpServerConstruct,
+    userPool: authenticator.userPool,
+    userPoolClient: authenticator.userPoolClient,
+  }
+);
 
     // Create shared SSM user construct
     const ssmUserConstruct = new SsmUserConstruct(this, "SsmUserConstruct", {

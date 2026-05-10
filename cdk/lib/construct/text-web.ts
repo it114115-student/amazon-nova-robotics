@@ -10,7 +10,7 @@ import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
 import { LambdaMcpServerConstruct } from "./mcp-server";
 import * as crypto from "crypto";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
-
+import * as ssm from "aws-cdk-lib/aws-ssm";
 export interface TextControlWebConstructProps {
   readonly database: DatabaseConstruct;
   readonly mcpServerConstruct: LambdaMcpServerConstruct;
@@ -37,7 +37,6 @@ export class TextControlWebConstruct extends Construct {
         throttlingBurstLimit: 200,
       },
     });
-
     const awsUserId = this.node.tryGetContext("AwsUserId") || "default-user";
     console.log("AWS User ID:", awsUserId);
     const hash = crypto.createHash("sha256").update(awsUserId).digest("hex");
@@ -205,6 +204,13 @@ export class TextControlWebConstruct extends Construct {
     new CfnOutput(this, "XiaoiceStreamingApiUrl", {
       key: "XiaoiceStreamingApiUrl",
       value: restApi.url.replace(/\/$/, ""),
+    });
+
+    // Save the API URL to SSM for Service Discovery (breaks circular dependency)
+    new ssm.StringParameter(this, "RobotApiUrlParameter", {
+      parameterName: "/robotics/robot_api_url",
+      stringValue: `${restApi.url}api/run_action/`,
+      description: "URL for the Robot Control REST API",
     });
   }
 }
