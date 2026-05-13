@@ -1,0 +1,6 @@
+# ADB configuration for direct control
+adb_ip: "192.168.137.211:5555"
+# Optional adb executable path; falls back to PATH "adb" when this path does not exist
+adb_path: "/usr/bin/adb"
+# Duration in seconds to wait between close and open
+wait_duration: 2
