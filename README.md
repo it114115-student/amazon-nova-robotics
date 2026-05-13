@@ -64,6 +64,11 @@ The system consists of several interconnected components:
    - Complete AWS infrastructure provisioning
    - Auto-scaling and monitoring configuration
 
+7. **Domain Expansion AR Game** (`domain-expansion-ar-game/`)
+   - Standalone AR experience using MediaPipe hand tracking
+   - JJK-themed gesture control for robots
+   - No WebSocket required for standalone mode
+
 ### Tech Blog
 
 [Voice-Controlled Humanoid Robots Using Amazon Nova Sonic and AWS IoT](https://community.aws/content/2vqYxQLMJ8dYsL9kJnfPj0wIps3/voice-controlled-humanoid-robots-using-amazon-nova-sonic-and-aws-iot)
@@ -236,7 +241,22 @@ Features:
 - Database-backed history
 - 2-4 second performance improvement for simple commands
 
-### 4. Physical Robot Deployment
+### 4. Domain Expansion AR Game
+
+Interactive hand-gesture control system:
+
+- **Live Demo**: [Play Now](https://wongcyrus.github.io/domain-expansion-ar-game/)
+- **Setup**: Open `domain-expansion-ar-game/index.html` in a web browser.
+- **Local Testing**: Run `python3 serve_https.py` in the directory for mobile testing.
+
+Features:
+
+- Real-time 21-point hand tracking via MediaPipe
+- JJK-themed visual effects (Unlimited Void, Hollow Purple, etc.)
+- Direct REST API communication with robots
+- Interactive "Energy Ball" finger tracking
+
+### 5. Physical Robot Deployment
 
 For physical robot hardware:
 
@@ -348,6 +368,13 @@ Each component supports session-based interaction with authentication:
 - **Performance**: 2-4 second speedup for simple commands, 5x faster multi-robot execution
 - **Commands**: 43+ robot commands automatically extracted from MCP server
 - **Deployment**: AWS Lambda with API Gateway
+
+### Domain Expansion AR Game
+
+- **Technology**: Vanilla JavaScript, MediaPipe, Canvas API
+- **Features**: Real-time hand tracking, cinematic JJK VFX, bilingual UI (EN/ZH)
+- **Controls**: 8+ Domain Expansions and 3+ hand techniques
+- **Deployment**: Standalone static site, GitHub Pages ready
 
 ### Robot Client
 
