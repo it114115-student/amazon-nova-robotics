@@ -88,7 +88,11 @@ class RobotExecutor:
         published = execute_robot_action(
             "speech",
             robot_id_str,
-            {"audio_url": result["url"], "text": text.strip()}
+            {
+                "audio_url": result["url"],
+                "text": text.strip(),
+                "duration": result["duration"],
+            },
         )
 
         return {
@@ -96,6 +100,7 @@ class RobotExecutor:
             "url": result["url"],
             "voice_id": result["voice_id"],
             "language": language,
+            "duration": result["duration"],
         }
 
 

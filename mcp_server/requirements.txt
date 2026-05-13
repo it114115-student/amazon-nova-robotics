@@ -1,3 +1,5 @@
 awslabs.mcp-lambda-handler
 pydantic
 requests
+mutagen
+boto3

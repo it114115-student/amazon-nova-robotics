@@ -12,12 +12,14 @@ from services.polly_service import synthesize_and_upload, VOICE_MAP
 import json
 
 
-def _publish_speech_url(robot_id_str: str, audio_url: str, text: str) -> bool:
+def _publish_speech_url(robot_id_str: str, audio_url: str, text: str, duration: float = 0.0) -> bool:
     """Publish a speech audio URL to the robot's IoT topic and simulator."""
     from services.iot_service import execute_robot_action
 
     return execute_robot_action(
-        "speech", robot_id_str, {"audio_url": audio_url, "text": text}
+        "speech",
+        robot_id_str,
+        {"audio_url": audio_url, "text": text, "duration": duration},
     )
 
 
@@ -62,18 +64,19 @@ def register_speech_tools(mcp: MCPLambdaHandler):
             return f"Failed to synthesize speech for robot ({robot_id_str})."
 
         audio_url = result["url"]
+        duration = result["duration"]
 
         # 2. Publish the presigned URL to IoT
-        published = _publish_speech_url(robot_id_str, audio_url, text.strip())
+        published = _publish_speech_url(robot_id_str, audio_url, text.strip(), duration)
 
         if published:
             return (
                 f'Robot ({robot_id_str}) is speaking: "{text.strip()}" '
-                f'[lang={language}, voice={result["voice_id"]}] '
+                f'[lang={language}, voice={result["voice_id"]}, duration={duration:.2f}s] '
                 f"audio_url={audio_url}"
             )
         else:
             return (
                 f"Speech synthesized but failed to publish to IoT for robot ({robot_id_str}). "
-                f"audio_url={audio_url}"
+                f"audio_url={audio_url}, duration={duration:.2f}s"
             )

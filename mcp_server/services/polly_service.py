@@ -3,11 +3,14 @@ Polly speech service - Synthesizes speech with Amazon Polly, uploads to S3,
 and returns a presigned URL for playback.
 """
 
+import io
 import os
 import uuid
 
 import boto3
 from botocore.config import Config
+from mutagen.mp3 import MP3
+from mutagen.oggvorbis import OggVorbis
 
 IMAGE_BUCKET_NAME = os.environ.get("IMAGE_BUCKET_NAME", "")
 PRESIGNED_URL_EXPIRY = 600  # 10 minutes
@@ -48,7 +51,7 @@ def synthesize_and_upload(
         output_format: Audio format (mp3 or ogg_vorbis).
 
     Returns:
-        dict with keys: url, object_key, language, voice_id, duration_hint
+        dict with keys: url, object_key, language, voice_id, duration
         or None on failure.
     """
     voice_cfg = VOICE_MAP.get(language, VOICE_MAP[DEFAULT_LANGUAGE])
@@ -73,6 +76,18 @@ def synthesize_and_upload(
 
     audio_bytes = audio_stream.read()
     print(f"Polly synthesis successful: {len(audio_bytes)} bytes generated")
+
+    # Calculate duration
+    duration = 0.0
+    try:
+        if output_format == "mp3":
+            audio = MP3(io.BytesIO(audio_bytes))
+            duration = audio.info.length
+        elif output_format == "ogg_vorbis":
+            audio = OggVorbis(io.BytesIO(audio_bytes))
+            duration = audio.info.length
+    except Exception as e:
+        print(f"Failed to calculate duration: {e}")
 
     # Upload to S3
     ext = "mp3" if output_format == "mp3" else "ogg"
@@ -106,4 +121,5 @@ def synthesize_and_upload(
         "object_key": object_key,
         "language": language,
         "voice_id": voice_cfg["voice_id"],
+        "duration": duration,
     }

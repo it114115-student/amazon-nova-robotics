@@ -26,6 +26,7 @@ def _send_to_simulator(
     action_name: str = None,
     audio_url: str = None,
     text: str = None,
+    duration: float = 0.0,
 ) -> bool:
     """Send an action or speech command to the 3D simulator for browser playback."""
     if not SIMULATOR_ENDPOINT:
@@ -40,7 +41,11 @@ def _send_to_simulator(
         else:
             # Speech: POST /speech/{robot_name}
             url = f"https://{SIMULATOR_ENDPOINT}/speech/{robot_name}?session_key=mcpserver"
-            payload = {"audio_url": audio_url or "", "text": text or ""}
+            payload = {
+                "audio_url": audio_url or "",
+                "text": text or "",
+                "duration": duration,
+            }
 
         resp = requests.post(
             url,
@@ -74,14 +79,17 @@ def execute_robot_action(message: str, selected_robot: str, parameters: Dict = N
             "action": "speech",
             "audio_url": parameters.get("audio_url"),
             "text": parameters.get("text"),
+            "duration": parameters.get("duration", 0.0),
         }
         audio_url = parameters.get("audio_url")
         text = parameters.get("text")
+        duration = parameters.get("duration", 0.0)
         sim_action = None
     else:
         payload = {"toolName": message}
         audio_url = None
         text = None
+        duration = 0.0
         sim_action = message
 
     payload_json = json.dumps(payload)
@@ -101,7 +109,13 @@ def execute_robot_action(message: str, selected_robot: str, parameters: Dict = N
                 print(f"Published to {topic}: {payload_json}")
 
                 # Send to simulator if endpoint is configured
-                _send_to_simulator(robot_name, action_name=sim_action, audio_url=audio_url, text=text)
+                _send_to_simulator(
+                    robot_name,
+                    action_name=sim_action,
+                    audio_url=audio_url,
+                    text=text,
+                    duration=duration,
+                )
 
                 return True
             except Exception as e:
@@ -123,7 +137,13 @@ def execute_robot_action(message: str, selected_robot: str, parameters: Dict = N
             print(f"Published to {topic}: {payload_json}")
 
             # Send to simulator if endpoint is configured
-            _send_to_simulator(selected_robot, action_name=sim_action, audio_url=audio_url, text=text)
+            _send_to_simulator(
+                selected_robot,
+                action_name=sim_action,
+                audio_url=audio_url,
+                text=text,
+                duration=duration,
+            )
 
             return True
         except Exception as e:
