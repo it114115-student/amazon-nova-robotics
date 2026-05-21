@@ -238,7 +238,6 @@ def main():
   %(prog)s --list-actions
 """,
     )
-    parser.add_argument("--profile", default="skill-profile", help="AWS CLI profile name")
     parser.add_argument("--robot-id", help="Robot ID (e.g. robot_1)")
     parser.add_argument("--action", help="Single action to execute")
     parser.add_argument("--sequence", help="Comma-separated list of actions to execute in order")
@@ -272,7 +271,7 @@ def main():
         logger.error("--mcp-url or MCP_SERVER_URL env var is required")
         sys.exit(1)
 
-    session = boto3.Session(profile_name=args.profile, region_name=args.region)
+    session = boto3.Session(region_name=args.region)
     auth = AWSSigV4("lambda", session=session)
 
     robot_id = args.robot_id
