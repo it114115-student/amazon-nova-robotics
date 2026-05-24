@@ -32,6 +32,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger("robot_voice_agent")
 
+# Filter out continuous AWS AgentCore health check logs (GET /ping) to keep agent logs clean
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Uvicorn access logs contain request arguments where arg[2] is the URL path
+        if record.args and len(record.args) >= 3:
+            path = record.args[2]
+            if path == "/ping" or path == "/":
+                return False
+        return True
+
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 # Context variable for current WebSocket's selected robots list
 selected_robots_var = contextvars.ContextVar("selected_robots", default=["all"])
 
@@ -122,6 +134,8 @@ def generate_dynamic_prompt(robots: list) -> str:
 async def lifespan(_app: FastAPI):
     """Manage application startup and shutdown hooks."""
     logger.info("🤖 Robot Voice Control AgentCore Service starting up...")
+    # Add the endpoint filter after Uvicorn startup to prevent logger override
+    logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
     yield
     logger.info("🤖 Robot Voice Control AgentCore Service shutting down...")
 

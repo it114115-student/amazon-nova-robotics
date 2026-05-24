@@ -5,21 +5,20 @@ import json
 import os
 import time
 import logging
-import boto3
-
 from constants import HumanoidAction, DEFAULT_ROBOTS, ACTION_DURATIONS
 from session_utils import decrypt, send_request
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# DynamoDB Clients
-dynamodb = boto3.resource('dynamodb')
+# Global Placeholders for Lazy Loading
+boto3 = None
+dynamodb = None
+connections_table = None
+sessions_table = None
+
 CONNECTIONS_TABLE_NAME = os.environ.get('CONNECTIONS_TABLE', 'RobotSimulatorConnections')
 SESSIONS_TABLE_NAME = os.environ.get('SESSIONS_TABLE', 'RobotSimulatorSessions')
-
-connections_table = dynamodb.Table(CONNECTIONS_TABLE_NAME)
-sessions_table = dynamodb.Table(SESSIONS_TABLE_NAME)
 
 # --- DynamoDB State & Connections Persistence ---
 
@@ -748,6 +747,14 @@ def handle_websocket_event(event, connection_id):
 
 def lambda_handler(event, context):
     """Entry point for both HTTP and WebSocket integrations"""
+    global boto3, dynamodb, connections_table, sessions_table
+    if boto3 is None:
+        import boto3 as _boto3
+        boto3 = _boto3
+        dynamodb = boto3.resource('dynamodb')
+        connections_table = dynamodb.Table(CONNECTIONS_TABLE_NAME)
+        sessions_table = dynamodb.Table(SESSIONS_TABLE_NAME)
+
     try:
         request_context = event.get('requestContext', {})
         connection_id = request_context.get('connectionId')

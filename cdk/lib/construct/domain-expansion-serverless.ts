@@ -7,28 +7,75 @@ import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2";
+import * as agentcore from "@aws-cdk/aws-bedrock-agentcore-alpha";
 import { Table, AttributeType, BillingMode, ProjectionType } from "aws-cdk-lib/aws-dynamodb";
 import { Runtime, LoggingFormat, SystemLogLevel, ApplicationLogLevel } from "aws-cdk-lib/aws-lambda";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
+import { Platform } from "aws-cdk-lib/aws-ecr-assets";
 import { Duration, Stack, RemovalPolicy } from "aws-cdk-lib";
+import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
+import { DatabaseConstruct } from "./datebase";
+import { RobotSimulatorServerlessConstruct } from "./robot-simulator-serverless";
 import * as logs from "aws-cdk-lib/aws-logs";
 
-export interface RobotSimulatorServerlessConstructProps {}
+export interface DomainExpansionServerlessConstructProps {
+  readonly database: DatabaseConstruct;
+  readonly robotSimulatorServerlessConstruct: RobotSimulatorServerlessConstruct;
+  readonly userPool: UserPool;
+  readonly userPoolClient: UserPoolClient;
+}
 
-export class RobotSimulatorServerlessConstruct extends Construct {
+export class DomainExpansionServerlessConstruct extends Construct {
   public readonly serviceUrl: string;
   public readonly webSocketUrl: string;
   public readonly websiteBucket: s3.Bucket;
+  public readonly runtimeArn: string;
 
   constructor(
     scope: Construct,
     id: string,
-    props: RobotSimulatorServerlessConstructProps = {}
+    props: DomainExpansionServerlessConstructProps
   ) {
     super(scope, id);
 
-    // 1. Static Website S3 Bucket
-    this.websiteBucket = new s3.Bucket(this, "RobotSimulatorServerlessWebsiteBucket", {
+    // 1. Pack and deploy JJK Commentator container as a dedicated Bedrock AgentCore Runtime
+    const agentRuntimeArtifact = agentcore.AgentRuntimeArtifact.fromAsset(
+      path.join(__dirname, "../../../domain-expansion-commentator-agentcore"),
+      {
+        platform: Platform.LINUX_ARM64,
+      }
+    );
+
+    const runtime = new agentcore.Runtime(this, "Runtime", {
+      runtimeName: "domain_commentator_agentcore",
+      agentRuntimeArtifact: agentRuntimeArtifact,
+      authorizerConfiguration: agentcore.RuntimeAuthorizerConfiguration.usingIAM(),
+      environmentVariables: {
+        IsInCloud: "yes",
+        AWS_BEDROCK_REGION: "us-east-1",
+        BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0",
+      },
+    });
+
+    this.runtimeArn = runtime.agentRuntimeArn;
+
+    // Grant access to Bedrock models to the AgentCore execution role
+    runtime.role.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+        ],
+        resources: [
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-pro-v1:0",
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0",
+        ],
+      })
+    );
+
+    // 2. Serverless S3 Website Bucket
+    this.websiteBucket = new s3.Bucket(this, "DomainExpansionWebsiteBucket", {
       websiteIndexDocument: "index.html",
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
@@ -53,28 +100,30 @@ export class RobotSimulatorServerlessConstruct extends Construct {
       })
     );
 
-    // 2. DynamoDB Connection & Session State Tables
+    // 3. DynamoDB Connection & Session State Tables
     const connectionsTable = new Table(this, "ConnectionsTable", {
+      tableName: "DomainExpansionConnections",
       partitionKey: { name: "connection_id", type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
     connectionsTable.addGlobalSecondaryIndex({
-      indexName: "SessionKeyIndex",
-      partitionKey: { name: "session_key", type: AttributeType.STRING },
+      indexName: "RoomCodeIndex",
+      partitionKey: { name: "room_code", type: AttributeType.STRING },
       projectionType: ProjectionType.ALL,
     });
 
     const sessionsTable = new Table(this, "SessionsTable", {
-      partitionKey: { name: "session_key", type: AttributeType.STRING },
+      tableName: "DomainExpansionSessions",
+      partitionKey: { name: "session_id", type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
-    // 3. Monolithic Python Lambda Router
+    // 4. Monolithic Python Lambda Backend Router
     const lambdaFunction = new PythonFunction(this, "LambdaFunction", {
-      entry: path.join(__dirname, "../../../humanoid-robot-simulator-serverless/backend"),
+      entry: path.join(__dirname, "../../../domain-expansion-ar-game-serverless/backend"),
       index: "lambda_function.py",
       handler: "lambda_handler",
       runtime: Runtime.PYTHON_3_12,
@@ -92,6 +141,10 @@ export class RobotSimulatorServerlessConstruct extends Construct {
         AWS_BEDROCK_REGION: "us-east-1",
         CONNECTIONS_TABLE: connectionsTable.tableName,
         SESSIONS_TABLE: sessionsTable.tableName,
+        AGENT_TYPE: "agentcore_runtime",
+        AGENTCORE_RUNTIME_ARN: runtime.agentRuntimeArn,
+        BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0",
+        BEDROCK_REGION: Stack.of(this).region,
       },
     });
 
@@ -99,20 +152,40 @@ export class RobotSimulatorServerlessConstruct extends Construct {
     connectionsTable.grantReadWriteData(lambdaFunction);
     sessionsTable.grantReadWriteData(lambdaFunction);
 
-    // Grant permission to read SSM parameters for service discovery
+    // Grant Bedrock Model invocation access to Lambda (for Strands Local commentary fallback)
     lambdaFunction.addToRolePolicy(
       new iam.PolicyStatement({
-        actions: ["ssm:GetParameter"],
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+        ],
         resources: [
-          `arn:aws:ssm:${Stack.of(this).region}:${Stack.of(this).account}:parameter/robotics/*`,
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-pro-v1:0",
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0",
         ],
       })
     );
 
-    // 4. API Gateway REST API for HTTP endpoints
-    const restApi = new apigateway.RestApi(this, "RobotSimulatorRestApi", {
-      restApiName: "Robot Simulator Serverless REST API",
-      description: "REST API for Humanoid Robot Simulator",
+    // Grant Bedrock AgentCore invocation permission to Lambda
+    lambdaFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "bedrock-agentcore:InvokeAgentRuntime",
+          "bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream",
+        ],
+        resources: [
+          runtime.agentRuntimeArn,
+          `${runtime.agentRuntimeArn}/*`,
+        ],
+      })
+    );
+
+    // 5. API Gateway REST API for HTTP endpoints (/api/*)
+    const restApi = new apigateway.RestApi(this, "DomainExpansionRestApi", {
+      restApiName: "Domain Expansion Serverless REST API",
+      description: "REST API for JJK Domain Expansion AR Game TEST CHANGE",
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
@@ -124,9 +197,9 @@ export class RobotSimulatorServerlessConstruct extends Construct {
       defaultIntegration: lambdaIntegration,
     });
 
-    // 5. API Gateway WebSocket API using Stable L1 Construct
-    const webSocketApi = new apigatewayv2.CfnApi(this, "RobotSimulatorWebSocketApi", {
-      name: "RobotSimulatorWebSocketApi",
+    // 6. API Gateway WebSocket API for real-time signaling
+    const webSocketApi = new apigatewayv2.CfnApi(this, "DomainExpansionWebSocketApi", {
+      name: "DomainExpansionWebSocketApi",
       protocolType: "WEBSOCKET",
       routeSelectionExpression: "$request.body.action",
     });
@@ -192,13 +265,13 @@ export class RobotSimulatorServerlessConstruct extends Construct {
       `https://${webSocketApi.ref}.execute-api.${Stack.of(this).region}.amazonaws.com/${stage.stageName}`
     );
 
-    // 6. Cost-Efficient CloudFront Distribution (Price Class 100)
+    // 7. Cost-Efficient CloudFront Distribution (Price Class 100)
     const oai = new cloudfront.OriginAccessIdentity(this, "OAI");
     this.websiteBucket.grantRead(oai);
 
-    const distribution = new cloudfront.Distribution(this, "SimulatorDistribution", {
+    const distribution = new cloudfront.Distribution(this, "GameDistribution", {
       defaultRootObject: "index.html",
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // Strictly Price Class 100 to maximize cost efficiency
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessIdentity(this.websiteBucket, { originAccessIdentity: oai }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -220,7 +293,6 @@ export class RobotSimulatorServerlessConstruct extends Construct {
     };
 
     distribution.addBehavior("/api/*", apiOrigin, dynamicApiBehavior);
-    distribution.addBehavior("/run_action/*", apiOrigin, dynamicApiBehavior);
     distribution.addBehavior("/health", apiOrigin, dynamicApiBehavior);
 
     // WebSocket routing behavior to bridge client-side relative ws requests to serverless API Gateway
@@ -241,14 +313,43 @@ export class RobotSimulatorServerlessConstruct extends Construct {
 
     distribution.addBehavior("/ws", wsOrigin, wsBehavior);
 
-    // 7. Auto-deploy and cache-invalidate Static S3 Frontend assets (excluding large video assets)
-    new s3deploy.BucketDeployment(this, "DeployWebsite", {
+    // 8. Auto-deploy and cache-invalidate Static S3 Frontend assets and dynamic config.json
+    new s3deploy.BucketDeployment(this, "DeployGameAssetsAndConfig", {
       sources: [
-        s3deploy.Source.asset(path.join(__dirname, "../../../humanoid-robot-simulator-serverless/frontend"), {
-          exclude: ["video/*"],
+        s3deploy.Source.asset(path.join(__dirname, "../../../domain-expansion-ar-game"), {
+          exclude: [
+            "node_modules",
+            "node_modules/**",
+            "node_modules/*",
+            ".git",
+            ".git/**",
+            "docs",
+            "docs/**",
+            "server.js",
+            "clean_sessions.js",
+            "Dockerfile",
+            "docker-compose.yml",
+            "package.json",
+            "package-lock.json",
+            "cert.pem",
+            "key.pem",
+            "deploy.sh",
+            "undeploy.sh",
+            ".antigravitycli",
+            ".antigravitycli/**",
+            "static/video",
+            "static/video/**",
+            "static/video/*"
+          ],
         }),
         s3deploy.Source.jsonData("config.json", {
+          isServerless: true,
           webSocketUrl: `wss://${webSocketApi.ref}.execute-api.${Stack.of(this).region}.amazonaws.com/${stage.stageName}`,
+          robotApiEndpoint: "https://" + props.robotSimulatorServerlessConstruct.serviceUrl,
+          defaultSessionKey: "main",
+          cognitoUserPoolId: props.userPool.userPoolId,
+          cognitoUserPoolClientId: props.userPoolClient.userPoolClientId,
+          cognitoRegion: Stack.of(this).region,
         }),
       ],
       destinationBucket: this.websiteBucket,

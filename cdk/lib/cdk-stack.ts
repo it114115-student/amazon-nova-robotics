@@ -11,6 +11,7 @@ import { LambdaMcpServerConstruct } from "./construct/mcp-server";
 import { RobotSimulatorConstruct } from "./construct/robot-simulator";
 import { RobotSimulatorServerlessConstruct } from "./construct/robot-simulator-serverless";
 import { Authenticator } from "./construct/authenticator";
+import { DomainExpansionServerlessConstruct } from "./construct/domain-expansion-serverless";
 
 export class AmazonNovaRoboticCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -159,6 +160,37 @@ const textControlWebConstruct = new TextControlWebConstruct(
       prefix: "dog",
       thingNames: ssmDogNames,
       ssmUserConstruct: ssmUserConstruct,
+    });
+
+    const domainExpansionServerlessConstruct = new DomainExpansionServerlessConstruct(
+      this,
+      "DomainExpansionServerlessConstruct",
+      {
+        database: databaseConstruct,
+        robotSimulatorServerlessConstruct: humanoidRobotSimulatorServerlessConstruct,
+        userPool: authenticator.userPool,
+        userPoolClient: authenticator.userPoolClient,
+      }
+    );
+
+    new cdk.CfnOutput(this, "domainExpansionServerlessUrl", {
+      description: "The URL of the Domain Expansion AR Game S3/CloudFront (Serverless)",
+      value: "https://" + domainExpansionServerlessConstruct.serviceUrl,
+    });
+
+    new cdk.CfnOutput(this, "domainExpansionServerlessWebSocketUrl", {
+      description: "The WebSocket URL for Domain Expansion signaling",
+      value: domainExpansionServerlessConstruct.webSocketUrl,
+    });
+
+    new cdk.CfnOutput(this, "domainExpansionCommentatorRuntimeArn", {
+      description: "The ARN of the JJK Commentator Bedrock AgentCore Runtime",
+      value: domainExpansionServerlessConstruct.runtimeArn,
+    });
+
+    new cdk.CfnOutput(this, "DomainExpansionWebsiteBucket", {
+      description: "The S3 Website Bucket Name for JJK Domain Expansion",
+      value: domainExpansionServerlessConstruct.websiteBucket.bucketName,
     });
 
     new cdk.CfnOutput(this, "speechAgentcoreUrl", {

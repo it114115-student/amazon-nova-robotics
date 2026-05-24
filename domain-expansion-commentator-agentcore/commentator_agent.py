@@ -1,0 +1,158 @@
+import os
+import logging
+from pathlib import Path
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import uvicorn
+import boto3
+
+# Configure Logger
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger("jjk_commentator_agentcore")
+
+# Filter out continuous AWS AgentCore health check logs (GET /ping) to keep agent logs clean
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Uvicorn access logs contain request arguments where arg[2] is the URL path
+        if record.args and len(record.args) >= 3:
+            path = record.args[2]
+            if path == "/ping" or path == "/":
+                return False
+        return True
+
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
+# Env Variables
+BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
+AWS_BEDROCK_REGION = os.environ.get("AWS_BEDROCK_REGION", "us-east-1")
+
+# Helper to load system prompts
+def load_system_prompt() -> str:
+    identity_path = Path(__file__).parent / "prompts" / "IDENTITY.md"
+    soul_path = Path(__file__).parent / "prompts" / "SOUL.md"
+    
+    identity = ""
+    soul = ""
+    
+    if identity_path.exists():
+        with open(identity_path, "r", encoding="utf-8") as f:
+            identity = f.read()
+    else:
+        identity = """# Character Identity: Kugisaki Nobara (钉崎野蔷薇)
+- Role: High-energy JJK match commentator.
+- Personality: Feisty, extremely confident, slightly arrogant, styling, fashion-loving, and deeply competitive.
+- Language: High-octane, sassy, blending English & Chinese naturally. Use JJK terms (Domain Expansion, cursed techniques, Black Flash).
+- Tone: Dynamic, energetic, hyping up technique executions! Keep each output to 2-3 short, punchy sentences max!"""
+
+    if soul_path.exists():
+        with open(soul_path, "r", encoding="utf-8") as f:
+            soul = f.read()
+    else:
+        soul = """# Commentary Guidelines
+- Deliver commentary directly to the player, trash-talking their mistakes or screaming with excitement at a high score.
+- Incorporate specific sorcerer profiles like Fushiguro Megumi, Gojo Satoru, or Nue Cursed birds depending on commands.
+- Never use robotic placeholders, speak with absolute passion and raw sorcerer attitude."""
+
+    return f"{identity}\n\n{soul}"
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing JJK Commentator AgentCore container lifespan...")
+    # Add the endpoint filter after Uvicorn startup to prevent logger override
+    logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+    # Pre-compile system prompt to verify paths
+    prompt = load_system_prompt()
+    logger.info(f"Loaded JJK system prompt successfully (length: {len(prompt)})")
+    yield
+    logger.info("Shutting down JJK Commentator AgentCore container...")
+
+app = FastAPI(
+    title="JJK Commentator AgentCore Service",
+    description="Python Strands-Agents Microservice for Serverless Domain Expansion Match Commentary",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+@app.get("/ping")
+async def health_check():
+    """Health check endpoint required by AWS AgentCore runtime."""
+    return JSONResponse(
+        content={"status": "healthy", "service": "jjk-commentator-agentcore"},
+        status_code=200,
+    )
+
+@app.post("/invocations")
+@app.post("/invoke")
+@app.post("/")
+async def invoke_agent(request: Request):
+    """Handles commentary requests from the AWS serverless Lambda gateway."""
+    try:
+        body = await request.json()
+        prompt_text = body.get("prompt", "")
+        session_id = body.get("session_id", "main")
+        
+        if not prompt_text:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Prompt field is required."}
+            )
+
+        logger.info(f"Agent invoked with prompt length: {len(prompt_text)} for session: {session_id}")
+
+        # Initialize Strands Agent
+        from strands import Agent
+        from strands.models import BedrockModel
+
+        system_prompt = load_system_prompt()
+        model = BedrockModel(
+            model_id=BEDROCK_MODEL_ID,
+            region_name=AWS_BEDROCK_REGION,
+            temperature=0.8
+        )
+        agent = Agent(
+            model=model,
+            system_prompt=system_prompt
+        )
+
+        image_b64 = body.get("image", "")
+        image_format = body.get("image_format", "jpeg")
+
+        if image_b64:
+            import base64
+            img_bytes = base64.b64decode(image_b64)
+            # Create standard Bedrock multimodal content structure
+            message_content = [
+                {"text": prompt_text},
+                {
+                    "image": {
+                        "format": image_format,
+                        "source": {"bytes": img_bytes}
+                    }
+                }
+            ]
+            logger.info(f"Executing multimodal agent invocation with image size: {len(img_bytes)} bytes")
+            response = await agent.invoke_async(message_content)
+        else:
+            response = await agent.invoke_async(prompt_text)
+
+        response_text = str(response)
+
+        logger.info(f"Commentary generated successfully: {response_text}")
+
+        return JSONResponse(
+            content={"response": response_text},
+            status_code=200
+        )
+    except Exception as e:
+        logger.error(f"Error executing Strands agent invocation: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+if __name__ == "__main__":
+    uvicorn.run("commentator_agent:app", host="0.0.0.0", port=8080, log_level="info")
