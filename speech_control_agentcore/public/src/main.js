@@ -106,13 +106,17 @@ class NativeSocketEmulator {
                 const path = `/runtimes/${encodedArn}/ws`;
                 const voiceId = getQueryParams().voice_id || 'tiffany';
 
+                // Get current selection to initialize prompt on connection start
+                const selectedRobots = getSelectedRobots();
+                const robotsParam = selectedRobots.length > 0 ? selectedRobots.join(',') : 'all';
+
                 const request = new HttpRequest({
                     method: 'GET',
                     protocol: 'https:',
                     hostname: host,
                     path: path,
                     headers: { host },
-                    query: { voice_id: voiceId },
+                    query: { voice_id: voiceId, robots: robotsParam },
                 });
 
                 const signer = new SignatureV4({
@@ -290,6 +294,7 @@ let SYSTEM_PROMPT = "You are a friend. The user and you will engage in a spoken 
 // Helper to get all selected robots as an array
 function getSelectedRobots() {
     const selected = Array.from(robotSelect.selectedOptions).map(opt => opt.value);
+    
     if (selected.includes('all')) {
         return [
             "robot_1", "robot_2", "robot_3", "robot_4", "robot_5", "robot_6",
@@ -298,23 +303,31 @@ function getSelectedRobots() {
             "xiaoice_1"
         ];
     }
-    return selected.filter(val => val !== '');
+    
+    let result = new Set();
+    
+    if (selected.includes('all_robots')) {
+        for (let i = 1; i <= 6; i++) result.add(`robot_${i}`);
+    }
+    if (selected.includes('all_drones')) {
+        for (let i = 1; i <= 2; i++) result.add(`drone_${i}`);
+    }
+    if (selected.includes('all_dogs')) {
+        for (let i = 1; i <= 3; i++) result.add(`dog_${i}`);
+    }
+    
+    selected.forEach(val => {
+        if (!['all', 'all_robots', 'all_drones', 'all_dogs'].includes(val)) {
+            result.add(val);
+        }
+    });
+    
+    return Array.from(result).filter(val => val !== '');
 }
 
 // Add event listener for robot selection (for debug/logging)
 robotSelect.addEventListener('change', (event) => {
-    const rawSelected = Array.from(robotSelect.selectedOptions).map(opt => opt.value);
-    // If 'all' is selected, deselect all others
-    if (rawSelected.includes('all')) {
-        Array.from(robotSelect.options).forEach(opt => {
-            if (opt.value !== 'all') opt.selected = false;
-        });
-    } else {
-        // If any other is selected, deselect 'all'
-        const allOpt = Array.from(robotSelect.options).find(opt => opt.value === 'all');
-        if (allOpt) allOpt.selected = false;
-    }
-    console.log(`Selected robots: ${getSelectedRobots().join(', ')}`);
+    console.log(`Selected robots updated: ${getSelectedRobots().join(', ')}`);
 });
 
 // Initialize WebSocket audio

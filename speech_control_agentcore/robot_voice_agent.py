@@ -231,20 +231,35 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     logger.info("WebSocket connection established via Bedrock AgentCore IAM.")
 
-    # Parse parameters (voice selection)
+    # Parse voice selection
     voice_id = websocket.query_params.get("voice_id", "tiffany")
-    logger.info(f"Session Configuration - Voice: {voice_id}, Region: {AWS_BEDROCK_REGION}")
 
-    # Set default session state
-    selected_robots_var.set(["all"])
+    # 1. Read the very first message synchronously to capture the initial selected robot list!
+    first_message = None
+    try:
+        first_message = await websocket.receive_json()
+        if first_message.get("type") == "robot":
+            robots = first_message.get("robots", ["all"])
+            if not isinstance(robots, list):
+                robots = [robots]
+            logger.info(f"Handshake - Initial selected robots: {robots}")
+        else:
+            robots = ["all"]
+            logger.warning(f"Handshake - Unexpected initial event: {first_message.get('type')}. Defaulting to all.")
+    except Exception as e:
+        logger.error(f"Handshake - Failed to read initial selection: {e}")
+        robots = ["all"]
+
+    # Set active session state
+    selected_robots_var.set(robots)
 
     try:
-        # Load robotic prompt & tools
-        system_prompt = load_system_prompt()
+        # 2. Compile dynamic system prompt and load tools
+        system_prompt = generate_dynamic_prompt(robots)
         tools = get_all_tools()
-        logger.info(f"Loaded {len(tools)} tools for Robot Command Interface.")
+        logger.info(f"Loaded {len(tools)} tools. Initial system prompt compiled for: {robots}")
 
-        # Instantiate BidiNovaSonicModel targeting the official AWS Model ID
+        # 3. Instantiate model targeting official AWS Model ID
         model = BidiNovaSonicModel(
             region=AWS_BEDROCK_REGION,
             model_id="amazon.nova-2-sonic-v1:0",
@@ -258,7 +273,7 @@ async def websocket_endpoint(websocket: WebSocket):
             tools=tools,
         )
 
-        # Initialize the BidiAgent
+        # 4. Initialize the BidiAgent with the CORRECT, dynamically adjusted, purged system prompt from second zero!
         agent = BidiAgent(
             model=model,
             tools=tools,
@@ -268,15 +283,21 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # Converter function to map incoming websocket JSON payloads into Strands Events
         async def receive_and_convert():
+            nonlocal first_message
             while True:
-                try:
-                    data = await websocket.receive_json()
-                except WebSocketDisconnect:
-                    logger.info("WebSocket client disconnected abruptly.")
-                    raise
-                except Exception as ex:
-                    logger.error(f"Error receiving websocket JSON: {ex}")
-                    raise
+                # If we have a cached first message from connection start, process it first!
+                if first_message is not None:
+                    data = first_message
+                    first_message = None  # Consume it
+                else:
+                    try:
+                        data = await websocket.receive_json()
+                    except WebSocketDisconnect:
+                        logger.info("WebSocket client disconnected abruptly.")
+                        raise
+                    except Exception as ex:
+                        logger.error(f"Error receiving websocket JSON: {ex}")
+                        raise
 
                 event_type = data.get("type")
                 if not event_type:
@@ -284,24 +305,24 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 logger.info(f"Inbound client event: {event_type}")
 
-                # Update selected robot state
+                # Update selected robot state (mid-session)
                 if event_type == "robot":
-                    robots = data.get("robots", ["all"])
-                    if not isinstance(robots, list):
-                        robots = [robots]
-                    selected_robots_var.set(robots)
-                    logger.info(f"Selected robots updated to: {robots}")
+                    robots_val = data.get("robots", ["all"])
+                    if not isinstance(robots_val, list):
+                        robots_val = [robots_val]
+                    selected_robots_var.set(robots_val)
+                    logger.info(f"Selected robots updated mid-session to: {robots_val}")
                     
                     # Dynamically adjust the system prompt on the active BidiAgent instance
                     try:
-                        dynamic_prompt = generate_dynamic_prompt(robots)
+                        dynamic_prompt = generate_dynamic_prompt(robots_val)
                         agent.system_prompt = dynamic_prompt
-                        logger.info(f"System prompt dynamically updated for {len(robots)} devices: {robots}")
+                        logger.info(f"System prompt dynamically updated mid-session for {len(robots_val)} devices: {robots_val}")
                     except Exception as e:
-                        logger.error(f"Failed to dynamically update agent system prompt: {e}")
+                        logger.error(f"Failed to dynamically update agent system prompt mid-session: {e}")
                         
                     # Notify client back
-                    await websocket.send_json({"type": "robot_received", "robots": robots})
+                    await websocket.send_json({"type": "robot_received", "robots": robots_val})
                     continue
 
                 # Strip 'type' and convert to native Strands input events
