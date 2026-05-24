@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "robot-mcpServers": {
-      "command": "restful",
-      "type": "streamable-http",
-      "baseUrl": "McpServerUrl"
-    }
-  }
-}

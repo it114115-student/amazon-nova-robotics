@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Audio Streaming to Bedrock</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body>
+  <div id="app">
+    <h1>雲端系統及數據中心管理高級文憑課程</h1>
+    <div id="status" class="disconnected">Disconnected</div>
+    <div id="chat-container"></div>
+
+    <div id="controls">
+      <button id="start" class="button">Start Streaming</button>
+      <button id="stop" class="button" disabled>Stop Streaming</button>
+      <div id="robot-selector">
+        <label for="robot-select" style="display: none">Select Robot(s):</label>
+        <select id="robot-select" multiple size="10" style="display: none">
+          <option value="all" selected>All (Robots + Drones + Dogs)</option>
+          <optgroup label="Robots">
+            <option value="robot_1">Robot 1</option>
+            <option value="robot_2">Robot 2</option>
+            <option value="robot_3">Robot 3</option>
+            <option value="robot_4">Robot 4</option>
+            <option value="robot_5">Robot 5</option>
+            <option value="robot_6">Robot 6</option>
+          </optgroup>
+          <optgroup label="Drones">
+            <option value="drone_1">Drone 1</option>
+            <option value="drone_2">Drone 2</option>
+          </optgroup>
+          <optgroup label="Dogs">
+            <option value="dog_1">Dog 1</option>
+            <option value="dog_2">Dog 2</option>
+            <option value="dog_3">Dog 3</option>
+          </optgroup>
+          <optgroup label="Digital Human">
+            <option value="xiaoice_1">Xiaoice 1</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+  </div>
+  <script src="/src/auth-check.js"></script>
+  <script type="module" src="/src/robotModal.js"></script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

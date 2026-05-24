@@ -23,13 +23,14 @@ The system consists of several interconnected components:
 
 ### Core Components
 
-1. **Speech Control** (`speech_control/`)
+1. **Speech Control** (`speech_control_agentcore/`)
 
-   - Real-time audio streaming with Amazon Nova Sonic
-   - WebSocket-based bidirectional communication
-   - MCP (Model Context Protocol) integration for extensibility
-   - TypeScript/Node.js backend with web interface
-   - AWS Cognito authentication for secure access
+   - Real-time, bidirectional voice-to-voice streaming with Amazon Nova Sonic
+   - Serverless AWS Bedrock AgentCore WebSocket Runtime connection patterns
+   - Serverless static browser frontend hosted on Amazon S3 behind a CloudFront CDN
+   - Direct browser-based IAM SigV4 authenticated WebSocket handshake signatures
+   - Real-time dynamic system prompt adaptation matching selected hardware devices
+   - Fluid, zero-refresh reconnection state machine and microphonic resource cleanup
 
 2. **Humanoid Robot Simulator** (`humanoid-robot-simulator/`)
 
@@ -170,31 +171,34 @@ aws s3 sync s3://$RobotDataBucketName robot_client/certificates/
 
 #### Create Test Users (for authentication)
 
+You can easily register or create test users directly inside your AWS Cognito User Pool via the AWS CLI:
+
 ```bash
-cd speech_control
-npm run create-test-user
+aws cognito-idp admin-create-user \
+  --user-pool-id $CognitoUserPoolId \
+  --username testuser \
+  --user-attributes Name=email,Value=testuser@example.com
 ```
 
 ## 🤖 Component Usage
 
 ### 1. Speech Control Interface
 
-Navigate to the deployed speech control URL or run locally:
+The serverless Speech Control frontend is served globally via AWS CloudFront. To run components locally for development:
 
+**Run the Backend Agent Service:**
 ```bash
-cd speech_control
-npm install
-npm run dev
+cd speech_control_agentcore
+pip install -r requirements.txt
+python robot_voice_agent.py
 ```
 
-Access at `http://localhost:3000`
-
-**Authentication**: The system now requires login through AWS Cognito. Create test users with:
-
+**Serve the Frontend Website Static Assets:**
 ```bash
-cd speech_control
-npm run create-test-user
+cd speech_control_agentcore/public
+python -m http.server 3000
 ```
+Access the static developer interface at `http://localhost:3000`!
 
 Features:
 
@@ -295,24 +299,9 @@ The system supports:
 
 ### MCP Integration
 
-The speech control component includes Model Context Protocol support for extensibility with AWS SigV4 authentication. Configure MCP servers in `speech_control/mcp_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "server-name": {
-      "command": "command-to-run",
-      "args": ["arg1", "arg2"],
-      "disabled": false,
-      "autoApprove": ["tool1", "tool2"],
-      "transportType": "stdio",
-      "headers": {
-        "Authorization": "AWS4-HMAC-SHA256..."
-      }
-    }
-  }
-}
-```
+The serverless Bedrock AgentCore voice-agent architecture includes Model Context Protocol (MCP) support for serverless command routing:
+- **Serverless MCP Routing**: The voice assistant routes tools directly via AWS Lambda. When the Bedrock agent decides to invoke an action (such as `robot_kick` or `robot_dance`), the MCP Lambda converts the payload and POSTs it directly to your CloudFront-backed humanoid robot simulator REST endpoint.
+- **Zero-Touch Configuration**: All MCP tool schemas and routing targets are declared and wired natively inside your AWS CDK stack ([`cdk-stack.ts`](file:///home/developer/Documents/data-disk/amazon-nova-robotics/cdk/lib/cdk-stack.ts)), completely eliminating local file management for seamless, native serverless orchestrations!
 
 The system supports AWS IAM authentication for secure MCP Lambda Function URLs.
 

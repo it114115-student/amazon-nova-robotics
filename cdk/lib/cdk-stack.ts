@@ -2,13 +2,14 @@ import * as cdk from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import { RoboticConstruct } from "./construct/robot-iot";
-import { SpeechControlWebConstruct } from "./construct/speech-web";
+import { SpeechControlAgentcoreConstruct } from "./construct/speech-web-agentcore";
 import { TextControlWebConstruct } from "./construct/text-web";
 import { RobotSsmConstruct } from "./construct/robot-ssm";
 import { SsmUserConstruct } from "./construct/ssm-user";
 import { DatabaseConstruct } from "./construct/datebase";
 import { LambdaMcpServerConstruct } from "./construct/mcp-server";
 import { RobotSimulatorConstruct } from "./construct/robot-simulator";
+import { RobotSimulatorServerlessConstruct } from "./construct/robot-simulator-serverless";
 import { Authenticator } from "./construct/authenticator";
 
 export class AmazonNovaRoboticCdkStack extends cdk.Stack {
@@ -26,12 +27,19 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       {}
     );
 
+    // Create the new serverless robot simulator construct side-by-side
+    const humanoidRobotSimulatorServerlessConstruct = new RobotSimulatorServerlessConstruct(
+      this,
+      "RobotSimulatorServerlessConstruct",
+      {}
+    );
+
     const mcpServerConstruct = new LambdaMcpServerConstruct(
       this,
       "LambdaMcpServerConstruct",
       {
         database: databaseConstruct,
-        simulatorEndpoint: humanoidRobotSimulatorConstruct.serviceUrl,
+        simulatorEndpoint: humanoidRobotSimulatorServerlessConstruct.serviceUrl,
       }
     );
 
@@ -69,12 +77,32 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       thingNames: thingNames,
     });
 
-    const webConstruct = new SpeechControlWebConstruct(this, "WebConstruct", {
-      database: databaseConstruct,
-      mcpServerConstruct: mcpServerConstruct,
-      userPool: authenticator.userPool,
-      userPoolClient: authenticator.userPoolClient,
-    });
+    const speechControlAgentcoreConstruct = new SpeechControlAgentcoreConstruct(
+      this,
+      "SpeechControlAgentcoreConstruct",
+      {
+        database: databaseConstruct,
+        mcpServerConstruct: mcpServerConstruct,
+        userPoolId: authenticator.userPool.userPoolId,
+        userPoolClientId: authenticator.userPoolClient.userPoolClientId,
+        identityPoolId: authenticator.identityPool.ref,
+      }
+    );
+
+    // Grant Cognito authenticated users permission to invoke our Bedrock AgentCore Runtime
+    authenticator.authenticatedRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "bedrock-agentcore:InvokeAgentRuntime",
+          "bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream",
+        ],
+        resources: [
+          speechControlAgentcoreConstruct.runtimeArn,
+          `${speechControlAgentcoreConstruct.runtimeArn}/*`,
+        ],
+      })
+    );
 const textControlWebConstruct = new TextControlWebConstruct(
   this,
   "TextControlWebConstruct",
@@ -133,9 +161,19 @@ const textControlWebConstruct = new TextControlWebConstruct(
       ssmUserConstruct: ssmUserConstruct,
     });
 
-    new cdk.CfnOutput(this, "speechUrl", {
-      description: "The URL of the Speech Control Web",
-      value: "https://" + webConstruct.serviceUrl,
+    new cdk.CfnOutput(this, "speechAgentcoreUrl", {
+      description: "The URL of the AgentCore Speech Control Web (Serverless CloudFront)",
+      value: "https://" + speechControlAgentcoreConstruct.serviceUrl,
+    });
+
+    new cdk.CfnOutput(this, "AgentCoreRuntimeArn", {
+      description: "The ARN of the Bedrock AgentCore Runtime",
+      value: speechControlAgentcoreConstruct.runtimeArn,
+    });
+
+    new cdk.CfnOutput(this, "CognitoIdentityPoolId", {
+      description: "Cognito Identity Pool ID for credentials federation",
+      value: authenticator.identityPool.ref,
     });
 
     new cdk.CfnOutput(this, "textUrl", {
@@ -156,6 +194,21 @@ const textControlWebConstruct = new TextControlWebConstruct(
       value: humanoidRobotSimulatorConstruct.songWebsiteBucket.bucketWebsiteUrl,
       description:
         "The website URL of the S3 bucket for the Humanoid Robot Simulator",
+    });
+
+    new cdk.CfnOutput(this, "humanoidRobotSimulatorServerlessUrl", {
+      description: "The URL of the Humanoid Robot Simulator (Serverless)",
+      value: "https://" + humanoidRobotSimulatorServerlessConstruct.serviceUrl,
+    });
+
+    new cdk.CfnOutput(this, "humanoidRobotSimulatorServerlessWebSocketUrl", {
+      description: "The WebSocket URL of the Humanoid Robot Simulator (Serverless)",
+      value: humanoidRobotSimulatorServerlessConstruct.webSocketUrl,
+    });
+
+    new cdk.CfnOutput(this, "ServerlessWebsiteBucket", {
+      value: humanoidRobotSimulatorServerlessConstruct.websiteBucket.bucketName,
+      description: "The name of the S3 bucket for the Serverless Humanoid Robot Simulator",
     });
 
     new cdk.CfnOutput(this, "RobotDataBucketName", {

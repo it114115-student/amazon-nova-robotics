@@ -124,7 +124,7 @@ def generate_index(root: Path, out_readme: Path) -> None:
     quick_links = [
         ("Repository README", root / "README.md"),
         ("Text Control: README", root / "text_control" / "README.md"),
-        ("Speech Control: README", root / "speech_control" / "README.md"),
+        ("Speech Control: README", root / "speech_control_agentcore" / "README.md"),
         (
             "Humanoid Robot Simulator: README",
             root / "humanoid-robot-simulator" / "README.md",

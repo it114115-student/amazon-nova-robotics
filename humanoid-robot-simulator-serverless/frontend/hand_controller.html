@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🖐️ Hand Tracking Camera Controller</title>
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+            color: white;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+        #webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        #output-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
+        .overlay {
+            position: absolute;
+            z-index: 10;
+        }
+        .header { 
+            top: 20px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            text-align: center;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 20px;
+            pointer-events: none;
+        }
+        .header h1 { margin: 0; font-size: 1.5rem; }
+        .header p { margin: 0; font-size: 0.8rem; opacity: 0.8; }
+        
+        .status-panel {
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .status-item { display: flex; align-items: center; gap: 8px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #666; }
+        .dot.active { background: #4CAF50; box-shadow: 0 0 10px #4CAF50; }
+        
+        .instructions {
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            text-align: right;
+            pointer-events: none;
+        }
+
+        .settings-panel {
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 220px;
+            pointer-events: auto;
+        }
+        .settings-panel label { font-size: 12px; display: block; margin-bottom: 5px; }
+        .settings-panel input { width: 100%; cursor: pointer; }
+
+        /* VFX Styles */
+        #atmosphere-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+            background: transparent;
+            transition: background 0.5s ease;
+        }
+
+        #output-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            pointer-events: none;
+            z-index: 20; /* Keep skeleton on top */
+        }
+
+        #vfx-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            transform: scaleX(-1);
+            z-index: 10; /* VFX behind skeleton */
+        }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+            transform: translate3d(0, 0, 0);
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* Mobile Responsive Overrides */
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.1rem; }
+            .header p { font-size: 0.7rem; }
+            #domain-display { font-size: 1.8rem !important; }
+
+            .settings-panel {
+                top: auto;
+                bottom: 0;
+                right: 0;
+                width: 100%;
+                border-radius: 20px 20px 0 0;
+                padding-bottom: 30px;
+                transform: translateY(calc(100% - 40px));
+                transition: transform 0.3s ease;
+                pointer-events: auto;
+            }
+            .settings-panel.active {
+                transform: translateY(0);
+            }
+            .settings-toggle {
+                display: block !important;
+                width: 40px;
+                height: 5px;
+                background: #888;
+                border-radius: 10px;
+                margin: 0 auto 10px auto;
+                cursor: pointer;
+            }
+
+            .status-panel {
+                top: 10px;
+                bottom: auto;
+                left: 10px;
+                padding: 8px;
+                font-size: 10px;
+                background: rgba(0,0,0,0.5);
+                border-radius: 10px;
+                gap: 2px;
+            }
+            .status-panel span { display: none; } /* Hide labels on mobile, keep dots and status text */
+            .status-panel #ws-status, .status-panel #tracking-status { display: inline; }
+            .status-panel div:last-child { display: none; } /* Hide session info on mobile status */
+            .instructions {
+                display: none; /* Hide instructions on mobile to save space */
+            }
+        }
+        .settings-toggle { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container" id="main-container">
+        <div id="atmosphere-overlay"></div>
+        <video id="webcam"></video>
+        <canvas id="output-canvas"></canvas>
+        <canvas id="vfx-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1);"></canvas>
+    </div>
+
+    <div class="overlay header">
+        <h1>🖐️ Hand Camera Controller</h1>
+        <p id="mode-display">Control the 3D scene with gestures</p>
+        <div id="domain-display" style="font-size: 2.5rem; font-weight: bold; margin-top: 10px; color: #4A90E2; text-shadow: 0 0 20px rgba(74, 144, 226, 0.8);"></div>
+    </div>
+
+    <div class="overlay settings-panel" id="settings-panel">
+        <div class="settings-toggle" onclick="document.getElementById('settings-panel').classList.toggle('active')"></div>
+        <div style="display: none;">
+            <label>🎮 Operation Mode</label>
+            <select id="operation-mode" style="width: 100%; background: rgba(0,0,0,0.5); color: white; border: 1px solid #666; padding: 5px; border-radius: 4px;">
+                <option value="camera" selected>📷 Camera Control</option>
+            </select>
+        </div>
+        <div>
+            <label>🤖 Target Robot</label>
+            <select id="robot-select" style="width: 100%; background: rgba(0,0,0,0.5); color: white; border: 1px solid #666; padding: 5px; border-radius: 4px;">
+                <option value="all">🤖 All Robots</option>
+                <option value="robot_1">🔵 Robot 1</option>
+                <option value="robot_2">🔴 Robot 2</option>
+                <option value="robot_3">🟢 Robot 3</option>
+                <option value="robot_4">🟠 Robot 4</option>
+                <option value="robot_5">🟣 Robot 5</option>
+                <option value="robot_6">🟡 Robot 6</option>
+            </select>
+        </div>
+        <div id="camera-settings">
+            <div>
+                <label>🔄 Rotation Sensitivity: <span id="rotate-val">300</span></label>
+                <input type="range" id="rotate-sensitivity" min="50" max="1000" value="300">
+            </div>
+            <div>
+                <label>🔍 Zoom Sensitivity: <span id="zoom-val">150</span></label>
+                <input type="range" id="zoom-sensitivity" min="50" max="1000" value="150">
+            </div>
+            <div>
+                <label>🖐️ Pan Sensitivity: <span id="pan-val">300</span></label>
+                <input type="range" id="pan-sensitivity" min="50" max="1000" value="300">
+            </div>
+            <div style="margin-top: 10px;">
+                <button id="reset-camera-btn" style="width: 100%; background: #4A90E2; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">📷 Reset Camera View</button>
+            </div>
+        </div>
+        <div>
+            <label>⏱️ Update Rate (ms)</label>
+            <input type="range" id="emit-interval" min="10" max="200" value="100">
+            <div id="interval-value" style="font-size: 10px; text-align: center; margin-top: 2px;">100ms (10 updates/s)</div>
+        </div>
+        <div id="cooldown-settings" style="display: none; border-top: 1px solid #444; padding-top: 10px; margin-top: 5px;">
+            <div style="margin-bottom: 8px;">
+                <label>🎮 Sim Cooldown: <span id="sim-cooldown-val">10</span>s</label>
+                <input type="range" id="sim-cooldown-slider" min="1" max="60" value="10">
+            </div>
+            <div>
+                <label>🤖 Real Cooldown: <span id="real-cooldown-val">10</span>s</label>
+                <input type="range" id="real-cooldown-slider" min="10" max="120" value="10">
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay status-panel">
+        <div class="status-item">
+            <div id="ws-dot" class="dot"></div>
+            <span>WebSocket: <span id="ws-status">Disconnected</span></span>
+        </div>
+        <div class="status-item">
+            <div id="tracking-dot" class="dot"></div>
+            <span>Tracking: <span id="tracking-status">Stopped</span></span>
+        </div>
+        <div>
+            <span>Session: <strong id="session-key-val">Loading...</strong></span>
+        </div>
+    </div>
+
+    <div class="overlay instructions" id="instructions-panel">
+        <strong>1 Hand:</strong> Move to rotate. <br>
+        <strong>2 Hands:</strong> Apart/Together to zoom. <br>
+        Move same direction to pan.
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        window.sessionKey = urlParams.get('session_key') || 'default_session';
+        window.videoBucketUrl = urlParams.get('video_bucket_url') || '';
+        document.getElementById('session-key-val').textContent = window.sessionKey;
+    </script>
+    <script src="./js/hand_tracker.js"></script>
+</body>
+</html>
