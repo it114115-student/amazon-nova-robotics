@@ -1,6 +1,6 @@
 # Project Documentation Index
 
-Generated: 2026-05-24 07:49 UTC
+Generated: 2026-05-25 02:26 UTC
 
 > This index links to original files across the repo. Source docs remain in their project folders.
 
@@ -8,6 +8,7 @@ Generated: 2026-05-24 07:49 UTC
 ## Quick links
 
 - [Repository README](../README.md)
+- [AWS Cost Estimation Guide](COST_ESTIMATION.md)
 - [Text Control: README](../text_control/README.md)
 - [Speech Control: README](../speech_control_agentcore/README.md)
 - [Humanoid Robot Simulator: README](../humanoid-robot-simulator/README.md)
@@ -29,6 +30,11 @@ Generated: 2026-05-24 07:49 UTC
 - [Readme](../domain-expansion-ar-game/README.md)
 - [Custom Agent Setup](../domain-expansion-ar-game/docs/custom_agent_setup.md)
 - [Openclaw Integration](../domain-expansion-ar-game/docs/openclaw_integration.md)
+
+### domain-expansion-commentator-agentcore (2)
+
+- [Identity](../domain-expansion-commentator-agentcore/prompts/IDENTITY.md)
+- [Soul](../domain-expansion-commentator-agentcore/prompts/SOUL.md)
 
 ### humanoid-robot-simulator (7)
 
