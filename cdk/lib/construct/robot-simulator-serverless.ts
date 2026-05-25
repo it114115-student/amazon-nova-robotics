@@ -12,6 +12,7 @@ import { Runtime, LoggingFormat, SystemLogLevel, ApplicationLogLevel } from "aws
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Duration, Stack, RemovalPolicy, DockerImage } from "aws-cdk-lib";
 import * as logs from "aws-cdk-lib/aws-logs";
+import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
 
 export interface RobotSimulatorServerlessConstructProps {}
 
@@ -77,17 +78,14 @@ export class RobotSimulatorServerlessConstruct extends Construct {
       entry: path.join(__dirname, "../../../humanoid-robot-simulator-serverless/backend"),
       index: "lambda_function.py",
       handler: "lambda_handler",
-      runtime: Runtime.PYTHON_3_12,
+      runtime: SHARED_PYTHON_RUNTIME,
       timeout: Duration.seconds(30),
       memorySize: 256,
       logRetention: logs.RetentionDays.THREE_DAYS,
       loggingFormat: LoggingFormat.JSON,
       systemLogLevel: SystemLogLevel.WARN,
       applicationLogLevel: ApplicationLogLevel.INFO,
-      bundling: {
-        assetExcludes: [".venv", "__pycache__", "tests"],
-        image: DockerImage.fromRegistry('public.ecr.aws/sam/build-python3.12'),
-      },
+      bundling: SHARED_PYTHON_BUNDLING,
       environment: {
         IsInCloud: "yes",
         AWS_BEDROCK_REGION: "us-east-1",

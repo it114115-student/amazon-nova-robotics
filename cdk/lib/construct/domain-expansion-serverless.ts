@@ -1,5 +1,6 @@
 import { Construct } from "constructs";
 import * as path from "path";
+import * as os from "os";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -17,6 +18,9 @@ import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
 import { DatabaseConstruct } from "./datebase";
 import { RobotSimulatorServerlessConstruct } from "./robot-simulator-serverless";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
+import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
 
 export interface DomainExpansionServerlessConstructProps {
   readonly database: DatabaseConstruct;
@@ -121,22 +125,49 @@ export class DomainExpansionServerlessConstruct extends Construct {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
+    // Create SQS Queue with 120s visibility timeout for async generation
+    const imageGenQueue = new sqs.Queue(this, "DomainExpansionImageGenQueue", {
+      queueName: "DomainExpansionImageGenQueue",
+      visibilityTimeout: Duration.seconds(120),
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+
+    // S3 Bucket for Webcam Snaps & AI Portraits with 7-day lifecycle policy
+    const photosBucket = new s3.Bucket(this, "DomainExpansionPhotosBucket", {
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      publicReadAccess: true,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS_ONLY,
+      lifecycleRules: [{ expiration: Duration.days(7) }],
+      cors: [{
+        allowedHeaders: ["*"],
+        allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.HEAD, s3.HttpMethods.POST],
+        allowedOrigins: ["*"],
+        maxAge: 3000,
+      }],
+    });
+
+    photosBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:GetObject"],
+        resources: [photosBucket.arnForObjects("*")],
+        principals: [new iam.AnyPrincipal()],
+      })
+    );
+
     // 4. Monolithic Python Lambda Backend Router
     const lambdaFunction = new PythonFunction(this, "LambdaFunction", {
       entry: path.join(__dirname, "../../../domain-expansion-ar-game-serverless/backend"),
       index: "lambda_function.py",
       handler: "lambda_handler",
-      runtime: Runtime.PYTHON_3_12,
+      runtime: SHARED_PYTHON_RUNTIME,
       timeout: Duration.seconds(30),
       memorySize: 256,
       logRetention: logs.RetentionDays.THREE_DAYS,
       loggingFormat: LoggingFormat.JSON,
       systemLogLevel: SystemLogLevel.WARN,
       applicationLogLevel: ApplicationLogLevel.INFO,
-      bundling: {
-        assetExcludes: [".venv", "__pycache__", "tests"],
-        image: DockerImage.fromRegistry('public.ecr.aws/sam/build-python3.12'),
-      },
+      bundling: SHARED_PYTHON_BUNDLING,
       environment: {
         IsInCloud: "yes",
         AWS_BEDROCK_REGION: "us-east-1",
@@ -146,12 +177,33 @@ export class DomainExpansionServerlessConstruct extends Construct {
         AGENTCORE_RUNTIME_ARN: runtime.agentRuntimeArn,
         BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0",
         BEDROCK_REGION: Stack.of(this).region,
+        IMAGE_GEN_QUEUE_URL: imageGenQueue.queueUrl,
+        PHOTOS_S3_BUCKET: photosBucket.bucketName,
+        COGNITO_USER_POOL_ID: props.userPool.userPoolId,
+        COGNITO_USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
+        COGNITO_REGION: Stack.of(this).region,
       },
     });
 
-    // Grant DynamoDB access to Lambda
+    // Map SQS queue to trigger the Lambda Function
+    lambdaFunction.addEventSource(new lambdaEventSources.SqsEventSource(imageGenQueue, {
+      batchSize: 1,
+    }));
+
+    // Grant DynamoDB & Queue & S3 access to Lambda
     connectionsTable.grantReadWriteData(lambdaFunction);
     sessionsTable.grantReadWriteData(lambdaFunction);
+    imageGenQueue.grantSendMessages(lambdaFunction);
+    photosBucket.grantReadWrite(lambdaFunction);
+
+    // Grant access to Amazon Rekognition detect_faces
+    lambdaFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["rekognition:DetectFaces"],
+        resources: ["*"],
+      })
+    );
 
     // Grant Bedrock Model invocation access to Lambda (for Strands Local commentary fallback)
     lambdaFunction.addToRolePolicy(
@@ -193,9 +245,17 @@ export class DomainExpansionServerlessConstruct extends Construct {
       },
     });
 
+    const restAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(this, "DomainExpansionRestApiAuthorizer", {
+      cognitoUserPools: [props.userPool],
+    });
+
     const lambdaIntegration = new apigateway.LambdaIntegration(lambdaFunction);
     restApi.root.addProxy({
       defaultIntegration: lambdaIntegration,
+      defaultMethodOptions: {
+        authorizer: restAuthorizer,
+        authorizationType: apigateway.AuthorizationType.COGNITO,
+      },
     });
 
     // 6. API Gateway WebSocket API for real-time signaling
@@ -203,6 +263,19 @@ export class DomainExpansionServerlessConstruct extends Construct {
       name: "DomainExpansionWebSocketApi",
       protocolType: "WEBSOCKET",
       routeSelectionExpression: "$request.body.action",
+    });
+
+    const wsAuthorizer = new apigatewayv2.CfnAuthorizer(this, "WebSocketCognitoAuthorizer", {
+      apiId: webSocketApi.ref,
+      name: "WebSocketCognitoAuthorizer",
+      authorizerType: "REQUEST",
+      authorizerUri: `arn:aws:apigateway:${Stack.of(this).region}:lambda:path/2015-03-31/functions/${lambdaFunction.functionArn}/invocations`,
+      identitySource: ["route.request.querystring.token"],
+    });
+
+    lambdaFunction.addPermission("WebSocketAuthPermission", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      sourceArn: `arn:aws:execute-api:${Stack.of(this).region}:${Stack.of(this).account}:${webSocketApi.ref}/*`,
     });
 
     const wsIntegration = new apigatewayv2.CfnIntegration(this, "WebSocketIntegration", {
@@ -214,7 +287,8 @@ export class DomainExpansionServerlessConstruct extends Construct {
     const connectRoute = new apigatewayv2.CfnRoute(this, "ConnectRoute", {
       apiId: webSocketApi.ref,
       routeKey: "$connect",
-      authorizationType: "NONE",
+      authorizationType: "CUSTOM",
+      authorizerId: wsAuthorizer.ref,
       target: `integrations/${wsIntegration.ref}`,
     });
 

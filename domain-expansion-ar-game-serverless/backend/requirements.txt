@@ -1,2 +1,6 @@
 boto3>=1.34.0
 strands-agents>=1.26.0
+Pillow>=10.0.0
+PyJWT[crypto]>=2.8.0
+requests>=2.31.0
+

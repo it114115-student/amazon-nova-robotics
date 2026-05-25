@@ -3,7 +3,6 @@ import json
 import logging
 import time
 import base64
-import re
 import boto3
 from boto3.dynamodb.conditions import Key
 
@@ -19,100 +18,33 @@ connections_table = dynamodb.Table(connections_table_name)
 sessions_table = dynamodb.Table(sessions_table_name)
 
 # Agent Configuration Defaults
-DEFAULT_AGENT_TYPE = os.environ.get("AGENT_TYPE", "agentcore_runtime") # 'openclaw' | 'strands_local' | 'agentcore_runtime'
-OPENCLAW_GATEWAY_URL = os.environ.get("OPENCLAW_GATEWAY_URL", "http://127.0.0.1:18789")
-OPENCLAW_TOKEN = os.environ.get("OPENCLAW_TOKEN", "")
-OPENCLAW_AGENT_ID = os.environ.get("OPENCLAW_AGENT_ID", "domain-commentator")
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
-BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
-AGENTCORE_RUNTIME_ARN = os.environ.get("AGENTCORE_RUNTIME_ARN", "")
+DEFAULT_AGENT_TYPE = os.environ.get("AGENT_TYPE", "agentcore_runtime")
 
-# JJK Character Translations (Translate base English name tokens to JJK lore terms)
-def translate_detail(text: str) -> str:
-    if not text:
-        return text
-    # Standard replacement maps
-    replacements = {
-        r"\brobot_1\b": "Fushiguro Megumi (Robot 1)",
-        r"\brobot_2\b": "Kugisaki Nobara (Robot 2)",
-        r"\brobot_3\b": "Itadori Yuji (Robot 3)",
-        r"\brobot_4\b": "Inumaki Toge (Robot 4)",
-        r"\brobot_5\b": "Ryomen Sukuna (Robot 5)",
-        r"\brobot_6\b": "Gojo Satoru (Robot 6)",
-        r"\bdrone_1\b": "Ushiushi Great Curse (Drone 1)",
-        r"\bdrone_2\b": "Nue Storm-summoner (Drone 2)",
-        r"\bdog_1\b": "Divine Dog: White (Dog 1)",
-        r"\bdog_2\b": "Divine Dog: Black (Dog 2)",
-        r"\bdog_3\b": "Divine Dog: Totality (Dog 3)",
-        r"\bxiaoice_1\b": "Zen'in Maki (Xiaoice)",
-        r"\bdogMoveForward\b": "releases Divine Dog to charge forward",
-        r"\bdogMoveBackward\b": "recalled Divine Dog moving back",
-        r"\bdogTurnLeft\b": "ordered Divine Dog left maneuver",
-        r"\bdogTurnRight\b": "ordered Divine Dog right maneuver",
-        r"\bdroneTakeoff\b": "summons Nue flight takeoff",
-        r"\bdroneLand\b": "recalled Nue landing down",
-        r"\bdroneMoveForward\b": "guided Nue gliding forward",
-        r"\bdroneMoveBackward\b": "guided Nue gliding back",
-        r"\bdroneTurnLeft\b": "steered Nue turning left",
-        r"\bdroneTurnRight\b": "steered Nue turning right",
-        r"\brobotMoveForward\b": "pushes sorcerer dash forward",
-        r"\brobotMoveBackward\b": "slides sorcerer retreat back",
-        r"\brobotTurnLeft\b": "steered sorcerer left pivot",
-        r"\brobotTurnRight\b": "steered sorcerer right pivot",
-        r"\brobotGesture1\b": "activated Divergent Fist technique",
-        r"\brobotGesture2\b": "activated Black Flash release",
-        r"\brobotGesture3\b": "activated Domain Expansion invocation",
-        r"\brobotGesture4\b": "activated Cursed Speech commands",
-        r"\bxiaoiceGesture1\b": "invokes Maki's Special Grade tool swing",
-        r"\bxiaoiceGesture2\b": "invokes Maki's high-speed intercept",
-        r"\bxiaoiceGesture3\b": "invokes Maki's Cursed Energy discharge",
-    }
-    for pattern, replacement in replacements.items():
-        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-    return text
-
-# Fetch Character Instructions for Strands Local Engine
-def load_system_prompt() -> str:
-    # Attempt to load IDENTITY.md and SOUL.md if present
-    # In Lambda environment, these are packaged or can be set as fallbacks
-    identity = ""
-    soul = ""
-    try:
-        if os.path.exists("IDENTITY.md"):
-            with open("IDENTITY.md", "r", encoding="utf-8") as f:
-                identity = f.read()
-        if os.path.exists("SOUL.md"):
-            with open("SOUL.md", "r", encoding="utf-8") as f:
-                soul = f.read()
-    except Exception as e:
-        logger.warning(f"Could not read prompt markdown files: {e}")
-
-    if not identity:
-        identity = """# Character Identity: Kugisaki Nobara (钉崎野蔷薇)
-- Role: High-energy JJK match commentator.
-- Personality: Feisty, extremely confident, slightly arrogant, styling, fashion-loving, and deeply competitive.
-- Language: High-octane, sassy, blending English & Chinese naturally. Use JJK terms (Domain Expansion, cursed techniques, Black Flash).
-- Tone: Dynamic, energetic, hyping up technique executions! Keep each output to 2-3 short, punchy sentences max!"""
-
-    if not soul:
-        soul = """# Commentary Guidelines
-- Deliver commentary directly to the player, trash-talking their mistakes or screaming with excitement at a high score.
-- Incorporate specific sorcerer profiles like Fushiguro Megumi, Gojo Satoru, or Nue Cursed birds depending on commands.
-- Never use robotic placeholders, speak with absolute passion and raw sorcerer attitude."""
-
-    return f"{identity}\n\n{soul}"
-
-
-# Main Router
 def lambda_handler(event, context):
     logger.info(f"Incoming Event: {json.dumps(event)}")
     
-    # 1. Detect WebSocket API Gateway connection
+    # 0. Check for API Gateway Custom Authorizer REQUEST payload
+    if event.get("type") == "REQUEST" and "methodArn" in event:
+        from auth import auth_handler
+        return auth_handler(event, context)
+    
+    # 1. Check for SQS Trigger
+    if "Records" in event:
+        from image_processor import handle_sqs_image_gen
+        for record in event["Records"]:
+            if record.get("eventSource") == "aws:sqs":
+                try:
+                    handle_sqs_image_gen(record)
+                except Exception as e:
+                    logger.error(f"SQS generation failed: {e}")
+        return {"statusCode": 200, "body": "SQS Records processed."}
+    
+    # 2. Detect WebSocket API Gateway connection
     request_context = event.get("requestContext", {})
     if "connectionId" in request_context:
         return handle_websocket(event, request_context)
         
-    # 2. Treat as HTTP API Gateway REST call
+    # 3. Treat as HTTP API Gateway REST call
     return handle_http(event)
 
 
@@ -291,8 +223,137 @@ def handle_http(event):
     except Exception:
         body = {}
 
+    # Endpoint: /api/enhance-portrait (POST)
+    if path == "/api/enhance-portrait" and method == "POST":
+        session_id = body.get("sessionId", "main")
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            session_id = "main"
+        else:
+            session_id = session_id.strip()
+            
+        template_id = body.get("templateId", "random")
+        logger.info(f"Enhance portrait triggered: session={session_id}, template={template_id}")
+
+        # Set session state in DynamoDB to "PENDING"
+        try:
+            sessions_table.update_item(
+                Key={"session_id": session_id},
+                UpdateExpression="SET enhanced_image_url = :pending, updated_at = :t",
+                ExpressionAttributeValues={
+                    ":pending": "PENDING",
+                    ":t": int(time.time())
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to update DynamoDB session state: {e}")
+            return {"statusCode": 500, "headers": headers, "body": json.dumps({"error": f"Database lock failed: {e}"})}
+
+        # Send SQS message for background processing
+        queue_url = os.environ.get("IMAGE_GEN_QUEUE_URL")
+        if queue_url:
+            try:
+                sqs_client = boto3.client("sqs")
+                sqs_client.send_message(
+                    QueueUrl=queue_url,
+                    MessageBody=json.dumps({
+                        "session_id": session_id,
+                        "template_id": template_id
+                    })
+                )
+                logger.info(f"Enqueued SQS image gen for session_id={session_id}, template_id={template_id}")
+            except Exception as e:
+                logger.error(f"Failed to push message to SQS Queue: {e}")
+        else:
+            logger.warning("IMAGE_GEN_QUEUE_URL env is missing, SQS enqueue bypassed")
+
+        return {
+            "statusCode": 200,
+            "headers": headers,
+            "body": json.dumps({"success": True, "status": "PENDING"})
+        }
+
+    # Endpoint: /api/check-enhancement (GET)
+    elif path == "/api/check-enhancement" and method == "GET":
+        q_params = event.get("queryStringParameters", {}) or {}
+        session_id = q_params.get("sessionId", "main")
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            session_id = "main"
+        else:
+            session_id = session_id.strip()
+            
+        logger.info(f"Check enhancement status for session={session_id}")
+
+        try:
+            resp = sessions_table.get_item(Key={"session_id": session_id})
+            item = resp.get("Item", {})
+            enhanced_url = item.get("enhanced_image_url", "")
+            
+            status = "NONE"
+            if enhanced_url == "PENDING":
+                status = "PENDING"
+            elif isinstance(enhanced_url, str) and enhanced_url.startswith("ERROR:"):
+                status = enhanced_url
+            elif enhanced_url:
+                status = "COMPLETE"
+
+            return {
+                "statusCode": 200,
+                "headers": headers,
+                "body": json.dumps({
+                    "success": True,
+                    "status": status,
+                    "url": enhanced_url if status == "COMPLETE" else ""
+                })
+            }
+        except Exception as e:
+            logger.error(f"Failed to fetch session status: {e}")
+            return {"statusCode": 500, "headers": headers, "body": json.dumps({"error": str(e)})}
+
+    # Endpoint: /api/get-snapshot (GET)
+    elif path == "/api/get-snapshot" and method == "GET":
+        q_params = event.get("queryStringParameters", {}) or {}
+        session_id = q_params.get("sessionId", "main")
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            session_id = "main"
+        else:
+            session_id = session_id.strip()
+            
+        role = q_params.get("role", "player1")
+        logger.info(f"Get snapshot triggered: session={session_id}, role={role}")
+
+        try:
+            resp = sessions_table.get_item(Key={"session_id": session_id})
+            item = resp.get("Item", {})
+            img_b64 = item.get("latest_webcam_frame_p1", "") if role == "player1" else item.get("latest_webcam_frame_p2", "")
+            
+            if not img_b64:
+                return {
+                    "statusCode": 404,
+                    "headers": headers,
+                    "body": json.dumps({"error": "Snapshot not found"})
+                }
+                
+            if not img_b64.startswith("data:image/"):
+                img_b64 = f"data:image/jpeg;base64,{img_b64}"
+                
+            return {
+                "statusCode": 200,
+                "headers": headers,
+                "body": json.dumps({
+                    "success": True,
+                    "image": img_b64
+                })
+            }
+        except Exception as e:
+            logger.error(f"Error fetching snapshot: {e}")
+            return {
+                "statusCode": 500,
+                "headers": headers,
+                "body": json.dumps({"error": str(e)})
+            }
+
     # Endpoint: /api/register-room
-    if path == "/api/register-room" and method == "POST":
+    elif path == "/api/register-room" and method == "POST":
         session_id = body.get("sessionId", "main")
         room_code = body.get("roomCode", "BTL1")
         signaling_url = body.get("signalingUrl", "")
@@ -317,7 +378,6 @@ def handle_http(event):
         role = body.get("role", "player1")
         image_base64 = body.get("image", "")
 
-        # Write/Update base64 frame in DynamoDB session record
         update_expr = "SET latest_webcam_frame_p1 = :img, updated_at = :t" if role == "player1" else "SET latest_webcam_frame_p2 = :img, updated_at = :t"
         if role == "viewer" or not role:
             update_expr = "SET latest_webcam_frame = :img, updated_at = :t"
@@ -397,14 +457,17 @@ def handle_http(event):
 
     # Endpoint: /api/live-status
     elif path in ["/api/live-status", "/api/battle-result"] and method == "POST":
+        from commentary import translate_detail, generate_ai_commentary
+        
         session_id = body.get("sessionId", "main")
         room_code = body.get("roomCode", "BTL1")
         p1_score = body.get("p1Score", 0)
         p2_score = body.get("p2Score", 0)
         text_event = body.get("text", "")
+        agent_image_policy = body.get("agentImagePolicy", "always")
         is_reset = body.get("isReset", False) or path == "/api/battle-result"
 
-        logger.info(f"Live-status: session={session_id}, event={text_event}, reset={is_reset}")
+        logger.info(f"Live-status: session={session_id}, event={text_event}, reset={is_reset}, policy={agent_image_policy}")
 
         # Execute localized JJK translation
         translated_event = translate_detail(text_event)
@@ -436,144 +499,69 @@ Latest Match Action: {translated_event}
 React instantly to this specific action! Give sassy, feisty sorcerer trash-talk or hype up the battle with extreme energy. Speak directly to them like an arrogant fashion-lover. Keep it to 2 short, punchy sentences max!
 """
 
-        # Try to retrieve the latest webcam frame for multimodal analysis
-        image_bytes = None
-        image_format = "jpeg"
-        image_base64_raw = ""
-        try:
-            resp = sessions_table.get_item(Key={"session_id": session_id})
-            item = resp.get("Item", {})
-            img_b64 = item.get("latest_webcam_frame_p1", "") or item.get("latest_webcam_frame", "")
-            if img_b64:
-                # Strip prefix if it is a data URL
-                if "," in img_b64:
-                    header, img_b64_stripped = img_b64.split(",", 1)
-                    if "png" in header:
-                        image_format = "png"
-                else:
-                    img_b64_stripped = img_b64
-                import base64
-                image_bytes = base64.b64decode(img_b64_stripped)
-                image_base64_raw = img_b64_stripped
-                logger.info(f"Retrieved session webcam frame: {len(image_bytes)} bytes, format: {image_format}")
-        except Exception as e:
-            logger.warning(f"Failed to fetch session webcam frame for Bedrock: {e}")
+        # Try to retrieve the latest webcam frames for multimodal analysis
+        image_bytes_p1 = None
+        image_bytes_p2 = None
+        image_format_p1 = "jpeg"
+        image_format_p2 = "jpeg"
+        image_base64_p1 = ""
+        image_base64_p2 = ""
+        
+        # Decide if we should attach image based on policy
+        should_attach_image = False
+        if agent_image_policy == "always":
+            should_attach_image = True
+        elif agent_image_policy == "start_end":
+            should_attach_image = is_reset or path == "/api/battle-result"
+
+        if should_attach_image:
+            try:
+                resp = sessions_table.get_item(Key={"session_id": session_id})
+                item = resp.get("Item", {})
+                
+                # Fetch Player 1 frame
+                img_b64_p1 = item.get("latest_webcam_frame_p1", "") or item.get("latest_webcam_frame", "")
+                if img_b64_p1:
+                    if "," in img_b64_p1:
+                        header, img_b64_p1_stripped = img_b64_p1.split(",", 1)
+                        if "png" in header:
+                            image_format_p1 = "png"
+                    else:
+                        img_b64_p1_stripped = img_b64_p1
+                    image_bytes_p1 = base64.b64decode(img_b64_p1_stripped)
+                    image_base64_p1 = img_b64_p1_stripped
+
+                # Fetch Player 2 frame
+                img_b64_p2 = item.get("latest_webcam_frame_p2", "")
+                if img_b64_p2:
+                    if "," in img_b64_p2:
+                        header, img_b64_p2_stripped = img_b64_p2.split(",", 1)
+                        if "png" in header:
+                            image_format_p2 = "png"
+                    else:
+                        img_b64_p2_stripped = img_b64_p2
+                    image_bytes_p2 = base64.b64decode(img_b64_p2_stripped)
+                    image_base64_p2 = img_b64_p2_stripped
+
+                logger.info(f"Retrieved session webcam frames: P1 found={bool(image_bytes_p1)}, P2 found={bool(image_bytes_p2)}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch session webcam frames for Bedrock: {e}")
 
         # Resolve Commentary Engine
         agent_engine = body.get("agent_type", DEFAULT_AGENT_TYPE)
         logger.info(f"Invoking Commentary Engine: {agent_engine}")
 
-        commentary_text = ""
-
-        if agent_engine == "strands_local":
-            try:
-                # Run Strands direct Bedrock invocation
-                from strands import Agent
-                from strands.models import BedrockModel
-
-                system_prompt = load_system_prompt()
-                model = BedrockModel(model_id=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION, temperature=0.8)
-                agent = Agent(
-                    model=model,
-                    system_prompt=system_prompt
-                )
-                import asyncio
-                loop = asyncio.get_event_loop()
-                
-                # Support multimodal if image is present
-                if image_bytes:
-                    message_content = [
-                        {"text": content_block},
-                        {
-                            "image": {
-                                "format": image_format,
-                                "source": {"bytes": image_bytes}
-                            }
-                        }
-                    ]
-                else:
-                    message_content = content_block
-
-                commentary_response = loop.run_until_complete(agent.invoke_async(message_content))
-                commentary_text = str(commentary_response)
-                logger.info(f"Strands Local commentary generated: {commentary_text}")
-            except Exception as e:
-                logger.error(f"Strands Local Engine failed, falling back to basic direct Converse request: {e}")
-                commentary_text = direct_bedrock_fallback(content_block, image_bytes, image_format)
-
-        elif agent_engine == "agentcore_runtime":
-            try:
-                # Invoke Amazon Bedrock AgentCore Runtime using boto3
-                if not AGENTCORE_RUNTIME_ARN:
-                    raise ValueError("AGENTCORE_RUNTIME_ARN environment variable is not defined")
-
-                agent_client = boto3.client("bedrock-agentcore", region_name=BEDROCK_REGION)
-                
-                payload_dict = {"prompt": content_block, "session_id": session_id}
-                if image_base64_raw:
-                    payload_dict["image"] = image_base64_raw
-                    payload_dict["image_format"] = image_format
-
-                # Ensure runtimeSessionId is at least 33 characters to satisfy AWS validation rules
-                import hashlib
-                compliant_session_id = session_id
-                if len(compliant_session_id) < 33:
-                    compliant_session_id = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
-
-                response = agent_client.invoke_agent_runtime(
-                    agentRuntimeArn=AGENTCORE_RUNTIME_ARN,
-                    runtimeSessionId=compliant_session_id,
-                    payload=json.dumps(payload_dict).encode("utf-8")
-                )
-                
-                # Consume response stream
-                chunks = []
-                for chunk in response.get("response", []):
-                    chunks.append(chunk.decode("utf-8"))
-                
-                agentcore_payload = json.loads("".join(chunks))
-                commentary_text = agentcore_payload.get("response", "Sorcerer interference detected!")
-                logger.info(f"AgentCore Runtime response generated: {commentary_text}")
-            except Exception as e:
-                logger.error(f"AgentCore Runtime call failed: {e}")
-                commentary_text = direct_bedrock_fallback(content_block, image_bytes, image_format)
-
-        else: # 'openclaw'
-            # Default fallback to OpenClaw gateway
-            try:
-                import urllib3
-                http = urllib3.PoolManager()
-                url = f"{OPENCLAW_GATEWAY_URL}/v1/chat/completions"
-                headers_api = {
-                    "Content-Type": "application/json",
-                    "x-openclaw-session-key": f"agent:{OPENCLAW_AGENT_ID}:domain-expansion-ar-game:{session_id}"
-                }
-                if OPENCLAW_TOKEN:
-                    headers_api["Authorization"] = f"Bearer {OPENCLAW_TOKEN}"
-
-                api_payload = {
-                    "model": f"openclaw/{OPENCLAW_AGENT_ID}",
-                    "messages": [{"role": "user", "content": content_block}],
-                    "user": session_id
-                }
-
-                logger.info(f"Calling OpenClaw at URL: {url}")
-                resp_api = http.request(
-                    "POST",
-                    url,
-                    headers=headers_api,
-                    body=json.dumps(api_payload),
-                    timeout=30.0
-                )
-                if resp_api.status == 200:
-                    resp_data = json.loads(resp_api.data.decode("utf-8"))
-                    commentary_text = resp_data["choices"][0]["message"]["content"]
-                    logger.info(f"OpenClaw response: {commentary_text}")
-                else:
-                    raise Exception(f"OpenClaw returned status code {resp_api.status}")
-            except Exception as e:
-                logger.error(f"OpenClaw Gateway call failed: {e}")
-                commentary_text = direct_bedrock_fallback(content_block, image_bytes, image_format)
+        commentary_text = generate_ai_commentary(
+            agent_engine=agent_engine,
+            content_block=content_block,
+            session_id=session_id,
+            image_bytes_p1=image_bytes_p1,
+            image_format_p1=image_format_p1,
+            image_bytes_p2=image_bytes_p2,
+            image_format_p2=image_format_p2,
+            image_base64_p1=image_base64_p1,
+            image_base64_p2=image_base64_p2
+        )
 
         return {
             "statusCode": 200,
@@ -582,36 +570,3 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
         }
 
     return {"statusCode": 404, "headers": headers, "body": json.dumps({"error": "Route not found"})}
-
-
-def direct_bedrock_fallback(prompt: str, image_bytes: bytes = None, image_format: str = "jpeg") -> str:
-    """Invokes Bedrock direct Converse API as ultimate robust fallback."""
-    try:
-        bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
-        system_prompt = load_system_prompt()
-        
-        # Converse payload structure with multimodal support
-        content_list = [{"text": prompt}]
-        if image_bytes:
-            content_list.append({
-                "image": {
-                    "format": image_format,
-                    "source": {"bytes": image_bytes}
-                }
-            })
-            
-        messages = [{"role": "user", "content": content_list}]
-        system = [{"text": system_prompt}]
-        
-        response = bedrock.converse(
-            modelId=BEDROCK_MODEL_ID,
-            messages=messages,
-            system=system,
-            inferenceConfig={"temperature": 0.8, "maxTokens": 150}
-        )
-        output_text = response["output"]["message"]["content"][0]["text"]
-        logger.info(f"Bedrock Direct Converse fallback completed: {output_text}")
-        return output_text
-    except Exception as e:
-        logger.error(f"Bedrock Direct fallback failed: {e}")
-        return "Show some cursed energy! Get moving or suffer my nails!"
