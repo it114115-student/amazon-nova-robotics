@@ -136,6 +136,17 @@ cdk bootstrap
 sudo apt update && sudo apt install -y jq
 ```
 
+> [!IMPORTANT]
+> **ARM64 Emulation inside GitHub Codespaces / AMD64 Environments**
+> 
+> The AWS Bedrock AgentCore containers are built for **ARM64** architecture (`Platform.LINUX_ARM64`). If you deploy from an **AMD64/x86_64** host (like standard GitHub Codespaces):
+> 1. The `./deploy.sh` script is fully automated and will try to install native host emulation using:
+>    ```bash
+>    sudo apt-get update && sudo apt-get install -y qemu-user-static binfmt-support
+>    ```
+> 2. If native installation is not supported by your host OS, the script will automatically fallback to registering emulation via a privileged binfmt Docker container.
+> 3. Ensure Docker is running in your development environment before executing the deployment script.
+
 Deployment
 
 ```bash

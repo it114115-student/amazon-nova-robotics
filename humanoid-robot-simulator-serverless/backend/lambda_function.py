@@ -1,24 +1,21 @@
-#!/usr/bin/env python3
-"""Unified REST and WebSocket AWS Lambda handler for Serverless Robot Simulator"""
-
 import json
 import os
 import time
 import logging
+import boto3
+from boto3.dynamodb.conditions import Key
 from constants import HumanoidAction, DEFAULT_ROBOTS, ACTION_DURATIONS
 from session_utils import decrypt, send_request
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Global Placeholders for Lazy Loading
-boto3 = None
-dynamodb = None
-connections_table = None
-sessions_table = None
-
 CONNECTIONS_TABLE_NAME = os.environ.get('CONNECTIONS_TABLE', 'RobotSimulatorConnections')
 SESSIONS_TABLE_NAME = os.environ.get('SESSIONS_TABLE', 'RobotSimulatorSessions')
+
+dynamodb = boto3.resource('dynamodb')
+connections_table = dynamodb.Table(CONNECTIONS_TABLE_NAME)
+sessions_table = dynamodb.Table(SESSIONS_TABLE_NAME)
 
 # --- DynamoDB State & Connections Persistence ---
 
@@ -158,7 +155,7 @@ def get_session_connections(session_key):
     try:
         response = connections_table.query(
             IndexName='SessionKeyIndex',
-            KeyConditionExpression=boto3.dynamodb.conditions.Key('session_key').eq(session_key)
+            KeyConditionExpression=Key('session_key').eq(session_key)
         )
         return [item['connection_id'] for item in response.get('Items', [])]
     except Exception as e:
@@ -747,13 +744,6 @@ def handle_websocket_event(event, connection_id):
 
 def lambda_handler(event, context):
     """Entry point for both HTTP and WebSocket integrations"""
-    global boto3, dynamodb, connections_table, sessions_table
-    if boto3 is None:
-        import boto3 as _boto3
-        boto3 = _boto3
-        dynamodb = boto3.resource('dynamodb')
-        connections_table = dynamodb.Table(CONNECTIONS_TABLE_NAME)
-        sessions_table = dynamodb.Table(SESSIONS_TABLE_NAME)
 
     try:
         request_context = event.get('requestContext', {})

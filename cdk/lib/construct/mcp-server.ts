@@ -6,7 +6,7 @@ import {
 } from "aws-cdk-lib/aws-lambda";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Construct } from "constructs";
-import { Duration, Stack, RemovalPolicy } from "aws-cdk-lib";
+import { Duration, Stack, RemovalPolicy, DockerImage } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { DatabaseConstruct } from "./datebase";
@@ -70,6 +70,7 @@ export class LambdaMcpServerConstruct extends Construct {
       bundling: {
         // translates to `rsync --exclude='.venv'`
         assetExcludes: [".venv", "create_virtual_env.sh"],
+        image: DockerImage.fromRegistry('public.ecr.aws/sam/build-python3.13'),
       },
       environment: {
         IMAGE_BUCKET_NAME: this.imageBucket.bucketName,

@@ -4,20 +4,19 @@ import logging
 import time
 import base64
 import re
+import boto3
+from boto3.dynamodb.conditions import Key
 
 # Configure Logger
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Global Placeholders for Lazy Loading
-boto3 = None
-Key = None
-dynamodb = None
-connections_table = None
-sessions_table = None
-
 connections_table_name = os.environ.get("CONNECTIONS_TABLE", "DomainExpansionConnections")
 sessions_table_name = os.environ.get("SESSIONS_TABLE", "DomainExpansionSessions")
+
+dynamodb = boto3.resource("dynamodb")
+connections_table = dynamodb.Table(connections_table_name)
+sessions_table = dynamodb.Table(sessions_table_name)
 
 # Agent Configuration Defaults
 DEFAULT_AGENT_TYPE = os.environ.get("AGENT_TYPE", "agentcore_runtime") # 'openclaw' | 'strands_local' | 'agentcore_runtime'
@@ -106,16 +105,6 @@ def load_system_prompt() -> str:
 
 # Main Router
 def lambda_handler(event, context):
-    global boto3, Key, dynamodb, connections_table, sessions_table
-    if boto3 is None:
-        import boto3 as _boto3
-        from boto3.dynamodb.conditions import Key as _Key
-        boto3 = _boto3
-        Key = _Key
-        dynamodb = boto3.resource("dynamodb")
-        connections_table = dynamodb.Table(connections_table_name)
-        sessions_table = dynamodb.Table(sessions_table_name)
-
     logger.info(f"Incoming Event: {json.dumps(event)}")
     
     # 1. Detect WebSocket API Gateway connection

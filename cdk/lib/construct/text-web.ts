@@ -1,5 +1,5 @@
 import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
-import { CfnOutput, Duration } from "aws-cdk-lib";
+import { CfnOutput, Duration, DockerImage } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 
 import { Construct } from "constructs";
@@ -75,6 +75,7 @@ export class TextControlWebConstruct extends Construct {
           ".dockerignore",
           "Dockerfile",
         ],
+        image: DockerImage.fromRegistry('public.ecr.aws/sam/build-python3.12'),
         // Pre-build commands to run before packaging
         commandHooks: {
           beforeBundling(inputDir: string, outputDir: string): string[] {

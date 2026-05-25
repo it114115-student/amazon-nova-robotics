@@ -12,7 +12,7 @@ import { Table, AttributeType, BillingMode, ProjectionType } from "aws-cdk-lib/a
 import { Runtime, LoggingFormat, SystemLogLevel, ApplicationLogLevel } from "aws-cdk-lib/aws-lambda";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Platform } from "aws-cdk-lib/aws-ecr-assets";
-import { Duration, Stack, RemovalPolicy } from "aws-cdk-lib";
+import { Duration, Stack, RemovalPolicy, DockerImage } from "aws-cdk-lib";
 import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
 import { DatabaseConstruct } from "./datebase";
 import { RobotSimulatorServerlessConstruct } from "./robot-simulator-serverless";
@@ -135,6 +135,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
       applicationLogLevel: ApplicationLogLevel.INFO,
       bundling: {
         assetExcludes: [".venv", "__pycache__", "tests"],
+        image: DockerImage.fromRegistry('public.ecr.aws/sam/build-python3.12'),
       },
       environment: {
         IsInCloud: "yes",
