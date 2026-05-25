@@ -3,14 +3,16 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Audio Streaming to Bedrock</title>
+  <title>Robotic Voice Control Hub - Bedrock AI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 
 <body>
   <div id="app">
+    <!-- Web Header with academic logos -->
     <header class="web-header">
       <div class="logo-wrapper left-wrapper">
         <img src="/img/hkiit-logo.png" alt="HKIIT Logo" />
@@ -20,12 +22,33 @@
         <img src="/img/it114115-logo.png" alt="IT114115 Logo" />
       </div>
     </header>
+
+    <!-- Glowing status badge chip -->
     <div id="status" class="disconnected">Disconnected</div>
+
+    <!-- Beautiful interactive Voice Orb / Visualizer Dashboard -->
+    <div class="voice-dashboard">
+      <div class="orb-container">
+        <div class="voice-orb" id="voice-orb">
+          <div class="orb-wave wave1"></div>
+          <div class="orb-wave wave2"></div>
+          <div class="orb-wave wave3"></div>
+          <div class="orb-core">
+            <svg class="mic-icon" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+            </svg>
+            <div class="processing-spinner"></div>
+          </div>
+        </div>
+        <div class="orb-label">AI FLEET ASSISTANT</div>
+      </div>
+    </div>
+
+    <!-- Main dialogue history screen -->
     <div id="chat-container"></div>
 
+    <!-- Fixed controls toolbar at the bottom -->
     <div id="controls">
-      <button id="start" class="button">Start Streaming</button>
-      <button id="stop" class="button" disabled>Stop Streaming</button>
       <div id="robot-selector">
         <label for="robot-select" style="display: none">Select Robot(s):</label>
         <select id="robot-select" multiple size="10" style="display: none">
@@ -47,8 +70,11 @@
           <option value="xiaoice_1">Xiaoice 1</option>
         </select>
       </div>
+      <button id="start" class="button">Start Streaming</button>
+      <button id="stop" class="button" disabled>Stop Streaming</button>
     </div>
   </div>
+
   <script src="/src/auth-check.js"></script>
   <script type="module" src="/src/robotModal.js"></script>
   <script type="module" src="/src/main.js"></script>
