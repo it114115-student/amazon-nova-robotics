@@ -2,6 +2,7 @@
 import { AudioPlayer } from './lib/play/AudioPlayer.js';
 import { ChatHistoryManager } from "./lib/util/ChatHistoryManager.js";
 import { setupRobotModal } from './robotModal.js';
+import { initLive2DAvatar } from './live2d-avatar.js?v=1.0.23';
 // Setup robot modal popup on page load
 document.addEventListener('DOMContentLoaded', () => {
     setupRobotModal();
@@ -30,14 +31,43 @@ class NativeSocketEmulator {
         if (this.connectPromise) {
             return this.connectPromise;
         }
+
+        // Close and clean up any existing WebSocket to prevent duplicate message handlers or audio streams
+        if (this.ws) {
+            try {
+                this.ws.onopen = null;
+                this.ws.onclose = null;
+                this.ws.onerror = null;
+                this.ws.onmessage = null;
+                this.ws.close();
+            } catch (e) {
+                console.warn("Error cleaning up previous WebSocket connection:", e);
+            }
+            this.ws = null;
+        }
         
-        this.connectPromise = (async () => {
+        this.connectPromise = new Promise(async (resolve, reject) => {
+            const timeoutDuration = 12000; // 12 second global timeout for establishing connection
+            let timeoutId = setTimeout(() => {
+                console.error("Connection attempt timed out globally!");
+                if (this.ws) {
+                    try { this.ws.close(); } catch(e) {}
+                    this.ws = null;
+                }
+                this.connected = false;
+                this.connectPromise = null;
+                reject(new Error("Connection timed out. Please check your network and try again."));
+            }, timeoutDuration);
+
             try {
                 this.trigger('connecting');
                 
-                // 1. Fetch Cognito and AgentCore configurations from static config.json
+                // 1. Fetch config with timeout
                 console.log("Fetching serverless config.json...");
-                const configResp = await fetch('/config.json');
+                const configResp = await Promise.race([
+                    fetch('/config.json'),
+                    new Promise((_, r) => setTimeout(() => r(new Error("Config fetch timed out")), 5000))
+                ]);
                 if (!configResp.ok) throw new Error("Could not fetch serverless config.json");
                 const config = await configResp.json();
                 
@@ -46,59 +76,68 @@ class NativeSocketEmulator {
                 if (!idToken) {
                     console.warn("No ID Token found. Redirecting to login.");
                     window.location.href = '/login.html';
+                    clearTimeout(timeoutId);
+                    this.connectPromise = null;
                     return;
                 }
                 
-                // 3. Authenticate with Federated Identity Pool and get credentials
+                // 3. Authenticate with Federated Identity Pool and get credentials with timeout
                 const providerName = `cognito-idp.${config.region}.amazonaws.com/${config.userPoolId}`;
                 console.log("Retrieving temporary AWS credentials from Identity Pool...");
                 
-                const idResponse = await fetch(`https://cognito-identity.${config.region}.amazonaws.com/`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/x-amz-json-1.1",
-                        "X-Amz-Target": "AWSCognitoIdentityService.GetId"
-                    },
-                    body: JSON.stringify({
-                        IdentityPoolId: config.identityPoolId,
-                        Logins: {
-                            [providerName]: idToken
-                        }
-                    })
-                });
-                if (!idResponse.ok) {
-                    throw new Error("Failed to retrieve Identity ID from Cognito.");
-                }
-                const { IdentityId } = await idResponse.json();
+                const cognitoPromise = (async () => {
+                    const idResponse = await fetch(`https://cognito-identity.${config.region}.amazonaws.com/`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-amz-json-1.1",
+                            "X-Amz-Target": "AWSCognitoIdentityService.GetId"
+                        },
+                        body: JSON.stringify({
+                            IdentityPoolId: config.identityPoolId,
+                            Logins: { [providerName]: idToken }
+                        })
+                    });
+                    if (!idResponse.ok) throw new Error("Failed to retrieve Identity ID from Cognito.");
+                    const { IdentityId } = await idResponse.json();
 
-                const credsResponse = await fetch(`https://cognito-identity.${config.region}.amazonaws.com/`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/x-amz-json-1.1",
-                        "X-Amz-Target": "AWSCognitoIdentityService.GetCredentialsForIdentity"
-                    },
-                    body: JSON.stringify({
-                        IdentityId: IdentityId,
-                        Logins: {
-                            [providerName]: idToken
-                        }
-                    })
-                });
-                if (!credsResponse.ok) {
-                    throw new Error("Failed to retrieve temporary AWS credentials from Cognito.");
-                }
-                const { Credentials } = await credsResponse.json();
-                const credentials = {
-                    accessKeyId: Credentials.AccessKeyId,
-                    secretAccessKey: Credentials.SecretKey,
-                    sessionToken: Credentials.SessionToken
-                };
+                    const credsResponse = await fetch(`https://cognito-identity.${config.region}.amazonaws.com/`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-amz-json-1.1",
+                            "X-Amz-Target": "AWSCognitoIdentityService.GetCredentialsForIdentity"
+                        },
+                        body: JSON.stringify({
+                            IdentityId: IdentityId,
+                            Logins: { [providerName]: idToken }
+                        })
+                    });
+                    if (!credsResponse.ok) throw new Error("Failed to retrieve credentials from Cognito.");
+                    const { Credentials } = await credsResponse.json();
+                    return {
+                        accessKeyId: Credentials.AccessKeyId,
+                        secretAccessKey: Credentials.SecretKey,
+                        sessionToken: Credentials.SessionToken
+                    };
+                })();
 
-                // 4. Load ESM SigV4 signer modules dynamically from ESM CDN
+                const credentials = await Promise.race([
+                    cognitoPromise,
+                    new Promise((_, r) => setTimeout(() => r(new Error("Cognito credentials fetch timed out")), 5000))
+                ]);
+
+                // 4. Load ESM SigV4 signer modules dynamically from ESM CDN with timeout
                 console.log("Loading ESM Signature modules...");
-                const SignatureV4 = (await import('https://esm.sh/@smithy/signature-v4')).SignatureV4;
-                const Sha256 = (await import('https://esm.sh/@aws-crypto/sha256-browser')).Sha256;
-                const HttpRequest = (await import('https://esm.sh/@smithy/protocol-http')).HttpRequest;
+                const esmPromise = (async () => {
+                    const SignatureV4 = (await import('https://esm.sh/@smithy/signature-v4')).SignatureV4;
+                    const Sha256 = (await import('https://esm.sh/@aws-crypto/sha256-browser')).Sha256;
+                    const HttpRequest = (await import('https://esm.sh/@smithy/protocol-http')).HttpRequest;
+                    return { SignatureV4, Sha256, HttpRequest };
+                })();
+
+                const { SignatureV4, Sha256, HttpRequest } = await Promise.race([
+                    esmPromise,
+                    new Promise((_, r) => setTimeout(() => r(new Error("ESM modules load timed out (esm.sh network issue)")), 6000))
+                ]);
 
                 // 5. Presign the AWS Bedrock AgentCore websocket URL
                 const encodedArn = encodeURIComponent(config.runtimeArn);
@@ -106,7 +145,6 @@ class NativeSocketEmulator {
                 const path = `/runtimes/${encodedArn}/ws`;
                 const voiceId = getQueryParams().voice_id || 'tiffany';
 
-                // Get current selection to initialize prompt on connection start
                 const selectedRobots = getSelectedRobots();
                 const robotsParam = selectedRobots.length > 0 ? selectedRobots.join(',') : 'all';
 
@@ -127,44 +165,58 @@ class NativeSocketEmulator {
                 });
 
                 console.log("Generating IAM SigV4 pre-signed signature...");
-                const signedRequest = await signer.presign(request, {
-                    expiresIn: 300,
-                });
-
+                const signedRequest = await signer.presign(request, { expiresIn: 300 });
                 const queryParams = new URLSearchParams(signedRequest.query);
                 const wsUrl = `wss://${host}${path}?${queryParams.toString()}`;
 
                 console.log(`Connecting to serverless AWS Bedrock AgentCore WebSocket...`);
-                this.ws = new WebSocket(wsUrl);
+                const ws = new WebSocket(wsUrl);
+                this.ws = ws;
                 
-                this.ws.onopen = () => {
+                let isConnectionSettled = false;
+                
+                ws.onopen = () => {
                     console.log("WebSocket connection established!");
+                    clearTimeout(timeoutId);
                     this.connected = true;
                     this.trigger('connect');
+                    if (!isConnectionSettled) {
+                        isConnectionSettled = true;
+                        resolve(ws);
+                    }
                 };
                 
-                this.ws.onclose = (event) => {
+                ws.onclose = (event) => {
                     console.log(`WebSocket connection closed: code=${event.code}, reason=${event.reason}`);
+                    clearTimeout(timeoutId);
                     this.connected = false;
                     this.trigger('disconnect');
+                    this.connectPromise = null;
+                    if (!isConnectionSettled) {
+                        isConnectionSettled = true;
+                        reject(new Error(`WebSocket connection closed: code=${event.code}`));
+                    }
                 };
                 
-                this.ws.onerror = (error) => {
+                ws.onerror = (error) => {
                     console.error("WebSocket transport error:", error);
+                    clearTimeout(timeoutId);
+                    this.connected = false;
                     this.trigger('error', error);
+                    this.connectPromise = null;
+                    if (!isConnectionSettled) {
+                        isConnectionSettled = true;
+                        reject(error);
+                    }
                 };
                 
-                this.ws.onmessage = (event) => {
+                ws.onmessage = (event) => {
                     try {
                         console.log("📥 Raw WebSocket Message from Bedrock AgentCore:", event.data);
                         const payload = JSON.parse(event.data);
-                        
-                        // 1. Support custom/legacy envelope format
                         if (payload.type) {
                             this.trigger(payload.type, payload);
-                        }
-                        // 2. Support native Bedrock AgentCore event format
-                        else if (payload.event) {
+                        } else if (payload.event) {
                             const eventKey = Object.keys(payload.event)[0];
                             if (eventKey) {
                                 const eventData = payload.event[eventKey];
@@ -179,12 +231,13 @@ class NativeSocketEmulator {
 
             } catch (err) {
                 console.error("Failed to establish serverless AgentCore connection:", err);
-                this.trigger('connect_error', err);
-                throw err;
-            } finally {
+                clearTimeout(timeoutId);
+                this.connected = false;
                 this.connectPromise = null;
+                this.trigger('connect_error', err);
+                reject(err);
             }
-        })();
+        });
         
         return this.connectPromise;
     }
@@ -284,6 +337,60 @@ let displayAssistantText = false;
 let role;
 const audioPlayer = new AudioPlayer();
 let sessionInitialized = false;
+
+// Voice-Text Real-time Lip-Sync and Typewriter synchronization variables
+let totalSamplesReceived = 0;
+let currentFullText = "";
+let isSpeakingTurn = false;
+let assistantTurnEnded = false;
+let syncLoopId = null;
+
+function stopSyncLoop() {
+    isSpeakingTurn = false;
+    if (syncLoopId) {
+        clearInterval(syncLoopId);
+        syncLoopId = null;
+    }
+    // Cleanly seal and finalize the active typewriter block
+    chatHistoryManager.finalizeTypewriterMessage();
+}
+
+function startSyncLoop() {
+    if (syncLoopId) return;
+
+    syncLoopId = setInterval(() => {
+        if (!isSpeakingTurn) {
+            stopSyncLoop();
+            return;
+        }
+
+        const played = audioPlayer.getSamplesPlayed();
+
+        // If we haven't received any audio packet count yet from WebSocket, hold back
+        if (totalSamplesReceived === 0) {
+            return;
+        }
+
+        const progress = Math.min(1, played / totalSamplesReceived);
+
+        // Map progress to exact characters to reveal
+        const visibleLength = Math.floor(progress * currentFullText.length);
+        const visibleText = currentFullText.substring(0, visibleLength);
+
+        if (visibleText) {
+            // High performance, target-pointed direct element text content updates
+            chatHistoryManager.updateTypewriterMessage(visibleText);
+        }
+
+        // If playback of all received audio samples has completed (and the server has finished sending the sentence blocks)
+        if (progress >= 1 && played >= totalSamplesReceived && assistantTurnEnded) {
+            stopSyncLoop();
+
+            // Final safety snap to make sure full text is flushed
+            chatHistoryManager.updateTypewriterMessage(currentFullText);
+        }
+    }, 50); // Fluid polling every 50ms for seamless subtitle typewriter effect
+}
 
 // Custom system prompt - you can modify this
 let SYSTEM_PROMPT = "You are a friend. The user and you will engage in a spoken " +
@@ -386,7 +493,7 @@ async function initializeSession() {
         statusElement.textContent = "Session initialized successfully";
     } catch (error) {
         console.error("Failed to initialize session:", error);
-        statusElement.textContent = "Error initializing session";
+        statusElement.textContent = "Error: " + error.message;
         statusElement.className = "error";
     }
 }
@@ -394,7 +501,19 @@ async function initializeSession() {
 async function startStreaming() {
     if (isStreaming) return;
 
+    // Instantly halt any running AI typewriter/synchronization loop
+    stopSyncLoop();
+
     try {
+        // Lazily initialize microphone and audio context upon first user-click interaction!
+        // This complies 100% with iOS Safari user gesture requirements.
+        if (!audioContext || !audioStream) {
+            await initAudio();
+            if (!audioContext || !audioStream) {
+                return; // Error status is already set inside initAudio()
+            }
+        }
+
         // First, make sure the session is initialized
         if (!sessionInitialized) {
             await initializeSession();
@@ -495,7 +614,7 @@ function stopStreaming() {
     chatHistoryManager.endTurn();
 }
 
-// Base64 to Float32Array conversion
+// Base64 to Float32Array conversion with robust WAV header stripping
 function base64ToFloat32Array(base64String) {
     try {
         const binaryString = window.atob(base64String);
@@ -504,7 +623,33 @@ function base64ToFloat32Array(base64String) {
             bytes[i] = binaryString.charCodeAt(i);
         }
 
-        const int16Array = new Int16Array(bytes.buffer);
+        let pcmDataBytes = bytes;
+
+        // Check if this is a WAV container file (RIFF...WAVE)
+        if (bytes.length > 44 && 
+            bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && // "RIFF"
+            bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45  // "WAVE"
+        ) {
+            console.log("ℹ️ WAV container detected. Stripping header...");
+            // Scan for the "data" subchunk marker to locate raw PCM payload
+            let dataOffset = -1;
+            for (let i = 12; i < bytes.length - 8; i++) {
+                if (bytes[i] === 0x64 && bytes[i+1] === 0x61 && bytes[i+2] === 0x74 && bytes[i+3] === 0x61) { // "data"
+                    dataOffset = i + 8; // skip 4 bytes of "data" and 4 bytes of subchunk size
+                    break;
+                }
+            }
+            if (dataOffset !== -1) {
+                console.log(`🎯 Raw PCM payload located at byte offset: ${dataOffset}`);
+                pcmDataBytes = new Uint8Array(bytes.buffer, dataOffset);
+            } else {
+                console.warn("⚠️ WAV 'data' subchunk not found. Falling back to byte offset 44.");
+                pcmDataBytes = new Uint8Array(bytes.buffer, 44);
+            }
+        }
+
+        // Int16Array representing the raw pcm data samples
+        const int16Array = new Int16Array(pcmDataBytes.buffer, pcmDataBytes.byteOffset, pcmDataBytes.byteLength / 2);
         const float32Array = new Float32Array(int16Array.length);
         for (let i = 0; i < int16Array.length; i++) {
             float32Array[i] = int16Array[i] / 32768.0;
@@ -536,36 +681,86 @@ function updateChatUI() {
         return;
     }
 
-    // Clear existing chat messages
-    chatContainer.innerHTML = '';
+    // Select only standard message blocks, ignoring any thinking placeholder divs
+    const existingMessageDivs = Array.from(chatContainer.querySelectorAll('.message:not(.thinking)'));
+    const history = chat.history || [];
 
-    // Add all messages from history
-    chat.history.forEach(item => {
+    // Incrementally reconcile elements
+    history.forEach((item, index) => {
         if (item.endOfConversation) {
-            const endDiv = document.createElement('div');
-            endDiv.className = 'message system';
-            endDiv.textContent = "Conversation ended";
-            chatContainer.appendChild(endDiv);
+            if (index < existingMessageDivs.length) {
+                const el = existingMessageDivs[index];
+                if (!el.classList.contains('system')) {
+                    el.className = 'message system';
+                    el.textContent = "Conversation ended";
+                }
+            } else {
+                const endDiv = document.createElement('div');
+                endDiv.className = 'message system';
+                endDiv.textContent = "Conversation ended";
+                chatContainer.appendChild(endDiv);
+            }
             return;
         }
 
         if (item.role) {
-            const messageDiv = document.createElement('div');
             const roleLowerCase = item.role.toLowerCase();
-            messageDiv.className = `message ${roleLowerCase}`;
+            let messageDiv;
 
-            const roleLabel = document.createElement('div');
-            roleLabel.className = 'role-label';
-            roleLabel.textContent = item.role;
-            messageDiv.appendChild(roleLabel);
+            if (index < existingMessageDivs.length) {
+                // Reuse existing DOM node
+                messageDiv = existingMessageDivs[index];
+                
+                // Ensure proper css styling classes are mirrored
+                if (!messageDiv.classList.contains(roleLowerCase)) {
+                    messageDiv.className = `message ${roleLowerCase}`;
+                }
 
-            const content = document.createElement('div');
-            content.textContent = item.message || "No content";
-            messageDiv.appendChild(content);
+                // Update text content of content element only
+                const contentDiv = messageDiv.querySelector('.message-content');
+                if (contentDiv) {
+                    if (contentDiv.textContent !== item.message) {
+                        contentDiv.textContent = item.message || "";
+                    }
+                } else {
+                    // Fallback structural reset
+                    messageDiv.innerHTML = '';
+                    const roleLabel = document.createElement('div');
+                    roleLabel.className = 'role-label';
+                    roleLabel.textContent = item.role;
+                    messageDiv.appendChild(roleLabel);
 
-            chatContainer.appendChild(messageDiv);
+                    const content = document.createElement('div');
+                    content.className = 'message-content';
+                    content.textContent = item.message || "No content";
+                    messageDiv.appendChild(content);
+                }
+            } else {
+                // Create brand new element on overflow
+                messageDiv = document.createElement('div');
+                messageDiv.className = `message ${roleLowerCase}`;
+
+                const roleLabel = document.createElement('div');
+                roleLabel.className = 'role-label';
+                roleLabel.textContent = item.role;
+                messageDiv.appendChild(roleLabel);
+
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                content.textContent = item.message || "No content";
+                messageDiv.appendChild(content);
+
+                chatContainer.appendChild(messageDiv);
+            }
         }
     });
+
+    // Remove obsolete messages from DOM if history shrank
+    if (existingMessageDivs.length > history.length) {
+        for (let i = history.length; i < existingMessageDivs.length; i++) {
+            existingMessageDivs[i].remove();
+        }
+    }
 
     // Re-add thinking indicators if we're still waiting
     if (waitingForUserTranscription) {
@@ -582,6 +777,10 @@ function updateChatUI() {
 
 // Show the "Listening" indicator for user
 function showUserThinkingIndicator() {
+    waitingForUserTranscription = true;
+    if (userThinkingIndicator && userThinkingIndicator.parentNode === chatContainer) {
+        return; // Node already active in container, skip recreation to avoid flashing
+    }
     hideUserThinkingIndicator();
 
     waitingForUserTranscription = true;
@@ -614,6 +813,10 @@ function showUserThinkingIndicator() {
 
 // Show the "Thinking" indicator for assistant
 function showAssistantThinkingIndicator() {
+    waitingForAssistantResponse = true;
+    if (assistantThinkingIndicator && assistantThinkingIndicator.parentNode === chatContainer) {
+        return; // Node already active in container, skip recreation to avoid flashing
+    }
     hideAssistantThinkingIndicator();
 
     waitingForAssistantResponse = true;
@@ -670,31 +873,15 @@ socket.on('contentStart', (data) => {
     console.log('Content start received:', data);
 
     if (data.type === 'TEXT') {
-        // Below update will be enabled when role is moved to the contentStart
         role = data.role;
         if (data.role === 'USER') {
             // When user's text content starts, hide user thinking indicator
             hideUserThinkingIndicator();
         }
         else if (data.role === 'ASSISTANT') {
-            // When assistant's text content starts, hide assistant thinking indicator
+            // When assistant's text content starts, hide both user and assistant thinking indicators
+            hideUserThinkingIndicator();
             hideAssistantThinkingIndicator();
-            let isSpeculative = false;
-            try {
-                if (data.additionalModelFields) {
-                    const additionalFields = JSON.parse(data.additionalModelFields);
-                    isSpeculative = additionalFields.generationStage === "SPECULATIVE";
-                    if (isSpeculative) {
-                        console.log("Received speculative content");
-                        displayAssistantText = true;
-                    }
-                    else {
-                        displayAssistantText = false;
-                    }
-                }
-            } catch (e) {
-                console.error("Error parsing additionalModelFields:", e);
-            }
         }
     }
     else if (data.type === 'AUDIO') {
@@ -709,36 +896,73 @@ socket.on('contentStart', (data) => {
 socket.on('textOutput', (data) => {
     console.log('Received text output:', data);
 
-    if (role === 'USER') {
+    // Use current message role primarily, fallback to tracked role
+    const currentRole = data.role || role;
+
+    if (currentRole === 'USER') {
+        // Stop any active typewriter synchronizers immediately
+        stopSyncLoop();
+
         // When user text is received, show thinking indicator for assistant response
         transcriptionReceived = true;
-        //hideUserThinkingIndicator();
+        hideUserThinkingIndicator();
 
         // Add user message to chat
         handleTextOutput({
-            role: data.role,
+            role: data.role || 'USER',
             content: data.content
         });
 
         // Show assistant thinking indicator after user text appears
         showAssistantThinkingIndicator();
     }
-    else if (role === 'ASSISTANT') {
-        //hideAssistantThinkingIndicator();
-        if (displayAssistantText) {
-            handleTextOutput({
-                role: data.role,
-                content: data.content
+    else if (currentRole === 'ASSISTANT') {
+        hideUserThinkingIndicator();
+        hideAssistantThinkingIndicator();
+        
+        // Boot up typewriter synchronizer for assistant responses
+        if (!isSpeakingTurn) {
+            isSpeakingTurn = true;
+            assistantTurnEnded = false;
+            totalSamplesReceived = 0;
+            audioPlayer.resetSamplesPlayed();
+
+            // Create a brand new active typewriter message bubble for this speech turn
+            chatHistoryManager.addTextMessage({
+                role: 'ASSISTANT',
+                message: '',
+                isTypewriterActive: true
             });
+
+            startSyncLoop();
         }
+
+        // Cache the latest cumulative transcription
+        currentFullText = data.content || "";
     }
 });
 
 // Handle audio output
 socket.on('audioOutput', (data) => {
+    // Securely hide thinking indicators as audio streams in
+    hideUserThinkingIndicator();
+    hideAssistantThinkingIndicator();
+
     if (data.content) {
         try {
             const audioData = base64ToFloat32Array(data.content);
+            
+            // Real-time direct WebSocket volume calculation for flawless lip sync
+            let sum = 0;
+            for (let i = 0; i < audioData.length; i++) {
+                sum += audioData[i] * audioData[i];
+            }
+            const rmsVolume = Math.sqrt(sum / audioData.length);
+            audioPlayer.setWebSocketVolume(rmsVolume);
+
+            // Track total samples received for real-time playhead progress calculation
+            totalSamplesReceived += audioData.length;
+
             audioPlayer.playAudio(audioData);
         } catch (error) {
             console.error('Error processing audio data:', error);
@@ -759,14 +983,17 @@ socket.on('contentEnd', (data) => {
         else if (role === 'ASSISTANT') {
             // When assistant's text content ends, prepare for user input in next turn
             hideAssistantThinkingIndicator();
+            assistantTurnEnded = true;
         }
 
         // Handle stop reasons
         if (data.stopReason && data.stopReason.toUpperCase() === 'END_TURN') {
             chatHistoryManager.endTurn();
+            assistantTurnEnded = true;
         } else if (data.stopReason && data.stopReason.toUpperCase() === 'INTERRUPTED') {
             console.log("Interrupted by user");
             audioPlayer.bargeIn();
+            stopSyncLoop();
         }
     }
     else if (data.type === 'AUDIO') {
@@ -850,7 +1077,8 @@ stopButton.addEventListener('click', stopStreaming);
 
 // Initialize the app when the page loads
 document.addEventListener('DOMContentLoaded', async () => {
-    await initAudio();
+    // Initialize the Live2D speaking avatar (falls back to Voice Orb automatically on load error)
+    initLive2DAvatar(audioPlayer);
 
     // Check for robot parameter in URL
     const params = getQueryParams();
@@ -875,5 +1103,4 @@ const queryParams = getQueryParams();
 if (queryParams.robot) {
     robotSelect.value = queryParams.robot;
     console.log(`Auto-selected robot: ${queryParams.robot}`);
-    initAudio();
 }

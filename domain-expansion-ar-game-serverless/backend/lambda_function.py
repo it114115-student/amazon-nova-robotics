@@ -225,9 +225,9 @@ def handle_http(event):
 
     # Endpoint: /api/enhance-portrait (POST)
     if path == "/api/enhance-portrait" and method == "POST":
-        session_id = body.get("sessionId", "main")
+        session_id = body.get("sessionId", "mcpserver")
         if not session_id or not isinstance(session_id, str) or not session_id.strip():
-            session_id = "main"
+            session_id = "mcpserver"
         else:
             session_id = session_id.strip()
             
@@ -275,9 +275,9 @@ def handle_http(event):
     # Endpoint: /api/check-enhancement (GET)
     elif path == "/api/check-enhancement" and method == "GET":
         q_params = event.get("queryStringParameters", {}) or {}
-        session_id = q_params.get("sessionId", "main")
+        session_id = q_params.get("sessionId", "mcpserver")
         if not session_id or not isinstance(session_id, str) or not session_id.strip():
-            session_id = "main"
+            session_id = "mcpserver"
         else:
             session_id = session_id.strip()
             
@@ -312,49 +312,61 @@ def handle_http(event):
     # Endpoint: /api/get-snapshot (GET)
     elif path == "/api/get-snapshot" and method == "GET":
         q_params = event.get("queryStringParameters", {}) or {}
-        session_id = q_params.get("sessionId", "main")
+        session_id = q_params.get("sessionId", "mcpserver")
         if not session_id or not isinstance(session_id, str) or not session_id.strip():
-            session_id = "main"
+            session_id = "mcpserver"
         else:
             session_id = session_id.strip()
             
         role = q_params.get("role", "player1")
-        logger.info(f"Get snapshot triggered: session={session_id}, role={role}")
+        logger.info(f"Get snapshot triggered (S3-Direct): session={session_id}, role={role}")
 
         try:
-            resp = sessions_table.get_item(Key={"session_id": session_id})
-            item = resp.get("Item", {})
-            img_b64 = item.get("latest_webcam_frame_p1", "") if role == "player1" else item.get("latest_webcam_frame_p2", "")
+            photos_bucket = os.environ.get("PHOTOS_S3_BUCKET")
+            s3_client = boto3.client("s3")
             
-            if not img_b64:
+            if not photos_bucket:
+                raise Exception("PHOTOS_S3_BUCKET env variable is missing!")
+
+            role_key = "player1" if role == "player1" else "player2" if role == "player2" else "viewer"
+            s3_key = f"webcam_snapshots/{session_id}/{role_key}.jpg"
+            
+            try:
+                # Direct check if object exists in S3
+                s3_client.head_object(Bucket=photos_bucket, Key=s3_key)
+                img_url = f"https://{photos_bucket}.s3.amazonaws.com/{s3_key}"
                 return {
-                    "statusCode": 404,
+                    "statusCode": 200,
                     "headers": headers,
-                    "body": json.dumps({"error": "Snapshot not found"})
+                    "body": json.dumps({
+                        "success": True,
+                        "image": img_url,
+                        "message": "Snapshot retrieved from S3"
+                    })
                 }
-                
-            if not img_b64.startswith("data:image/"):
-                img_b64 = f"data:image/jpeg;base64,{img_b64}"
-                
-            return {
-                "statusCode": 200,
-                "headers": headers,
-                "body": json.dumps({
-                    "success": True,
-                    "image": img_b64
-                })
-            }
+            except s3_client.exceptions.ClientError as e:
+                # Code 404 indicates object does not exist yet
+                logger.info(f"webcam snapshot not found in S3 yet: Bucket={photos_bucket}, Key={s3_key}")
+                return {
+                    "statusCode": 200,
+                    "headers": headers,
+                    "body": json.dumps({
+                        "success": False,
+                        "image": "",
+                        "message": "Awaiting snapshot capture"
+                    })
+                }
         except Exception as e:
-            logger.error(f"Error fetching snapshot: {e}")
+            logger.error(f"Error fetching snapshot from S3: {e}")
             return {
-                "statusCode": 500,
+                "statusCode": 200, # Return 200 to avoid console warnings, but success=False
                 "headers": headers,
-                "body": json.dumps({"error": str(e)})
+                "body": json.dumps({"success": False, "error": str(e)})
             }
 
     # Endpoint: /api/register-room
     elif path == "/api/register-room" and method == "POST":
-        session_id = body.get("sessionId", "main")
+        session_id = body.get("sessionId", "mcpserver")
         room_code = body.get("roomCode", "BTL1")
         signaling_url = body.get("signalingUrl", "")
 
@@ -374,30 +386,53 @@ def handle_http(event):
 
     # Endpoint: /api/webcam-upload
     elif path == "/api/webcam-upload" and method == "POST":
-        session_id = body.get("sessionId", "main")
+        session_id = body.get("sessionId", "mcpserver")
         role = body.get("role", "player1")
         image_base64 = body.get("image", "")
 
-        update_expr = "SET latest_webcam_frame_p1 = :img, updated_at = :t" if role == "player1" else "SET latest_webcam_frame_p2 = :img, updated_at = :t"
-        if role == "viewer" or not role:
-            update_expr = "SET latest_webcam_frame = :img, updated_at = :t"
-
         try:
+            import base64
+            img_data = base64.b64decode(image_base64)
+            
+            photos_bucket = os.environ.get("PHOTOS_S3_BUCKET")
+            s3_client = boto3.client("s3")
+            
+            if not photos_bucket:
+                raise Exception("PHOTOS_S3_BUCKET is missing! S3 storage is required.")
+
+            role_key = "player1" if role == "player1" else "player2" if role == "player2" else "viewer"
+            s3_key = f"webcam_snapshots/{session_id}/{role_key}.jpg"
+            
+            # Write raw image binary directly to S3 bucket
+            s3_client.put_object(
+                Bucket=photos_bucket,
+                Key=s3_key,
+                Body=img_data,
+                ContentType="image/jpeg"
+            )
+            img_url = f"https://{photos_bucket}.s3.amazonaws.com/{s3_key}"
+            logger.info(f"Successfully saved webcam frame directly to S3 (no DynamoDB storage): {img_url}")
+
+            # Keep DynamoDB record thin - only update the updated_at timestamp!
             sessions_table.update_item(
                 Key={"session_id": session_id},
-                UpdateExpression=update_expr,
+                UpdateExpression="SET updated_at = :t",
                 ExpressionAttributeValues={
-                    ":img": image_base64,
                     ":t": int(time.time())
                 }
             )
+            
             return {
                 "statusCode": 200,
                 "headers": headers,
-                "body": json.dumps({"success": True, "message": "Frame uploaded successfully"})
+                "body": json.dumps({
+                    "success": True, 
+                    "message": "Webcam frame uploaded directly to S3 successfully", 
+                    "url": img_url
+                })
             }
         except Exception as e:
-            logger.error(f"Error saving image: {e}")
+            logger.error(f"Error uploading image directly to S3: {e}")
             return {"statusCode": 500, "headers": headers, "body": json.dumps({"error": str(e)})}
 
     # Endpoint: /api/log
@@ -410,56 +445,58 @@ def handle_http(event):
     # Endpoint: /api/last-image
     elif path == "/api/last-image" and method == "GET":
         q_params = event.get("queryStringParameters", {}) or {}
-        session_id = q_params.get("session_id", "main")
+        session_id = q_params.get("session_id", "mcpserver")
         role = q_params.get("role", "")
 
-        resp = sessions_table.get_item(Key={"session_id": session_id})
-        item = resp.get("Item", {})
-
-        image_base64 = ""
-        if role == "player1":
-            image_base64 = item.get("latest_webcam_frame_p1", "")
-        elif role == "player2":
-            image_base64 = item.get("latest_webcam_frame_p2", "")
-        else:
-            image_base64 = item.get("latest_webcam_frame", item.get("latest_webcam_frame_p1", ""))
-
         html_headers = {"Content-Type": "text/html"}
-        if not image_base64:
+        try:
+            photos_bucket = os.environ.get("PHOTOS_S3_BUCKET")
+            s3_client = boto3.client("s3")
+            
+            if not photos_bucket:
+                raise Exception("PHOTOS_S3_BUCKET is missing!")
+
+            role_key = "player1" if role == "player1" else "player2" if role == "player2" else "viewer"
+            s3_key = f"webcam_snapshots/{session_id}/{role_key}.jpg"
+
+            # Check S3 directly!
+            s3_client.head_object(Bucket=photos_bucket, Key=s3_key)
+            img_url = f"https://{photos_bucket}.s3.amazonaws.com/{s3_key}"
+            
+            html_content = f"""
+            <html>
+            <head>
+                <title>Latest Webcam Capture</title>
+                <meta http-equiv="refresh" content="2">
+                <style>
+                    body {{
+                        background: #111; color: #fff; text-align: center; font-family: sans-serif; margin: 0; padding: 20px;
+                    }}
+                    img {{
+                        max-width: 95%; max-height: 85vh; border: 4px solid #FFFF00; border-radius: 12px; box-shadow: 0 0 30px rgba(255,255,0,0.2);
+                    }}
+                    h4 {{ color: #aaa; margin: 10px 0 0 0; letter-spacing: 2px; }}
+                </style>
+            </head>
+            <body>
+                <img src="{img_url}">
+                <h4>LIVE MATCH snapshot: {session_id} ({role or "active"})</h4>
+            </body>
+            </html>
+            """
+            return {"statusCode": 200, "headers": html_headers, "body": html_content}
+        except Exception as e:
             return {
                 "statusCode": 200,
                 "headers": html_headers,
                 "body": "<html><head><meta http-equiv='refresh' content='2'></head><body><h3>No webcam frame uploaded yet. Refreshing...</h3></body></html>"
             }
 
-        html_content = f"""
-        <html>
-        <head>
-            <title>Latest Webcam Capture</title>
-            <meta http-equiv="refresh" content="2">
-            <style>
-                body {{
-                    background: #111; color: #fff; text-align: center; font-family: sans-serif; margin: 0; padding: 20px;
-                }}
-                img {{
-                    max-width: 95%; max-height: 85vh; border: 4px solid #FFFF00; border-radius: 12px; box-shadow: 0 0 30px rgba(255,255,0,0.2);
-                }}
-                h4 {{ color: #aaa; margin: 10px 0 0 0; letter-spacing: 2px; }}
-            </style>
-        </head>
-        <body>
-            <img src="data:image/jpeg;base64,{image_base64}">
-            <h4>LIVE MATCH snapshot: {session_id} ({role or "active"})</h4>
-        </body>
-        </html>
-        """
-        return {"statusCode": 200, "headers": html_headers, "body": html_content}
-
     # Endpoint: /api/live-status
     elif path in ["/api/live-status", "/api/battle-result"] and method == "POST":
         from commentary import translate_detail, generate_ai_commentary
         
-        session_id = body.get("sessionId", "main")
+        session_id = body.get("sessionId", "mcpserver")
         room_code = body.get("roomCode", "BTL1")
         p1_score = body.get("p1Score", 0)
         p2_score = body.get("p2Score", 0)
@@ -516,36 +553,31 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
 
         if should_attach_image:
             try:
-                resp = sessions_table.get_item(Key={"session_id": session_id})
-                item = resp.get("Item", {})
-                
-                # Fetch Player 1 frame
-                img_b64_p1 = item.get("latest_webcam_frame_p1", "") or item.get("latest_webcam_frame", "")
-                if img_b64_p1:
-                    if "," in img_b64_p1:
-                        header, img_b64_p1_stripped = img_b64_p1.split(",", 1)
-                        if "png" in header:
-                            image_format_p1 = "png"
-                    else:
-                        img_b64_p1_stripped = img_b64_p1
-                    image_bytes_p1 = base64.b64decode(img_b64_p1_stripped)
-                    image_base64_p1 = img_b64_p1_stripped
+                s3_client = boto3.client("s3")
+                photos_bucket = os.environ.get("PHOTOS_S3_BUCKET")
 
-                # Fetch Player 2 frame
-                img_b64_p2 = item.get("latest_webcam_frame_p2", "")
-                if img_b64_p2:
-                    if "," in img_b64_p2:
-                        header, img_b64_p2_stripped = img_b64_p2.split(",", 1)
-                        if "png" in header:
-                            image_format_p2 = "png"
-                    else:
-                        img_b64_p2_stripped = img_b64_p2
-                    image_bytes_p2 = base64.b64decode(img_b64_p2_stripped)
-                    image_base64_p2 = img_b64_p2_stripped
+                if photos_bucket:
+                    # Fetch Player 1 frame directly from S3
+                    try:
+                        s3_obj = s3_client.get_object(Bucket=photos_bucket, Key=f"webcam_snapshots/{session_id}/player1.jpg")
+                        image_bytes_p1 = s3_obj["Body"].read()
+                        image_base64_p1 = base64.b64encode(image_bytes_p1).decode("utf-8")
+                        logger.info("Successfully fetched Player 1 frame directly from S3 for Bedrock!")
+                    except s3_client.exceptions.NoSuchKey:
+                        logger.info("No Player 1 snapshot in S3 yet.")
 
-                logger.info(f"Retrieved session webcam frames: P1 found={bool(image_bytes_p1)}, P2 found={bool(image_bytes_p2)}")
+                    # Fetch Player 2 frame directly from S3
+                    try:
+                        s3_obj = s3_client.get_object(Bucket=photos_bucket, Key=f"webcam_snapshots/{session_id}/player2.jpg")
+                        image_bytes_p2 = s3_obj["Body"].read()
+                        image_base64_p2 = base64.b64encode(image_bytes_p2).decode("utf-8")
+                        logger.info("Successfully fetched Player 2 frame directly from S3 for Bedrock!")
+                    except s3_client.exceptions.NoSuchKey:
+                        logger.info("No Player 2 snapshot in S3 yet.")
+                else:
+                    logger.warning("PHOTOS_S3_BUCKET is missing! Cannot attach images to commentary.")
             except Exception as e:
-                logger.warning(f"Failed to fetch session webcam frames for Bedrock: {e}")
+                logger.warning(f"Failed to fetch session webcam frames from S3 for Bedrock: {e}")
 
         # Resolve Commentary Engine
         agent_engine = body.get("agent_type", DEFAULT_AGENT_TYPE)

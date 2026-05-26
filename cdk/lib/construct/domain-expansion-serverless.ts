@@ -57,7 +57,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
       environmentVariables: {
         IsInCloud: "yes",
         AWS_BEDROCK_REGION: "us-east-1",
-        BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0",
+        BEDROCK_MODEL_ID: "moonshotai.kimi-k2.5",
       },
     });
 
@@ -72,8 +72,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
           "bedrock:InvokeModelWithResponseStream",
         ],
         resources: [
-          "arn:aws:bedrock:*::foundation-model/amazon.nova-pro-v1:0",
-          "arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0",
+          "arn:aws:bedrock:*::foundation-model/moonshotai.kimi-k2.5",
         ],
       })
     );
@@ -175,7 +174,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
         SESSIONS_TABLE: sessionsTable.tableName,
         AGENT_TYPE: "agentcore_runtime",
         AGENTCORE_RUNTIME_ARN: runtime.agentRuntimeArn,
-        BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0",
+        BEDROCK_MODEL_ID: "moonshotai.kimi-k2.5",
         BEDROCK_REGION: Stack.of(this).region,
         IMAGE_GEN_QUEUE_URL: imageGenQueue.queueUrl,
         PHOTOS_S3_BUCKET: photosBucket.bucketName,
@@ -214,8 +213,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
           "bedrock:InvokeModelWithResponseStream",
         ],
         resources: [
-          "arn:aws:bedrock:*::foundation-model/amazon.nova-pro-v1:0",
-          "arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0",
+          "arn:aws:bedrock:*::foundation-model/moonshotai.kimi-k2.5",
         ],
       })
     );
@@ -250,6 +248,20 @@ export class DomainExpansionServerlessConstruct extends Construct {
     });
 
     const lambdaIntegration = new apigateway.LambdaIntegration(lambdaFunction);
+
+    // Explicitly add /api/get-snapshot and /api/last-image as public resources to support direct browser <img> rendering
+    const apiResource = restApi.root.addResource("api");
+    const getSnapshotResource = apiResource.addResource("get-snapshot");
+    getSnapshotResource.addMethod("GET", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.NONE,
+    });
+
+    const lastImageResource = apiResource.addResource("last-image");
+    lastImageResource.addMethod("GET", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.NONE,
+    });
+
+    // Fallback catch-all proxy routes remain securely protected by Cognito Authorization
     restApi.root.addProxy({
       defaultIntegration: lambdaIntegration,
       defaultMethodOptions: {
@@ -421,7 +433,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
           isServerless: true,
           webSocketUrl: `wss://${webSocketApi.ref}.execute-api.${Stack.of(this).region}.amazonaws.com/${stage.stageName}`,
           robotApiEndpoint: "https://" + props.robotSimulatorServerlessConstruct.serviceUrl,
-          defaultSessionKey: "main",
+          defaultSessionKey: "mcpserver",
           cognitoUserPoolId: props.userPool.userPoolId,
           cognitoUserPoolClientId: props.userPoolClient.userPoolClientId,
           cognitoRegion: Stack.of(this).region,

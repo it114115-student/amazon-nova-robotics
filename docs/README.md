@@ -8,6 +8,7 @@ Generated: 2026-05-25 02:26 UTC
 ## Quick links
 
 - [Repository README](../README.md)
+- [AWS Cloud System Architecture Specification](AWS_ARCHITECTURE.md)
 - [AWS Cost Estimation Guide](COST_ESTIMATION.md)
 - [Text Control: README](../text_control/README.md)
 - [Speech Control: README](../speech_control_agentcore/README.md)

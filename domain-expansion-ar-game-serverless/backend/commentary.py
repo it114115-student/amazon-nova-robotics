@@ -11,7 +11,7 @@ DEFAULT_AGENT_TYPE = os.environ.get("AGENT_TYPE", "agentcore_runtime")
 OPENCLAW_GATEWAY_URL = os.environ.get("OPENCLAW_GATEWAY_URL", "http://127.0.0.1:18789")
 OPENCLAW_TOKEN = os.environ.get("OPENCLAW_TOKEN", "")
 OPENCLAW_AGENT_ID = os.environ.get("OPENCLAW_AGENT_ID", "domain-commentator")
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
+BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "moonshotai.kimi-k2.5")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 AGENTCORE_RUNTIME_ARN = os.environ.get("AGENTCORE_RUNTIME_ARN", "")
 
@@ -131,7 +131,7 @@ def direct_bedrock_fallback(prompt: str, image_bytes_p1: bytes = None, image_for
 def generate_ai_commentary(
     agent_engine: str,
     content_block: str,
-    session_id: str = "main",
+    session_id: str = "mcpserver",
     image_bytes_p1: bytes = None,
     image_format_p1: str = "jpeg",
     image_bytes_p2: bytes = None,

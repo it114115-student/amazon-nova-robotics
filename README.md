@@ -4,7 +4,7 @@ A comprehensive voice-controlled robotics platform powered by AWS IoT, AWS Bedro
 
 ## 📚 Documentation
 
-See the consolidated documentation index in [docs/README.md](docs/README.md) or check out our [AWS Cost Estimation & Optimization Guide](docs/COST_ESTIMATION.md).
+See the consolidated documentation index in [docs/README.md](docs/README.md), review our [AWS Cloud System Architecture Specification](docs/AWS_ARCHITECTURE.md), or check out our [AWS Cost Estimation & Optimization Guide](docs/COST_ESTIMATION.md).
 
 ## 🎯 Project Overview
 

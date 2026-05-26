@@ -5,6 +5,10 @@ export class AudioPlayer {
     constructor() {
         this.onAudioPlayedListeners = [];
         this.initialized = false;
+        this.currentVolume = 0;
+        this.websocketVolume = 0;
+        this.lastWebsocketVolumeTime = 0;
+        this.samplesPlayed = 0;
     }
 
     addEventListener(event, callback) {
@@ -19,25 +23,26 @@ export class AudioPlayer {
 
     async start() {
         this.audioContext = new AudioContext({ "sampleRate": 16000 });
-        this.analyser = this.audioContext.createAnalyser();
-        this.analyser.fftSize = 512;
 
         // Chrome caches worklet code more aggressively, so add a nocache parameter to make sure we get the latest
-        await this.audioContext.audioWorklet.addModule(AudioPlayerWorkletUrl); // + "?nocache=" + Date.now());
+        await this.audioContext.audioWorklet.addModule(AudioPlayerWorkletUrl);
         this.workletNode = new AudioWorkletNode(this.audioContext, "audio-player-processor");
-        this.workletNode.connect(this.analyser);
-        this.analyser.connect(this.audioContext.destination);
-        this.recorderNode = this.audioContext.createScriptProcessor(512, 1, 1);
-        this.recorderNode.onaudioprocess = (event) => {
-            // Pass the input along as-is
-            const inputData = event.inputBuffer.getChannelData(0);
-            const outputData = event.outputBuffer.getChannelData(0);
-            outputData.set(inputData);
-            // Notify listeners that the audio was played
-            const samples = new Float32Array(outputData.length);
-            samples.set(outputData);
-            this.onAudioPlayedListeners.map(listener => listener(samples));
-        }
+        
+        // Listen for high-priority background volume calculations from the AudioWorklet
+        this.workletNode.port.onmessage = (event) => {
+            if (event.data) {
+                if (event.data.type === "volume") {
+                    this.currentVolume = event.data.volume;
+                    if (event.data.samplesPlayed !== undefined) {
+                        this.samplesPlayed = event.data.samplesPlayed;
+                    }
+                }
+            }
+        };
+
+        // Direct low-latency connection: workletNode -> speakers (destination)
+        this.workletNode.connect(this.audioContext.destination);
+
         this.#maybeOverrideInitialBufferLength();
         this.initialized = true;
     }
@@ -53,23 +58,13 @@ export class AudioPlayer {
             this.audioContext.close();
         }
 
-        if (ObjectExt.exists(this.analyser)) {
-            this.analyser.disconnect();
-        }
-
         if (ObjectExt.exists(this.workletNode)) {
             this.workletNode.disconnect();
         }
 
-        if (ObjectExt.exists(this.recorderNode)) {
-            this.recorderNode.disconnect();
-        }
-
         this.initialized = false;
         this.audioContext = null;
-        this.analyser = null;
         this.workletNode = null;
-        this.recorderNode = null;
     }
 
     #maybeOverrideInitialBufferLength() {
@@ -101,28 +96,45 @@ export class AudioPlayer {
         });
     }
 
-    getSamples() {
-        if (!this.initialized) {
-            return null;
+    getSamplesPlayed() {
+        return this.samplesPlayed || 0;
+    }
+
+    resetSamplesPlayed() {
+        this.samplesPlayed = 0;
+        if (this.initialized && this.workletNode) {
+            this.workletNode.port.postMessage({
+                type: "reset-samples-played"
+            });
         }
-        const bufferLength = this.analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        this.analyser.getByteTimeDomainData(dataArray);
-        return [...dataArray].map(e => e / 128 - 1);
+    }
+
+    getSamples() {
+        return null; // Deprecated and superseded by high-performance background AudioWorklet processing
+    }
+
+    setWebSocketVolume(vol) {
+        this.websocketVolume = vol;
+        this.lastWebsocketVolumeTime = Date.now();
     }
 
     getVolume() {
-        if (!this.initialized) {
-            return 0;
+        if (this.initialized) {
+            // When Web Audio is active, use the exact speaker playback volume for perfect voice-lip sync
+            return this.currentVolume || 0;
         }
-        const bufferLength = this.analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        this.analyser.getByteTimeDomainData(dataArray);
-        let normSamples = [...dataArray].map(e => e / 128 - 1);
-        let sum = 0;
-        for (let i = 0; i < normSamples.length; i++) {
-            sum += normSamples[i] * normSamples[i];
+
+        // Fallback: If Web Audio is blocked or loading, use immediate network packet volume decay
+        const now = Date.now();
+        const elapsed = now - (this.lastWebsocketVolumeTime || 0);
+
+        if (elapsed > 120) {
+            this.websocketVolume *= 0.85;
         }
-        return Math.sqrt(sum / normSamples.length);
+        if (this.websocketVolume < 0.005) {
+            this.websocketVolume = 0;
+        }
+
+        return this.websocketVolume || 0;
     }
 }

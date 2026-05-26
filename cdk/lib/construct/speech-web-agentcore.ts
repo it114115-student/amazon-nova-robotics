@@ -35,6 +35,7 @@ export class SpeechControlAgentcoreConstruct extends Construct {
       path.join(__dirname, "../../../speech_control_agentcore"),
       {
         platform: Platform.LINUX_ARM64,
+        exclude: [".venv", "__pycache__", "tests"], // Prevent virtualenv and cache files from inflating container size, keeping the essential public directory
       }
     );
 

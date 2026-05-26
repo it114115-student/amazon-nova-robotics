@@ -87,6 +87,7 @@ class AudioPlayerProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
         this.playbackBuffer = new ExpandableBuffer();
+        this.samplesPlayed = 0;
         this.port.onmessage = (event) => {
             if (event.data.type === "audio") {
                 this.playbackBuffer.write(event.data.audioData);
@@ -100,13 +101,42 @@ class AudioPlayerProcessor extends AudioWorkletProcessor {
             }
             else if (event.data.type === "barge-in") {
                 this.playbackBuffer.clearBuffer();
+                this.samplesPlayed = 0;
+            }
+            else if (event.data.type === "reset-samples-played") {
+                this.samplesPlayed = 0;
             }
         };
     }
 
     process(inputs, outputs, parameters) {
         const output = outputs[0][0]; // Assume one output with one channel
+        
+        // Compute samples read in this process call
+        const oldReadIndex = this.playbackBuffer.readIndex;
         this.playbackBuffer.read(output);
+        const samplesRead = this.playbackBuffer.readIndex - oldReadIndex;
+        if (samplesRead > 0) {
+            this.samplesPlayed += samplesRead;
+        }
+
+        // Compute high-performance, real-time RMS volume of active audio samples leaving the speakers
+        let sum = 0;
+        const length = output.length;
+        if (length > 0) {
+            for (let i = 0; i < length; i++) {
+                sum += output[i] * output[i];
+            }
+            const rms = Math.sqrt(sum / length);
+
+            // Send calculation instantly to the main thread
+            this.port.postMessage({
+                type: "volume",
+                volume: rms,
+                samplesPlayed: this.samplesPlayed
+            });
+        }
+
         return true; // True to continue processing
     }
 }

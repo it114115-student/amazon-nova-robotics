@@ -90,7 +90,7 @@ def handle_sqs_image_gen(record):
         logger.error(f"Failed to parse SQS message body: {e}")
         return
 
-    session_id = body.get("session_id", "main")
+    session_id = body.get("session_id", "mcpserver")
     template_id = body.get("template_id", "random")
     
     # 1. Resolve random selection if requested
