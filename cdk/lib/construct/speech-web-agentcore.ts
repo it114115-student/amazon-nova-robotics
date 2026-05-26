@@ -128,7 +128,7 @@ export class SpeechControlAgentcoreConstruct extends Construct {
     // 8. Deploy static web files and dynamic config.json to website bucket
     new s3deploy.BucketDeployment(this, "DeploySpeechWebsiteAndConfig", {
       sources: [
-        s3deploy.Source.asset(path.join(__dirname, "../../../speech_control_agentcore/public")),
+        s3deploy.Source.asset(path.join(__dirname, "../../../speech_control_agentcore/frontend")),
         s3deploy.Source.jsonData("config.json", {
           region: Stack.of(this).region,
           userPoolId: props.userPoolId,

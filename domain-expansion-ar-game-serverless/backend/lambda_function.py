@@ -8,7 +8,7 @@ from boto3.dynamodb.conditions import Key
 
 # Configure Logger
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
 
 connections_table_name = os.environ.get("CONNECTIONS_TABLE", "DomainExpansionConnections")
 sessions_table_name = os.environ.get("SESSIONS_TABLE", "DomainExpansionSessions")

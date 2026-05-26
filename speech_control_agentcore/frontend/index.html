@@ -17,49 +17,82 @@
   <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism2.min.js"></script>
 
   <link rel="stylesheet" href="/src/style.css" />
+  <style>
+    :root {
+      --rpg-gold: #d4af37;
+      --rpg-panel: rgba(26, 26, 26, 0.85);
+      --rpg-border: rgba(212, 175, 55, 0.6);
+    }
+  </style>
 </head>
 
 <body>
   <div id="app">
-    <!-- Web Header with academic logos -->
-    <header class="web-header">
-      <div class="logo-wrapper left-wrapper">
-        <img src="/img/hkiit-logo.png" alt="HKIIT Logo" />
-      </div>
-      <h1 class="header-title">雲端系統及數據中心管理高級文憑課程</h1>
-      <div class="logo-wrapper right-wrapper">
-        <img src="/img/it114115-logo.png" alt="IT114115 Logo" />
-      </div>
-    </header>
+    <!-- RPG Stage Viewport -->
+    <div id="rpg-stage" class="rpg-stage">
+      <div class="background-layer" style="background-image: url('/background_hk.jpg');"></div>
 
-    <!-- Glowing status badge chip -->
-    <div id="status" class="disconnected">Disconnected</div>
-
-    <!-- Sci-fi AI Hologram Viewport -->
-    <div class="hologram-viewport">
-      <div class="hud-corners">
-        <div class="hud-corner top-left"></div>
-        <div class="hud-corner top-right"></div>
-        <div class="hud-corner bottom-left"></div>
-        <div class="hud-corner bottom-right"></div>
-      </div>
-      <div class="scanlines"></div>
+      <!-- Integrated Game Header -->
+      <header class="web-header game-overlay">
+        <div class="logo-wrapper left-wrapper">
+          <img src="/img/hkiit-logo.png" alt="HKIIT Logo" />
+        </div>
+        <h1 class="header-title">HKIIT at IVE(Lee Wai Lee)</h1>
+        <div class="logo-wrapper right-wrapper">
+          <img src="/img/it114115-logo.png" alt="IT114115 Logo" />
+        </div>
+      </header>
       
-      <!-- Hidden fallback voice-orb to avoid breaking any JS queries -->
-      <div id="voice-orb" style="display: none;"></div>
+      <!-- Scanlines & Cinematic Effects -->
+      <div class="cinematic-overlay">
+        <div class="scanlines"></div>
+        <div class="vignette"></div>
+      </div>
 
-      <!-- Live2D canvas, centered perfectly -->
-      <canvas id="live2d-canvas" style="display: none; width: 320px; height: 320px; z-index: 10;"></canvas>
+      <!-- Live2D Characters -->
+      <div class="character-container">
+        <div id="char-left" class="character-slot">
+          <canvas id="live2d-left" class="live2d-canvas"></canvas>
+          <div class="name-tag left">SHIZUKU</div>
+        </div>
+        <div id="char-right" class="character-slot">
+          <canvas id="live2d-right" class="live2d-canvas"></canvas>
+          <div class="name-tag right">CHITOSE</div>
+        </div>
+      </div>
 
-      <div class="viewport-overlay">
-        <div class="pulse-ring"></div>
-        <span class="avatar-tag">AI CORE ACTIVE</span>
-        <div class="version-badge">v1.0.23</div>
+      <!-- RPG Dialogue Box -->
+      <div id="rpg-dialogue" class="rpg-dialogue-box">
+        <div class="speaker-name" id="current-speaker">System</div>
+        <div class="dialogue-content">
+          <p id="dialogue-text">Initializing AI Core... Welcome to HKIIT at IVE(Lee Wai Lee).</p>
+        </div>
+        <div class="dialogue-footer">
+          <span class="next-indicator">▼</span>
+        </div>
+      </div>
+
+      <!-- HUD Elements -->
+      <div class="rpg-hud">
+        <div class="hud-item">
+          <div class="hud-label">VOICE STATUS</div>
+          <div class="hud-bar"><div id="voice-bar-fill" class="bar-fill"></div></div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label">AI SYNC</div>
+          <div class="hud-bar"><div class="bar-fill" style="width: 92%;"></div></div>
+        </div>
       </div>
     </div>
 
-    <!-- Main dialogue history screen -->
-    <div id="chat-container"></div>
+    <!-- Glowing status badge chip (Now under the scene) -->
+    <div id="status" class="disconnected">Disconnected</div>
+
+    <!-- Hidden fallback voice-orb -->
+    <div id="voice-orb" style="display: none;"></div>
+
+    <!-- Main dialogue history screen (Original) -->
+    <div id="chat-container" style="display: none;"></div>
 
     <!-- Fixed controls toolbar at the bottom -->
     <div id="controls">

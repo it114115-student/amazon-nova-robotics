@@ -25,20 +25,26 @@ body {
   flex-direction: column;
   min-width: 320px;
   min-height: 100vh;
-  height: 100vh;
   background: 
     radial-gradient(circle at 10% 20%, rgba(90, 40, 180, 0.08) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(20, 150, 180, 0.08) 0%, transparent 40%),
     #0d0d12;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  body {
+    height: auto;
+    overflow-y: visible;
+  }
 }
 
 #app {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1rem;
   width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -47,19 +53,24 @@ body {
 /* ==========================================================================
    Header Styling
    ========================================================================== */
-.web-header {
+.web-header.game-overlay {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 95%;
+  z-index: 50;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
-  padding: 12px 24px;
-  margin-bottom: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px 20px;
+  background: rgba(13, 13, 18, 0.75);
+  border: 1px solid var(--rpg-border);
   backdrop-filter: blur(12px);
-  border-radius: 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  margin-bottom: 0;
   box-sizing: border-box;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
 }
 
 .logo-wrapper {
@@ -98,10 +109,10 @@ body {
    Floating Tech Pill Status
    ========================================================================== */
 #status {
-  padding: 8px 16px;
-  margin: 0 auto 16px auto;
+  padding: 6px 14px;
+  margin: 5px auto 5px auto;
   border-radius: 20px;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -469,20 +480,18 @@ body {
    Toolbar Controls (Footer Layout)
    ========================================================================== */
 #controls {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 20px 40px;
-  background: rgba(13, 13, 18, 0.7);
-  backdrop-filter: blur(20px);
+  position: relative;
+  margin-top: 5px;
+  padding: 15px 20px;
+  background: rgba(13, 13, 18, 0.4);
+  backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   z-index: 100;
-  box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+  border-radius: 12px;
 }
 
 button,
@@ -678,6 +687,309 @@ button:disabled,
   #open-robot-modal {
     flex: 1 1 100%;
     order: -1; /* Place selection at the top */
+  }
+}
+
+/* ==========================================================================
+   RPG Stage & Cinematic Effects
+   ========================================================================== */
+.rpg-stage {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  margin: 0 auto 20px auto;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 2px solid var(--rpg-border);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  background: #000;
+}
+
+.background-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  transition: transform 0.5s ease;
+  z-index: 1;
+}
+
+.cinematic-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, transparent 40%, rgba(0, 0, 0, 0.7) 100%);
+}
+
+.character-container {
+  position: absolute;
+  bottom: 80px;
+  left: 0;
+  width: 100%;
+  height: 400px;
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  z-index: 10;
+  padding: 0 50px;
+  box-sizing: border-box;
+}
+
+.character-slot {
+  position: relative;
+  width: 320px;
+  height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: brightness(0.7) grayscale(0.2);
+}
+
+.character-slot.active {
+  filter: brightness(1.1) grayscale(0);
+  transform: scale(1.05) translateY(-10px);
+}
+
+.live2d-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.name-tag {
+  position: absolute;
+  top: -40px;
+  background: var(--rpg-panel);
+  border: 1px solid var(--rpg-gold);
+  color: var(--rpg-gold);
+  padding: 4px 16px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  border-radius: 4px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.character-slot.active .name-tag {
+  opacity: 1;
+}
+
+/* RPG Dialogue Box */
+.rpg-dialogue-box {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  height: 140px;
+  background: var(--rpg-panel);
+  border: 2px solid var(--rpg-gold);
+  border-radius: 12px;
+  z-index: 20;
+  padding: 20px 30px;
+  box-sizing: border-box;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.speaker-name {
+  position: absolute;
+  top: -15px;
+  left: 30px;
+  background: var(--rpg-gold);
+  color: #000;
+  font-weight: 800;
+  padding: 4px 20px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.dialogue-content {
+  flex: 1;
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  font-weight: 400;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+}
+
+.dialogue-footer {
+  text-align: right;
+  height: 20px;
+}
+
+.next-indicator {
+  color: var(--rpg-gold);
+  font-size: 1.2rem;
+  animation: bounce 1s infinite alternate;
+  display: inline-block;
+}
+
+@keyframes bounce {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(5px); }
+}
+
+/* RPG HUD */
+.rpg-hud {
+  position: absolute;
+  top: 95px;
+  right: 20px;
+  width: 250px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.hud-item {
+  background: rgba(0,0,0,0.6);
+  border-left: 4px solid var(--rpg-gold);
+  padding: 8px 15px;
+  border-radius: 0 8px 8px 0;
+}
+
+.hud-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--rpg-gold);
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.hud-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--rpg-gold), #fff);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  #app {
+    padding: 0;
+    max-width: none;
+  }
+  
+  .rpg-stage {
+    height: 100dvh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    margin-bottom: 0;
+  }
+
+  .web-header.game-overlay {
+    top: env(safe-area-inset-top, 10px);
+    padding: 6px 12px;
+    width: 96%;
+  }
+
+  .logo-wrapper img {
+    height: 32px;
+  }
+
+  .header-title {
+    font-size: 0.8rem;
+    margin: 0 5px;
+  }
+
+  .rpg-hud {
+    top: calc(50px + env(safe-area-inset-top, 10px));
+    right: 10px;
+    width: 120px;
+    gap: 8px;
+  }
+
+  .hud-item {
+    padding: 3px 8px;
+    background: rgba(0,0,0,0.75);
+  }
+
+  .character-container {
+    bottom: 200px; /* Moved up to clear dialogue box */
+    padding: 0;
+    height: 55%;
+    display: flex;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .character-slot {
+    width: 180px;
+    height: 100%;
+    margin: 0 -20px; /* Slight overlap for closer proximity on mobile */
+  }
+
+  .live2d-canvas {
+    transform: scale(1.1); /* Zoom in slightly on mobile */
+  }
+
+  .rpg-dialogue-box {
+    height: 150px; /* Taller box for better legibility */
+    padding: 18px 20px;
+    bottom: calc(15px + env(safe-area-inset-bottom, 0px));
+    width: 94%;
+    background: rgba(13, 13, 18, 0.95);
+  }
+
+  .speaker-name {
+    top: -14px;
+    left: 15px;
+    font-size: 0.8rem;
+    padding: 3px 12px;
+  }
+
+  .dialogue-content {
+    font-size: 0.95rem;
+    line-height: 1.4;
+  }
+
+  #status {
+    margin: 10px auto;
+  }
+
+  #controls {
+    position: relative;
+    padding: 15px 10px;
+    background: rgba(13, 13, 18, 0.9);
+    border-top: 1px solid var(--rpg-border);
+    border-radius: 0;
+    gap: 8px;
+  }
+
+  button, .button {
+    padding: 12px 15px;
+    font-size: 0.85rem;
+    flex: 1 1 48%;
   }
 }
 

@@ -212,23 +212,29 @@ async def login(payload: dict):
 @app.get("/login.html")
 async def serve_login():
     """Serve the login HTML asset."""
-    return FileResponse(Path(__file__).parent / "public" / "login.html")
+    return FileResponse(Path(__file__).parent.parent / "frontend" / "login.html")
 
 
 @app.get("/favicon.ico")
 async def serve_favicon():
     """Serve the website favicon."""
-    return FileResponse(Path(__file__).parent / "public" / "favicon.ico")
+    return FileResponse(Path(__file__).parent.parent / "frontend" / "favicon.ico")
 
 
 @app.get("/")
 async def serve_index():
     """Serve the core interactive voice control dashboard HTML page."""
-    return FileResponse(Path(__file__).parent / "public" / "index.html")
+    return FileResponse(Path(__file__).parent.parent / "frontend" / "index.html")
+
+
+@app.get("/background_hk.jpg")
+async def serve_background():
+    """Serve the theatrical RPG background image."""
+    return FileResponse(Path(__file__).parent.parent / "frontend" / "background_hk.jpg")
 
 
 # Mount the JavaScript/CSS sources directory statically at /src
-app.mount("/src", StaticFiles(directory=Path(__file__).parent / "public" / "src"), name="src")
+app.mount("/src", StaticFiles(directory=Path(__file__).parent.parent / "frontend" / "src"), name="src")
 
 
 @app.websocket("/ws")

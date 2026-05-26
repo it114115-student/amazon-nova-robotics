@@ -8,7 +8,7 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2";
 import { Table, AttributeType, BillingMode, ProjectionType } from "aws-cdk-lib/aws-dynamodb";
-import { Runtime, LoggingFormat, SystemLogLevel, ApplicationLogLevel } from "aws-cdk-lib/aws-lambda";
+import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Duration, Stack, RemovalPolicy, DockerImage } from "aws-cdk-lib";
 import * as logs from "aws-cdk-lib/aws-logs";
@@ -82,12 +82,10 @@ export class RobotSimulatorServerlessConstruct extends Construct {
       timeout: Duration.seconds(30),
       memorySize: 256,
       logRetention: logs.RetentionDays.THREE_DAYS,
-      loggingFormat: LoggingFormat.JSON,
-      systemLogLevel: SystemLogLevel.WARN,
-      applicationLogLevel: ApplicationLogLevel.INFO,
       bundling: SHARED_PYTHON_BUNDLING,
       environment: {
         IsInCloud: "yes",
+        LOG_LEVEL: "WARNING",
         AWS_BEDROCK_REGION: "us-east-1",
         CONNECTIONS_TABLE: connectionsTable.tableName,
         SESSIONS_TABLE: sessionsTable.tableName,

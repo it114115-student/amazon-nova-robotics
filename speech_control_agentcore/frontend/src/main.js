@@ -380,6 +380,12 @@ function startSyncLoop() {
         if (visibleText) {
             // High performance, target-pointed direct element text content updates
             chatHistoryManager.updateTypewriterMessage(visibleText);
+            
+            // Update RPG Dialogue Box
+            const rpgDialogueText = document.getElementById('dialogue-text');
+            if (rpgDialogueText) {
+                rpgDialogueText.textContent = visibleText;
+            }
         }
 
         // If playback of all received audio samples has completed (and the server has finished sending the sentence blocks)
@@ -530,6 +536,20 @@ async function startStreaming() {
                 if (!isStreaming) return;
 
                 const inputData = e.inputBuffer.getChannelData(0);
+
+                // Calculate real-time input volume for user character lip-sync
+                let sum = 0;
+                for (let i = 0; i < inputData.length; i++) {
+                    sum += inputData[i] * inputData[i];
+                }
+                const rms = Math.sqrt(sum / inputData.length);
+                audioPlayer.setInputVolume(rms);
+
+                // Update Voice Status HUD for microphone
+                const voiceBar = document.getElementById('voice-bar-fill');
+                if (voiceBar) {
+                    voiceBar.style.width = `${Math.min(rms * 500, 100)}%`;
+                }
 
                 // Convert to 16-bit PCM
                 const pcmData = new Int16Array(inputData.length);
@@ -913,6 +933,9 @@ socket.on('textOutput', (data) => {
             content: data.content
         });
 
+        // Update RPG UI for User
+        updateRpgSpeaker('USER', data.content);
+
         // Show assistant thinking indicator after user text appears
         showAssistantThinkingIndicator();
     }
@@ -939,8 +962,30 @@ socket.on('textOutput', (data) => {
 
         // Cache the latest cumulative transcription
         currentFullText = data.content || "";
+        updateRpgSpeaker('ASSISTANT', currentFullText);
     }
 });
+
+function updateRpgSpeaker(role, text) {
+    const speakerNameEl = document.getElementById('current-speaker');
+    const charLeft = document.getElementById('char-left');
+    const charRight = document.getElementById('char-right');
+
+    if (speakerNameEl) speakerNameEl.textContent = role === 'USER' ? 'STUDENT' : 'SHIZUKU';
+
+    if (role === 'ASSISTANT') {
+        charLeft.classList.add('active');
+        charRight.classList.remove('active');
+    } else {
+        charLeft.classList.remove('active');
+        charRight.classList.add('active');
+    }
+
+    const rpgDialogueText = document.getElementById('dialogue-text');
+    if (rpgDialogueText && role === 'USER') {
+        rpgDialogueText.textContent = text;
+    }
+}
 
 // Handle audio output
 socket.on('audioOutput', (data) => {
@@ -964,6 +1009,13 @@ socket.on('audioOutput', (data) => {
             totalSamplesReceived += audioData.length;
 
             audioPlayer.playAudio(audioData);
+
+            // Update Voice Status HUD
+            const voiceBar = document.getElementById('voice-bar-fill');
+            if (voiceBar) {
+                const vol = audioPlayer.getVolume();
+                voiceBar.style.width = `${Math.min(vol * 500, 100)}%`;
+            }
         } catch (error) {
             console.error('Error processing audio data:', error);
         }

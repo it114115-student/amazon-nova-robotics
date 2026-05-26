@@ -8,7 +8,7 @@ from constants import HumanoidAction, DEFAULT_ROBOTS, ACTION_DURATIONS
 from session_utils import decrypt, send_request
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
 
 CONNECTIONS_TABLE_NAME = os.environ.get('CONNECTIONS_TABLE', 'RobotSimulatorConnections')
 SESSIONS_TABLE_NAME = os.environ.get('SESSIONS_TABLE', 'RobotSimulatorSessions')
