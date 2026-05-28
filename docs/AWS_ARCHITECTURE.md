@@ -75,18 +75,18 @@ graph TB
     %% Voice Web Routing Links
     BrowserVoice -->|4. Handshake with IAM SigV4| BedrockAgentRuntime
     BedrockAgentRuntime -->|5. Connects Bidirectional WebSocket| FastAPIAgent
-    FastAPIAgent -->|6. Low-latency Voice Synth (PCM_16)| NovaSonic
+    FastAPIAgent -->|6. Low latency voice synth PCM16| NovaSonic
     FastAPIAgent -->|7. Invoke MCP Tools| LambdaGame
 
     %% Game REST API Routes (Split Public/Private)
-    BrowserGame -->|GET /api/get-snapshot (Public NONE)| APIGatewayREST
-    BrowserGame -->|GET /api/last-image (Public NONE)| APIGatewayREST
-    BrowserGame -->|POST /api/enhance-portrait (Secure COGNITO)| APIGatewayREST
-    BrowserGame -->|Other HTTP Actions (Secure COGNITO)| APIGatewayREST
+    BrowserGame -->|GET api get-snapshot public| APIGatewayREST
+    BrowserGame -->|GET api last-image public| APIGatewayREST
+    BrowserGame -->|POST api enhance-portrait secure| APIGatewayREST
+    BrowserGame -->|Other HTTP actions secure| APIGatewayREST
     APIGatewayREST --> LambdaGame
 
     %% Game WebSocket Signaling (Secure)
-    BrowserGame -->|Handshake with Token (Secure COGNITO)| APIGatewayWS
+    BrowserGame -->|Handshake with token secure| APIGatewayWS
     APIGatewayWS --> LambdaGame
 
     %% Image Fusion Pipeline
@@ -101,7 +101,7 @@ graph TB
     FastAPIAgent --> DDBRobots
 
     %% IoT Routing Links
-    LambdaGame -->|Publish Joint State MQTT Command| IoTCore
+    LambdaGame -->|Publish joint state MQTT command| IoTCore
     IoTCore -->|MQTT Sync| PhysicalRobots
     IoTCore -->|MQTT Sync| ThreeJSSim
 ```
