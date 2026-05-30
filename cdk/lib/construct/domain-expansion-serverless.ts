@@ -18,8 +18,6 @@ import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
 import { DatabaseConstruct } from "./datebase";
 import { RobotSimulatorServerlessConstruct } from "./robot-simulator-serverless";
 import * as logs from "aws-cdk-lib/aws-logs";
-import * as sqs from "aws-cdk-lib/aws-sqs";
-import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
 
 export interface DomainExpansionServerlessConstructProps {
@@ -73,7 +71,6 @@ export class DomainExpansionServerlessConstruct extends Construct {
         ],
         resources: [
           "arn:aws:bedrock:*::foundation-model/moonshotai.kimi-k2.5",
-          "arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0",
         ],
       })
     );
@@ -125,13 +122,6 @@ export class DomainExpansionServerlessConstruct extends Construct {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
-    // Create SQS Queue with 120s visibility timeout for async generation
-    const imageGenQueue = new sqs.Queue(this, "DomainExpansionImageGenQueue", {
-      queueName: "DomainExpansionImageGenQueue",
-      visibilityTimeout: Duration.seconds(120),
-      removalPolicy: RemovalPolicy.DESTROY,
-    });
-
     // S3 Bucket for Webcam Snaps & AI Portraits with 7-day lifecycle policy
     const photosBucket = new s3.Bucket(this, "DomainExpansionPhotosBucket", {
       removalPolicy: RemovalPolicy.DESTROY,
@@ -175,7 +165,6 @@ export class DomainExpansionServerlessConstruct extends Construct {
         AGENTCORE_RUNTIME_ARN: runtime.agentRuntimeArn,
         BEDROCK_MODEL_ID: "moonshotai.kimi-k2.5",
         BEDROCK_REGION: Stack.of(this).region,
-        IMAGE_GEN_QUEUE_URL: imageGenQueue.queueUrl,
         PHOTOS_S3_BUCKET: photosBucket.bucketName,
         COGNITO_USER_POOL_ID: props.userPool.userPoolId,
         COGNITO_USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
@@ -183,25 +172,10 @@ export class DomainExpansionServerlessConstruct extends Construct {
       },
     });
 
-    // Map SQS queue to trigger the Lambda Function
-    lambdaFunction.addEventSource(new lambdaEventSources.SqsEventSource(imageGenQueue, {
-      batchSize: 1,
-    }));
-
-    // Grant DynamoDB & Queue & S3 access to Lambda
+    // Grant DynamoDB & S3 access to Lambda
     connectionsTable.grantReadWriteData(lambdaFunction);
     sessionsTable.grantReadWriteData(lambdaFunction);
-    imageGenQueue.grantSendMessages(lambdaFunction);
     photosBucket.grantReadWrite(lambdaFunction);
-
-    // Grant access to Amazon Rekognition detect_faces
-    lambdaFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["rekognition:DetectFaces"],
-        resources: ["*"],
-      })
-    );
 
     // Grant Bedrock Model invocation access to Lambda (for Strands Local commentary fallback)
     lambdaFunction.addToRolePolicy(
@@ -213,7 +187,6 @@ export class DomainExpansionServerlessConstruct extends Construct {
         ],
         resources: [
           "arn:aws:bedrock:*::foundation-model/moonshotai.kimi-k2.5",
-          "arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0",
         ],
       })
     );

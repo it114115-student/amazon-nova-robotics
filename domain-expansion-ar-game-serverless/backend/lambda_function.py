@@ -259,19 +259,20 @@ def handle_http(event):
         debug = {
             "sessionId": session_id,
             "templateId": template_id,
-            "queueConfigured": bool(os.environ.get("IMAGE_GEN_QUEUE_URL")),
+            "awsImageGenerationEnabled": False,
             "photosBucketConfigured": bool(os.environ.get("PHOTOS_S3_BUCKET")),
             "hasSnapshotP1": snapshot_exists_for_session(session_id, "player1"),
             "hasSnapshotP2": snapshot_exists_for_session(session_id, "player2"),
         }
 
-        # Set session state in DynamoDB to "PENDING"
+        disabled_status = "ERROR: AWS_IMAGE_GENERATION_DISABLED"
+
         try:
             sessions_table.update_item(
                 Key={"session_id": session_id},
-                UpdateExpression="SET enhanced_image_url = :pending, updated_at = :t",
+                UpdateExpression="SET enhanced_image_url = :status, updated_at = :t",
                 ExpressionAttributeValues={
-                    ":pending": "PENDING",
+                    ":status": disabled_status,
                     ":t": int(time.time())
                 }
             )
@@ -279,47 +280,10 @@ def handle_http(event):
             logger.error(f"Failed to update DynamoDB session state: {e}")
             return {"statusCode": 500, "headers": headers, "body": json.dumps({"error": f"Database lock failed: {e}"})}
 
-        # Send SQS message for background processing
-        queue_url = os.environ.get("IMAGE_GEN_QUEUE_URL")
-        enqueue_error = ""
-        if queue_url:
-            try:
-                sqs_client = boto3.client("sqs")
-                sqs_client.send_message(
-                    QueueUrl=queue_url,
-                    MessageBody=json.dumps({
-                        "session_id": session_id,
-                        "template_id": template_id
-                    })
-                )
-                logger.info(f"Enqueued SQS image gen for session_id={session_id}, template_id={template_id}")
-            except Exception as e:
-                enqueue_error = str(e)
-                logger.error(f"Failed to push message to SQS Queue: {e}")
-        else:
-            enqueue_error = "IMAGE_GEN_QUEUE_URL env is missing"
-            logger.warning("IMAGE_GEN_QUEUE_URL env is missing, SQS enqueue bypassed")
-
-        if enqueue_error:
-            sessions_table.update_item(
-                Key={"session_id": session_id},
-                UpdateExpression="SET enhanced_image_url = :err, updated_at = :t",
-                ExpressionAttributeValues={
-                    ":err": "ERROR: QUEUE_SEND_FAILED",
-                    ":t": int(time.time())
-                }
-            )
-            debug["enqueueError"] = enqueue_error
-            return {
-                "statusCode": 500,
-                "headers": headers,
-                "body": json.dumps({"success": False, "status": "ERROR: QUEUE_SEND_FAILED", "debug": debug})
-            }
-
         return {
             "statusCode": 200,
             "headers": headers,
-            "body": json.dumps({"success": True, "status": "PENDING", "debug": debug})
+            "body": json.dumps({"success": True, "status": disabled_status, "debug": debug})
         }
 
     # Endpoint: /api/check-enhancement (GET)
