@@ -4,6 +4,7 @@ import logging
 import time
 import base64
 import boto3
+from decimal import Decimal
 from boto3.dynamodb.conditions import Key
 
 # Configure Logger
@@ -19,6 +20,15 @@ sessions_table = dynamodb.Table(sessions_table_name)
 
 # Agent Configuration Defaults
 DEFAULT_AGENT_TYPE = os.environ.get("AGENT_TYPE", "agentcore_runtime")
+
+def normalize_json_value(value):
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, dict):
+        return {k: normalize_json_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [normalize_json_value(v) for v in value]
+    return value
 
 def lambda_handler(event, context):
     logger.info(f"Incoming Event: {json.dumps(event)}")
@@ -218,6 +228,19 @@ def handle_http(event):
     if path == "/health":
         return {"statusCode": 200, "headers": headers, "body": json.dumps({"status": "healthy"})}
 
+    def snapshot_exists_for_session(session_id, role):
+        photos_bucket = os.environ.get("PHOTOS_S3_BUCKET")
+        if not photos_bucket:
+            return False
+        try:
+            boto3.client("s3").head_object(
+                Bucket=photos_bucket,
+                Key=f"webcam_snapshots/{session_id}/{role}.jpg"
+            )
+            return True
+        except Exception:
+            return False
+
     try:
         body = json.loads(event.get("body", "{}")) if event.get("body") else {}
     except Exception:
@@ -233,6 +256,14 @@ def handle_http(event):
             
         template_id = body.get("templateId", "random")
         logger.info(f"Enhance portrait triggered: session={session_id}, template={template_id}")
+        debug = {
+            "sessionId": session_id,
+            "templateId": template_id,
+            "queueConfigured": bool(os.environ.get("IMAGE_GEN_QUEUE_URL")),
+            "photosBucketConfigured": bool(os.environ.get("PHOTOS_S3_BUCKET")),
+            "hasSnapshotP1": snapshot_exists_for_session(session_id, "player1"),
+            "hasSnapshotP2": snapshot_exists_for_session(session_id, "player2"),
+        }
 
         # Set session state in DynamoDB to "PENDING"
         try:
@@ -250,6 +281,7 @@ def handle_http(event):
 
         # Send SQS message for background processing
         queue_url = os.environ.get("IMAGE_GEN_QUEUE_URL")
+        enqueue_error = ""
         if queue_url:
             try:
                 sqs_client = boto3.client("sqs")
@@ -262,14 +294,32 @@ def handle_http(event):
                 )
                 logger.info(f"Enqueued SQS image gen for session_id={session_id}, template_id={template_id}")
             except Exception as e:
+                enqueue_error = str(e)
                 logger.error(f"Failed to push message to SQS Queue: {e}")
         else:
+            enqueue_error = "IMAGE_GEN_QUEUE_URL env is missing"
             logger.warning("IMAGE_GEN_QUEUE_URL env is missing, SQS enqueue bypassed")
+
+        if enqueue_error:
+            sessions_table.update_item(
+                Key={"session_id": session_id},
+                UpdateExpression="SET enhanced_image_url = :err, updated_at = :t",
+                ExpressionAttributeValues={
+                    ":err": "ERROR: QUEUE_SEND_FAILED",
+                    ":t": int(time.time())
+                }
+            )
+            debug["enqueueError"] = enqueue_error
+            return {
+                "statusCode": 500,
+                "headers": headers,
+                "body": json.dumps({"success": False, "status": "ERROR: QUEUE_SEND_FAILED", "debug": debug})
+            }
 
         return {
             "statusCode": 200,
             "headers": headers,
-            "body": json.dumps({"success": True, "status": "PENDING"})
+            "body": json.dumps({"success": True, "status": "PENDING", "debug": debug})
         }
 
     # Endpoint: /api/check-enhancement (GET)
@@ -299,11 +349,16 @@ def handle_http(event):
             return {
                 "statusCode": 200,
                 "headers": headers,
-                "body": json.dumps({
+                "body": json.dumps(normalize_json_value({
                     "success": True,
                     "status": status,
-                    "url": enhanced_url if status == "COMPLETE" else ""
-                })
+                    "url": enhanced_url if status == "COMPLETE" else "",
+                    "debug": {
+                        "sessionFound": bool(item),
+                        "rawEnhancedImageValue": enhanced_url,
+                        "updatedAt": item.get("updated_at"),
+                    }
+                }))
             }
         except Exception as e:
             logger.error(f"Failed to fetch session status: {e}")
@@ -391,7 +446,6 @@ def handle_http(event):
         image_base64 = body.get("image", "")
 
         try:
-            import base64
             img_data = base64.b64decode(image_base64)
             
             photos_bucket = os.environ.get("PHOTOS_S3_BUCKET")
@@ -501,13 +555,24 @@ def handle_http(event):
         p1_score = body.get("p1Score", 0)
         p2_score = body.get("p2Score", 0)
         text_event = body.get("text", "")
+        event_type = body.get("eventType", "")
         agent_image_policy = body.get("agentImagePolicy", "always")
-        is_reset = body.get("isReset", False) or path == "/api/battle-result"
+        foul_language = bool(body.get("foulLanguage", False))
+        is_reset = bool(body.get("isReset", False)) or event_type == "RESET" or path == "/api/battle-result"
 
-        logger.info(f"Live-status: session={session_id}, event={text_event}, reset={is_reset}, policy={agent_image_policy}")
+        logger.info(
+            f"Live-status: session={session_id}, eventType={event_type}, event={text_event}, "
+            f"reset={is_reset}, policy={agent_image_policy}, foul={foul_language}"
+        )
 
         # Execute localized JJK translation
         translated_event = translate_detail(text_event)
+        tone_directive = (
+            "Swearing / trash-talk mode is ACTIVE. You may use sharp Cantonese vulgarities or hard roasts if it fits Nobara's voice."
+            if foul_language else
+            "Swearing is OFF. Keep the commentary fierce, arrogant, and high-energy, but strictly clean and PG-rated. "
+            "Do not use vulgarities or profanity such as 仆街, 屌, 戇尻, or any equivalent curse words."
+        )
 
         # Build prompt content block
         if path == "/api/battle-result":
@@ -517,13 +582,15 @@ Final Match Results:
 - Player 1 Score: {p1_score} points
 - Player 2 Score: {p2_score} points
 Summary description of final action: {translated_event}
+Tone rule: {tone_directive}
 
 Give a spectacular, sass-filled, high-octane commentary conclusion. Declare the victor or roast them both if it's a draw. Be Kugisaki Nobara, feisty and fashionable! Keep it to 2 sentences!
 """
         elif is_reset:
             content_block = f"""
 [MATCH INITIAL GREETING]
-Introduce yourself as the supreme JJK Commentator (Kugisaki Nobara). Give a high-energy, confident greeting to the competitors starting their duel in Room {room_code}. Tell them to prepare their cursed energy. Sassy, feisty, stylish! Keep it to 2 short sentences!
+Tone rule: {tone_directive}
+Introduce yourself as the supreme JJK Commentator (Kugisaki Nobara). Give a high-energy, confident greeting to the competitors starting their duel in Room {room_code}. The match has NOT started yet, so make this a pre-battle hype introduction before the countdown begins. If player snapshots are attached, inspect both images first and naturally incorporate one or two specific visible details about each player's expression, stance, outfit, or readiness into your taunt or hype. Only mention details that are clearly visible; do not invent hidden facts. Tell them to prepare their cursed energy. Sassy, feisty, stylish! Keep it to 2 short sentences!
 """
         else:
             content_block = f"""
@@ -532,6 +599,7 @@ Current Scores:
 - Player 1 Score: {p1_score}
 - Player 2 Score: {p2_score}
 Latest Match Action: {translated_event}
+Tone rule: {tone_directive}
 
 React instantly to this specific action! Give sassy, feisty sorcerer trash-talk or hype up the battle with extreme energy. Speak directly to them like an arrogant fashion-lover. Keep it to 2 short, punchy sentences max!
 """
@@ -595,10 +663,26 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             image_base64_p2=image_base64_p2
         )
 
+        response_body = {
+            "commentary": commentary_text,
+            "debugPrompt": content_block,
+            "debugImageContext": {
+                "shouldAttachImage": should_attach_image,
+                "hasImageP1": bool(image_base64_p1),
+                "hasImageP2": bool(image_base64_p2),
+                "agentEngine": agent_engine,
+                "eventType": event_type,
+                "agentImagePolicy": agent_image_policy,
+                "isReset": is_reset,
+            }
+        }
+        if is_reset:
+            response_body["welcomeMessage"] = commentary_text
+
         return {
             "statusCode": 200,
             "headers": headers,
-            "body": json.dumps({"commentary": commentary_text})
+            "body": json.dumps(response_body)
         }
 
     return {"statusCode": 404, "headers": headers, "body": json.dumps({"error": "Route not found"})}

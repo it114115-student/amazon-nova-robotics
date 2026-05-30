@@ -14,10 +14,23 @@ logger = logging.getLogger()
 SESSIONS_TABLE = os.environ.get("SESSIONS_TABLE")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 PHOTOS_S3_BUCKET = os.environ.get("PHOTOS_S3_BUCKET")
+IMAGE_GEN_MODEL_ID = os.environ.get("IMAGE_GEN_MODEL_ID", "amazon.nova-canvas-v1:0")
 
 # Initialize DynamoDB Table reference
 db = boto3.resource("dynamodb")
 sessions_table = db.Table(SESSIONS_TABLE) if SESSIONS_TABLE else None
+
+def update_enhancement_state(session_id, state_value):
+    if not sessions_table:
+        return
+    sessions_table.update_item(
+        Key={"session_id": session_id},
+        UpdateExpression="SET enhanced_image_url = :value, updated_at = :t",
+        ExpressionAttributeValues={
+            ":value": state_value,
+            ":t": int(time.time())
+        }
+    )
 
 TEMPLATE_REGISTRY = {
     "infinite_clash": {
@@ -100,7 +113,7 @@ def handle_sqs_image_gen(record):
         
     template = TEMPLATE_REGISTRY[template_id]
     
-    # 2. Retrieve session webcam frames from DynamoDB
+    # 2. Retrieve session state from DynamoDB
     try:
         resp = sessions_table.get_item(Key={"session_id": session_id})
         item = resp.get("Item")
@@ -112,30 +125,43 @@ def handle_sqs_image_gen(record):
         logger.error(f"Session {session_id} record not found in DynamoDB.")
         return
 
-    p1_b64 = item.get("latest_webcam_frame_p1", "")
-    p2_b64 = item.get("latest_webcam_frame_p2", "")
-
-    # Validate that both captures exist, if not, write ERROR state
-    if not p1_b64 or not p2_b64:
-        logger.error(f"Webcam snapshots missing for session {session_id}. P1 present: {bool(p1_b64)}, P2 present: {bool(p2_b64)}")
-        sessions_table.update_item(
-            Key={"session_id": session_id},
-            UpdateExpression="SET enhanced_image_url = :err, updated_at = :t",
-            ExpressionAttributeValues={
-                ":err": "ERROR: NO_FACE",
-                ":t": int(time.time())
-            }
-        )
-        return
-
     # Helper to clean data-url header if present
     def decode_b64_to_bytes(b64_str):
         if "," in b64_str:
             b64_str = b64_str.split(",", 1)[1]
         return base64.b64decode(b64_str)
 
-    p1_bytes = decode_b64_to_bytes(p1_b64)
-    p2_bytes = decode_b64_to_bytes(p2_b64)
+    s3_client = boto3.client("s3") if PHOTOS_S3_BUCKET else None
+
+    def load_snapshot_bytes(role_key, legacy_field_name):
+        if s3_client and PHOTOS_S3_BUCKET:
+            s3_key = f"webcam_snapshots/{session_id}/{role_key}.jpg"
+            try:
+                obj = s3_client.get_object(Bucket=PHOTOS_S3_BUCKET, Key=s3_key)
+                image_bytes = obj["Body"].read()
+                logger.info(f"Loaded {role_key} snapshot for portrait generation from S3 ({len(image_bytes)} bytes)")
+                return image_bytes, "s3"
+            except Exception as e:
+                logger.warning(f"Could not load {role_key} snapshot from S3 for portrait generation: {e}")
+
+        legacy_b64 = item.get(legacy_field_name, "")
+        if legacy_b64:
+            image_bytes = decode_b64_to_bytes(legacy_b64)
+            logger.info(f"Loaded {role_key} snapshot for portrait generation from legacy DynamoDB field")
+            return image_bytes, "dynamodb"
+
+        return None, "missing"
+
+    p1_bytes, p1_source = load_snapshot_bytes("player1", "latest_webcam_frame_p1")
+    p2_bytes, p2_source = load_snapshot_bytes("player2", "latest_webcam_frame_p2")
+
+    if not p1_bytes or not p2_bytes:
+        logger.error(
+            f"Webcam snapshots missing for session {session_id}. "
+            f"P1 source: {p1_source}, P2 source: {p2_source}"
+        )
+        update_enhancement_state(session_id, "ERROR: SNAPSHOTS_MISSING")
+        return
 
     # 3. Detect and crop faces from P1 and P2
     p1_face = get_cropped_face(p1_bytes)
@@ -144,14 +170,7 @@ def handle_sqs_image_gen(record):
     # If Rekognition failed to locate a face on either snapshot, write specialized error state and exit
     if not p1_face or not p2_face:
         logger.error(f"Face detection failed on one or both snapshots. P1 face: {bool(p1_face)}, P2 face: {bool(p2_face)}")
-        sessions_table.update_item(
-            Key={"session_id": session_id},
-            UpdateExpression="SET enhanced_image_url = :err, updated_at = :t",
-            ExpressionAttributeValues={
-                ":err": "ERROR: NO_FACE",
-                ":t": int(time.time())
-            }
-        )
+        update_enhancement_state(session_id, "ERROR: NO_FACE")
         return
 
     # 4. Pillow pre-compositing: Load backend template and paste faces onto specified coordinates
@@ -200,14 +219,7 @@ def handle_sqs_image_gen(record):
         logger.info("Successfully stitched face snapshots onto template")
     except Exception as e:
         logger.error(f"Pillow pre-compositing failed: {e}")
-        sessions_table.update_item(
-            Key={"session_id": session_id},
-            UpdateExpression="SET enhanced_image_url = :err, updated_at = :t",
-            ExpressionAttributeValues={
-                ":err": f"ERROR: COMPOSITE_FAILED",
-                ":t": int(time.time())
-            }
-        )
+        update_enhancement_state(session_id, "ERROR: COMPOSITE_FAILED")
         return
 
     # 5. Invoke AI Stylized Image Generation Engine
@@ -232,9 +244,9 @@ def handle_sqs_image_gen(record):
             }
         }
         
-        logger.info(f"Invoking Bedrock Nova Canvas for style fusion. Model ID: amazon.nova-canvas-v1:0")
+        logger.info(f"Invoking Bedrock Nova Canvas for style fusion. Model ID: {IMAGE_GEN_MODEL_ID}")
         response = bedrock.invoke_model(
-            modelId="amazon.nova-canvas-v1:0",
+            modelId=IMAGE_GEN_MODEL_ID,
             contentType="application/json",
             accept="application/json",
             body=json.dumps(body_payload)
@@ -249,14 +261,15 @@ def handle_sqs_image_gen(record):
         logger.info("Successfully received style fusion image from Bedrock Nova Canvas.")
     except Exception as e:
         logger.error(f"Bedrock Nova Canvas style fusion failed: {e}")
-        sessions_table.update_item(
-            Key={"session_id": session_id},
-            UpdateExpression="SET enhanced_image_url = :err, updated_at = :t",
-            ExpressionAttributeValues={
-                ":err": f"ERROR: BEDROCK_FAILED",
-                ":t": int(time.time())
-            }
-        )
+        error_text = str(e)
+        if "AccessDeniedException" in error_text or "not authorized to perform: bedrock:InvokeModel" in error_text:
+            update_enhancement_state(session_id, "ERROR: BEDROCK_ACCESS_DENIED")
+        elif "Legacy" in error_text and "not been actively using the model in the last 30 days" in error_text:
+            update_enhancement_state(session_id, "ERROR: BEDROCK_LEGACY_MODEL")
+        elif "ResourceNotFoundException" in error_text and "Access denied" in error_text:
+            update_enhancement_state(session_id, "ERROR: BEDROCK_MODEL_UNAVAILABLE")
+        else:
+            update_enhancement_state(session_id, "ERROR: BEDROCK_FAILED")
         return
 
     # 6. Save final output image to S3 bucket
@@ -290,3 +303,4 @@ def handle_sqs_image_gen(record):
         logger.info(f"Updated DynamoDB session record with public URL: {public_url}")
     except Exception as e:
         logger.error(f"Failed to upload output portrait or update session record: {e}")
+        update_enhancement_state(session_id, "ERROR: UPLOAD_FAILED")

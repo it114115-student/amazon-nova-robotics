@@ -1,22 +1,25 @@
 # AWS Cloud System Architecture & Design Specification
 
-This document provides a unified, comprehensive overview of the AWS Cloud Serverless architecture powering the **Amazon Nova Robotics** ecosystem. This system integrates real-time humanoid voice control (powered by **Amazon Bedrock AgentCore Runtime** and **Amazon Nova Sonic**) and the gesture-controlled **Domain Expansion AR Game** (powered by **AWS API Gateway**, **DynamoDB**, and **AWS Lambda**).
+This document provides a unified, comprehensive overview of the AWS cloud architecture powering the **Amazon Nova Robotics** ecosystem. The platform combines real-time humanoid voice control, text-based robot control, MCP-driven device tooling, and the gesture-controlled **Domain Expansion AR Game** on a primarily serverless AWS foundation.
 
 ---
 
 ## 🏗️ Unified AWS System Design Diagram
 
-The following diagram illustrates the complete end-to-edge cloud infrastructure, detailing how static web assets, secure federated user credentials, real-time audio streams, split API routes, asynchronous queue workers, and physical IoT commands interact:
+The following layered diagram illustrates the complete end-to-edge cloud infrastructure, showing how browser clients, API gateways, serverless compute, AI models, storage systems, and IoT-connected devices interact across the platform:
 
 ```mermaid
 graph TB
-    subgraph Client Layer ["Client Tier (Browser & Devices)"]
+    subgraph ClientLayer ["Client Layer"]
         BrowserVoice["Voice Chat Client (v1.0.11)"]
+        BrowserText["Text Control Web UI"]
+        ExternalSDK["External SDK / XiaoIce Client"]
         BrowserGame["Domain Expansion Web (AR Game)"]
         ThreeJSSim["Humanoid Simulator (Three.js)"]
+        PhysicalRobots["Physical Robots / Drones / Dogs"]
     end
 
-    subgraph CDN Layer ["Global CDN & Edge Delivery"]
+    subgraph EdgeLayer ["Edge & Delivery Layer"]
         CFVoice["CloudFront CDN (Voice Web)"]
         CFGame["CloudFront CDN (Game Web)"]
         CFSim["CloudFront CDN (Simulator Web)"]
@@ -25,85 +28,97 @@ graph TB
         S3Sim[("S3 Bucket: Simulator Web")]
     end
 
-    subgraph Security Layer ["Identity & Authorization"]
+    subgraph SecurityLayer ["Security & Identity Layer"]
         CognitoPool["Cognito User Pool (User Directory)"]
         CognitoIdent["Cognito Identity Pool (IAM Credentials)"]
     end
 
-    subgraph Interface Layer ["API Routing & Signaling Gateway"]
-        APIGatewayREST["API Gateway REST HTTP API"]
-        APIGatewayWS["API Gateway WebSocket API"]
+    subgraph InterfaceLayer ["Interface & Routing Layer"]
+        APIGatewayText["API Gateway REST API (Text Control)"]
+        APIGatewayGame["API Gateway REST API (Game)"]
+        APIGatewayWS["API Gateway WebSocket API (Game Signaling)"]
         BedrockAgentRuntime["Bedrock AgentCore Gateway (SigV4)"]
     end
 
-    subgraph Computing Layer ["Serverless Computing & Orchestration"]
+    subgraph ComputeLayer ["Compute & Orchestration Layer"]
+        FastAPIAgent["FastAPI Container (Voice Agent Runtime)"]
+        LambdaText["Lambda Handler (Flask Text Control)"]
+        LambdaMCP["Lambda Function URL (Robotics MCP Server)"]
         LambdaGame["Lambda Handler (Python Game Backend)"]
         SQSGame[("Amazon SQS (Image Fusion Queue)")]
         LambdaWorker["Lambda Worker (Bedrock Image Fusion)"]
-        FastAPIAgent["FastAPI Container (AgentCore Voice Runtime)"]
     end
 
-    subgraph AI Model Layer ["AWS AI Foundation Models"]
-        NovaSonic["Amazon Nova Sonic (Voice Synth)"]
-        BedrockImage["Amazon Bedrock (Canvas Image Generation)"]
+    subgraph AIModelLayer ["AI Model Layer"]
+        NovaSonic["Amazon Nova 2 Sonic"]
+        NovaText["Amazon Nova 2 Lite / Nova Pro"]
+        NovaCanvas["Amazon Nova Canvas"]
     end
 
-    subgraph Database Layer ["DynamoDB Storage & State Engine"]
+    subgraph DataLayer ["Data & State Layer"]
         DDBGame[("DynamoDB: Game & Snapshot Sessions")]
         DDBRobots[("DynamoDB: Robot Configuration & Joints")]
+        DDBSpeech[("DynamoDB: Speech / Presenter Messages")]
+        S3Audio[("S3 Bucket: Polly Audio Assets")]
     end
 
-    subgraph IoT Layer ["Robotics Fleet Management"]
+    subgraph DeviceLayer ["Device & Messaging Layer"]
         IoTCore["AWS IoT Core (MQTT Message Broker)"]
-        PhysicalRobots["Physical Fleet (Humanoids & Drones)"]
     end
 
-    %% Web Asset Hosting Links
+    %% Edge delivery
     CFVoice --> S3Voice
     CFGame --> S3Game
     CFSim --> S3Sim
     BrowserVoice -->|Pulls Static Assets| CFVoice
     BrowserGame -->|Pulls Static Assets| CFGame
     ThreeJSSim -->|Pulls Static Assets| CFSim
+    BrowserText -->|Loads Web App / API Calls| APIGatewayText
+    ExternalSDK -->|Signed HTTP / SSE Calls| APIGatewayText
 
-    %% Authentication & Authorization Links
-    BrowserVoice -->|1. Sign In / Authenticate| CognitoPool
-    BrowserVoice -->|2. Exchange Token| CognitoIdent
-    CognitoIdent -->|3. Temporary IAM SigV4 Credentials| BrowserVoice
-    BrowserGame -->|Sign In / Authenticate| CognitoPool
+    %% Identity & auth
+    BrowserVoice -->|Sign In| CognitoPool
+    BrowserText -->|Sign In| CognitoPool
+    BrowserGame -->|Sign In| CognitoPool
+    BrowserVoice -->|Exchange Token| CognitoIdent
+    CognitoIdent -->|Temporary IAM SigV4 Credentials| BrowserVoice
 
-    %% Voice Web Routing Links
-    BrowserVoice -->|4. Handshake with IAM SigV4| BedrockAgentRuntime
-    BedrockAgentRuntime -->|5. Connects Bidirectional WebSocket| FastAPIAgent
-    FastAPIAgent -->|6. Low latency voice synth PCM16| NovaSonic
-    FastAPIAgent -->|7. Invoke MCP Tools| LambdaGame
+    %% Voice path
+    BrowserVoice -->|SigV4 WebSocket Handshake| BedrockAgentRuntime
+    BedrockAgentRuntime -->|Bidirectional Streaming| FastAPIAgent
+    FastAPIAgent -->|Speech-to-Speech Inference| NovaSonic
+    FastAPIAgent -->|Tool Calls| LambdaMCP
 
-    %% Game REST API Routes (Split Public/Private)
-    BrowserGame -->|GET api get-snapshot public| APIGatewayREST
-    BrowserGame -->|GET api last-image public| APIGatewayREST
-    BrowserGame -->|POST api enhance-portrait secure| APIGatewayREST
-    BrowserGame -->|Other HTTP actions secure| APIGatewayREST
-    APIGatewayREST --> LambdaGame
+    %% Text path
+    APIGatewayText -->|Lambda Proxy| LambdaText
+    LambdaText -->|Reasoning / Tool Selection| NovaText
+    LambdaText -->|SigV4 JSON-RPC tools/list + tools/call| LambdaMCP
+    LambdaText --> DDBRobots
+    LambdaText --> DDBSpeech
 
-    %% Game WebSocket Signaling (Secure)
+    %% Game path
+    BrowserGame -->|Public + Authenticated REST Calls| APIGatewayGame
     BrowserGame -->|Handshake with token secure| APIGatewayWS
+    APIGatewayGame --> LambdaGame
     APIGatewayWS --> LambdaGame
 
-    %% Image Fusion Pipeline
     LambdaGame -->|Enqueue Image Requests| SQSGame
     SQSGame --> LambdaWorker
-    LambdaWorker -->|Generate Image Fusion| BedrockImage
+    LambdaWorker -->|Generate Image Fusion| NovaCanvas
     LambdaWorker -->|Update Snapshot Status| DDBGame
-
-    %% Database Queries
     LambdaGame --> DDBGame
     LambdaGame --> DDBRobots
-    FastAPIAgent --> DDBRobots
 
-    %% IoT Routing Links
-    LambdaGame -->|Publish joint state MQTT command| IoTCore
-    IoTCore -->|MQTT Sync| PhysicalRobots
+    %% MCP execution path
+    LambdaMCP -->|Robot / Dog / Drone / Speech Tools| IoTCore
+    LambdaMCP --> DDBRobots
+    LambdaMCP --> DDBSpeech
+    LambdaMCP -->|Polly Audio Uploads| S3Audio
+
+    %% Device sync
+    IoTCore -->|MQTT Commands| PhysicalRobots
     IoTCore -->|MQTT Sync| ThreeJSSim
+    FastAPIAgent --> DDBRobots
 ```
 
 ---
@@ -143,6 +158,74 @@ Standard Web Audio implementations often suffer from security limits, such as br
    * **Result**: The avatar's mouth is **guaranteed to move instantly** when speech data arrives over the network, completely bypassing browser audio suspension limitations.
    * **Console Debugging**: Includes a real-time throttled console logger showing active calculations:
      `[Live2D Mouth Sync Debug] rawVolume=0.0384, targetMouthOpen=0.1075, smoothedVolume=0.0892`
+
+---
+
+## 💬 Text Control & Robot MCP Architectural Specifications
+
+The Text Control service is the typed-command counterpart to the voice cockpit. It exposes a browser and SDK-friendly HTTP/SSE API, uses a Bedrock-hosted text model for reasoning, and delegates all physical device execution to a dedicated **robotics MCP server**.
+
+### 1. Text Control Request Path
+The deployed text surface is an **API Gateway REST API** backed by a **Flask application running on AWS Lambda**.
+
+1. A browser client or external SDK calls `/api/chat`, `/api/talk`, `/api/xiaoice-chat-api-strands`, or `/api/xiaoice-chat-api-strands-stream`.
+2. API Gateway forwards the request into the `text_control` Lambda runtime.
+3. The Flask app applies the appropriate auth mode:
+   * **Cognito/session-backed auth** for the interactive web UI routes.
+   * **Signature-based XiaoIce protocol auth** (`X-Key`, `X-Sign`, `X-Timestamp`) for SDK-compatible chat endpoints.
+4. The route layer enriches the request with robot context from **DynamoDB** and creates a per-session Strands agent.
+5. The agent generates a response and, when action is required, calls one or more MCP tools to execute robot, dog, or drone operations.
+
+### 2. Bedrock Text Model Layer
+The text orchestration path uses a **Strands `BedrockModel`** as the reasoning engine for typed requests.
+
+* **Current implementation default**: `us.amazon.nova-2-lite-v1:0`
+* **Purpose**: Intent interpretation, multi-step tool selection, multilingual response generation, and session-aware follow-up handling.
+* **Design note**: The text-control stack is model-pluggable. The surrounding Lambda + Strands + MCP architecture does not change if the deployment is upgraded to a larger **Amazon Nova 2 / Nova Pro-class** text model for deeper reasoning.
+
+This means the system already separates:
+
+| Surface | Model role | Current implementation |
+| --- | --- | --- |
+| Voice cockpit | Real-time speech-to-speech streaming | `amazon.nova-2-sonic-v1:0` |
+| Text control | Text reasoning and tool orchestration | `us.amazon.nova-2-lite-v1:0` |
+| AR image fusion | Image generation | `amazon.nova-canvas-v1:0` |
+
+### 3. Robotics MCP Server as the Action Plane
+The **MCP server** is deployed as a separate **AWS Lambda Function URL** with **AWS IAM / SigV4** protection and acts as the system's canonical tool execution boundary.
+
+* The Text Control Lambda never publishes raw robot actions directly through ad hoc HTTP handlers when operating in agent mode.
+* Instead, it uses an **AWS SigV4-authenticated MCP client** to:
+  1. call `tools/list`,
+  2. dynamically materialize MCP tools into Strands-compatible tool objects, and
+  3. call `tools/call` for the selected device action.
+
+The MCP server currently registers **92 tools** across these domains:
+
+* **Robot tools**: humanoid locomotion, posture, combat, exercise, and pose actions
+* **Dog tools**: quadruped movement, gestures, and advanced routines
+* **Drone tools**: takeoff, landing, movement, and rotation controls
+* **Dance tools**: choreography and showcase behaviors
+* **Speech tools**: Amazon Polly-based text-to-speech broadcast to robots
+* **Image/XiaoIce tools**: supporting media and external assistant workflows
+
+### 4. Device Command Delivery
+After a tool is selected, the MCP server becomes the operational control plane:
+
+1. The MCP Lambda validates tool arguments and maps them to device executors.
+2. Executors publish standardized commands to **AWS IoT Core MQTT topics** such as `robot_*/topic`, `dog_*/topic`, `drone_*/topic`, and `xiaoice_*/topic`.
+3. Physical robots and the browser-based simulator consume the same command stream, which keeps digital twins and real hardware synchronized.
+4. For speech playback, the MCP server synthesizes audio with **Amazon Polly**, uploads it to **Amazon S3**, creates a presigned URL, and publishes that URL through IoT for device playback.
+
+### 5. Why This Split Architecture Matters
+This Text Control + MCP decomposition cleanly separates concerns:
+
+* **API Gateway + Flask Lambda** handles web/API protocol compatibility, auth, session management, and streaming responses.
+* **Bedrock text models** decide intent and tool selection.
+* **The MCP Lambda** owns the executable robotics tool catalog.
+* **AWS IoT Core** remains the single transport layer to real devices and simulators.
+
+This provides a stable contract for future expansion: new tools can be added inside the MCP server without redesigning the text UI, and the Bedrock model tier can be upgraded independently from the robot execution tier.
 
 ---
 

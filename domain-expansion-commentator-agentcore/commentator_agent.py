@@ -118,23 +118,44 @@ async def invoke_agent(request: Request):
             system_prompt=system_prompt
         )
 
-        image_b64 = body.get("image", "")
-        image_format = body.get("image_format", "jpeg")
+        image_b64_p1 = body.get("image", "")
+        image_format_p1 = body.get("image_format", "jpeg")
+        image_b64_p2 = body.get("image_p2", "")
+        image_format_p2 = body.get("image_format_p2", "jpeg")
 
-        if image_b64:
+        multimodal_parts = []
+
+        if image_b64_p1:
             import base64
-            img_bytes = base64.b64decode(image_b64)
-            # Create standard Bedrock multimodal content structure
-            message_content = [
-                {"text": prompt_text},
+            img_bytes_p1 = base64.b64decode(image_b64_p1)
+            multimodal_parts.extend([
+                {"text": "Player 1 (P1) pre-match webcam snapshot:"},
                 {
                     "image": {
-                        "format": image_format,
-                        "source": {"bytes": img_bytes}
+                        "format": image_format_p1,
+                        "source": {"bytes": img_bytes_p1}
                     }
                 }
-            ]
-            logger.info(f"Executing multimodal agent invocation with image size: {len(img_bytes)} bytes")
+            ])
+            logger.info(f"Attached Player 1 image to multimodal invocation ({len(img_bytes_p1)} bytes)")
+
+        if image_b64_p2:
+            import base64
+            img_bytes_p2 = base64.b64decode(image_b64_p2)
+            multimodal_parts.extend([
+                {"text": "Player 2 (P2) pre-match webcam snapshot:"},
+                {
+                    "image": {
+                        "format": image_format_p2,
+                        "source": {"bytes": img_bytes_p2}
+                    }
+                }
+            ])
+            logger.info(f"Attached Player 2 image to multimodal invocation ({len(img_bytes_p2)} bytes)")
+
+        if multimodal_parts:
+            message_content = multimodal_parts + [{"text": prompt_text}]
+            logger.info(f"Executing multimodal agent invocation with {len(multimodal_parts)} non-text multimodal parts")
             response = await agent.invoke_async(message_content)
         else:
             response = await agent.invoke_async(prompt_text)

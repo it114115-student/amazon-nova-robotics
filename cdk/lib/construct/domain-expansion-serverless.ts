@@ -73,6 +73,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
         ],
         resources: [
           "arn:aws:bedrock:*::foundation-model/moonshotai.kimi-k2.5",
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0",
         ],
       })
     );
@@ -212,6 +213,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
         ],
         resources: [
           "arn:aws:bedrock:*::foundation-model/moonshotai.kimi-k2.5",
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-canvas-v1:0",
         ],
       })
     );
@@ -441,6 +443,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
       distribution,
       distributionPaths: ["/*"],
       prune: false,
+      memoryLimit: 1024,
     });
 
     this.serviceUrl = distribution.distributionDomainName;
