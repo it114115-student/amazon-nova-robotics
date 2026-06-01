@@ -3,9 +3,11 @@ import json
 import logging
 import time
 import base64
+import io
 import boto3
 from decimal import Decimal
 from boto3.dynamodb.conditions import Key
+from PIL import Image
 
 # Configure Logger
 logger = logging.getLogger()
@@ -29,6 +31,33 @@ def normalize_json_value(value):
     if isinstance(value, list):
         return [normalize_json_value(v) for v in value]
     return value
+
+
+def optimize_commentary_image(image_bytes, max_dimension=640, quality=70):
+    if not image_bytes:
+        return image_bytes
+
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            original_size = image.size
+            normalized = image.convert("RGB")
+            normalized.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+
+            output = io.BytesIO()
+            normalized.save(output, format="JPEG", quality=quality, optimize=True)
+            optimized_bytes = output.getvalue()
+
+            logger.info(
+                "Optimized commentary image from %s (%d bytes) to %s (%d bytes)",
+                original_size,
+                len(image_bytes),
+                normalized.size,
+                len(optimized_bytes),
+            )
+            return optimized_bytes
+    except Exception as exc:
+        logger.warning("Failed to optimize commentary image, using original bytes: %s", exc)
+        return image_bytes
 
 def lambda_handler(event, context):
     logger.info(f"Incoming Event: {json.dumps(event)}")
@@ -411,6 +440,7 @@ def handle_http(event):
 
         try:
             img_data = base64.b64decode(image_base64)
+            logger.info("Decoded webcam upload for session=%s role=%s size=%d bytes", session_id, role, len(img_data))
             
             photos_bucket = os.environ.get("PHOTOS_S3_BUCKET")
             s3_client = boto3.client("s3")
@@ -513,6 +543,7 @@ def handle_http(event):
     # Endpoint: /api/live-status
     elif path in ["/api/live-status", "/api/battle-result"] and method == "POST":
         from commentary import translate_detail, generate_ai_commentary
+        from commentary_tts import synthesize_commentary_audio
         
         session_id = body.get("sessionId", "mcpserver")
         room_code = body.get("roomCode", "BTL1")
@@ -522,6 +553,10 @@ def handle_http(event):
         event_type = body.get("eventType", "")
         agent_image_policy = body.get("agentImagePolicy", "always")
         foul_language = bool(body.get("foulLanguage", False))
+        requested_tts_mode = str(body.get("ttsMode", "browser")).strip().lower()
+        if requested_tts_mode not in {"browser", "aws"}:
+            requested_tts_mode = "browser"
+        commentary_language = body.get("lang", "en")
         is_reset = bool(body.get("isReset", False)) or event_type == "RESET" or path == "/api/battle-result"
 
         logger.info(
@@ -593,6 +628,7 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
                     try:
                         s3_obj = s3_client.get_object(Bucket=photos_bucket, Key=f"webcam_snapshots/{session_id}/player1.jpg")
                         image_bytes_p1 = s3_obj["Body"].read()
+                        image_bytes_p1 = optimize_commentary_image(image_bytes_p1)
                         image_base64_p1 = base64.b64encode(image_bytes_p1).decode("utf-8")
                         logger.info("Successfully fetched Player 1 frame directly from S3 for Bedrock!")
                     except s3_client.exceptions.NoSuchKey:
@@ -602,6 +638,7 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
                     try:
                         s3_obj = s3_client.get_object(Bucket=photos_bucket, Key=f"webcam_snapshots/{session_id}/player2.jpg")
                         image_bytes_p2 = s3_obj["Body"].read()
+                        image_bytes_p2 = optimize_commentary_image(image_bytes_p2)
                         image_base64_p2 = base64.b64encode(image_bytes_p2).decode("utf-8")
                         logger.info("Successfully fetched Player 2 frame directly from S3 for Bedrock!")
                     except s3_client.exceptions.NoSuchKey:
@@ -627,8 +664,23 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             image_base64_p2=image_base64_p2
         )
 
+        audio_payload = None
+        resolved_tts_mode = "browser"
+        if requested_tts_mode == "aws":
+            audio_payload = synthesize_commentary_audio(
+                text=commentary_text,
+                session_id=session_id,
+                language=commentary_language,
+            )
+            if audio_payload:
+                resolved_tts_mode = "aws"
+            else:
+                logger.warning("Commentary Polly synthesis failed. Falling back to browser TTS.")
+
         response_body = {
             "commentary": commentary_text,
+            "ttsMode": resolved_tts_mode,
+            "requestedTtsMode": requested_tts_mode,
             "debugPrompt": content_block,
             "debugImageContext": {
                 "shouldAttachImage": should_attach_image,
@@ -638,8 +690,11 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
                 "eventType": event_type,
                 "agentImagePolicy": agent_image_policy,
                 "isReset": is_reset,
+                "requestedTtsMode": requested_tts_mode,
             }
         }
+        if audio_payload:
+            response_body.update(audio_payload)
         if is_reset:
             response_body["welcomeMessage"] = commentary_text
 

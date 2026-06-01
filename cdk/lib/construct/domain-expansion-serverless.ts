@@ -52,6 +52,10 @@ export class DomainExpansionServerlessConstruct extends Construct {
       runtimeName: "domain_commentator_agentcore",
       agentRuntimeArtifact: agentRuntimeArtifact,
       authorizerConfiguration: agentcore.RuntimeAuthorizerConfiguration.usingIAM(),
+      lifecycleConfiguration: {
+        idleRuntimeSessionTimeout: Duration.seconds(120),
+        maxLifetime: Duration.seconds(900),
+      },
       environmentVariables: {
         IsInCloud: "yes",
         AWS_BEDROCK_REGION: "us-east-1",
@@ -166,6 +170,8 @@ export class DomainExpansionServerlessConstruct extends Construct {
         BEDROCK_MODEL_ID: "moonshotai.kimi-k2.5",
         BEDROCK_REGION: Stack.of(this).region,
         PHOTOS_S3_BUCKET: photosBucket.bucketName,
+        COMMENTARY_AUDIO_PREFIX: "commentary-audio",
+        COMMENTARY_AUDIO_URL_EXPIRY: "600",
         COGNITO_USER_POOL_ID: props.userPool.userPoolId,
         COGNITO_USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
         COGNITO_REGION: Stack.of(this).region,
@@ -188,6 +194,14 @@ export class DomainExpansionServerlessConstruct extends Construct {
         resources: [
           "arn:aws:bedrock:*::foundation-model/moonshotai.kimi-k2.5",
         ],
+      })
+    );
+
+    lambdaFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["polly:SynthesizeSpeech"],
+        resources: ["*"],
       })
     );
 
@@ -232,6 +246,18 @@ export class DomainExpansionServerlessConstruct extends Construct {
     const lastImageResource = apiResource.addResource("last-image");
     lastImageResource.addMethod("GET", lambdaIntegration, {
       authorizationType: apigateway.AuthorizationType.NONE,
+    });
+
+    const liveStatusResource = apiResource.addResource("live-status");
+    liveStatusResource.addMethod("POST", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: restAuthorizer,
+    });
+
+    const battleResultResource = apiResource.addResource("battle-result");
+    battleResultResource.addMethod("POST", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: restAuthorizer,
     });
 
     // Fallback catch-all proxy routes remain securely protected by Cognito Authorization
