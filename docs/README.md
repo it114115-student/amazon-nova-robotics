@@ -10,6 +10,7 @@ Generated: 2026-05-25 02:26 UTC
 - [Repository README](../README.md)
 - [AWS Cloud System Architecture Specification](AWS_ARCHITECTURE.md)
 - [AWS Cost Estimation Guide](COST_ESTIMATION.md)
+- [Security and Logic Updates (June 2026)](SECURITY_AND_LOGIC_UPDATES.md)
 - [Text Control: README](../text_control/README.md)
 - [Speech Control: README](../speech_control_agentcore/README.md)
 - [Humanoid Robot Simulator: README](../humanoid-robot-simulator/README.md)
