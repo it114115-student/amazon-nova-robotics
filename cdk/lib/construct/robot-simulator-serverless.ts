@@ -14,7 +14,7 @@ import { Duration, Stack, RemovalPolicy, DockerImage } from "aws-cdk-lib";
 import * as logs from "aws-cdk-lib/aws-logs";
 import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
 
-export interface RobotSimulatorServerlessConstructProps {}
+export interface RobotSimulatorServerlessConstructProps { }
 
 export class RobotSimulatorServerlessConstruct extends Construct {
   public readonly serviceUrl: string;
@@ -218,6 +218,7 @@ export class RobotSimulatorServerlessConstruct extends Construct {
 
     distribution.addBehavior("/api/*", apiOrigin, dynamicApiBehavior);
     distribution.addBehavior("/run_action/*", apiOrigin, dynamicApiBehavior);
+    distribution.addBehavior("/speech/*", apiOrigin, dynamicApiBehavior);
     distribution.addBehavior("/health", apiOrigin, dynamicApiBehavior);
 
     // WebSocket routing behavior to bridge client-side relative ws requests to serverless API Gateway

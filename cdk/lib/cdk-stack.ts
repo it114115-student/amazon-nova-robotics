@@ -13,6 +13,21 @@ import { RobotSimulatorServerlessConstruct } from "./construct/robot-simulator-s
 import { Authenticator } from "./construct/authenticator";
 import { DomainExpansionServerlessConstruct } from "./construct/domain-expansion-serverless";
 
+function normalizeContextList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => String(entry ?? "").trim())
+      .filter((entry) => entry.length > 0);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+  return [];
+}
+
 export class AmazonNovaRoboticCdkStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -138,6 +153,19 @@ const textControlWebConstruct = new TextControlWebConstruct(
         },
       })
     );
+
+    const explicitOpenClawCallerAccountIds = normalizeContextList(
+      this.node.tryGetContext("openclawCallerAccountIds")
+    );
+    const openClawCallerAccountIds =
+      explicitOpenClawCallerAccountIds.length > 0
+        ? explicitOpenClawCallerAccountIds
+        : [cdk.Stack.of(this).account];
+
+    for (const accountId of [...new Set(openClawCallerAccountIds)]) {
+      mcpServerConstruct.grantInvokeFunctionUrl(new iam.AccountPrincipal(accountId));
+    }
+
     const skillAccessKey = new iam.CfnAccessKey(this, "SkillMcpUserAccessKey", {
       userName: skillUser.userName,
     });
