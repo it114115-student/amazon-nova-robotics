@@ -1,8 +1,9 @@
-import os
 import json
 import logging
-import boto3
+import os
 import re
+
+import boto3
 
 logger = logging.getLogger()
 
@@ -14,6 +15,105 @@ OPENCLAW_AGENT_ID = os.environ.get("OPENCLAW_AGENT_ID", "domain-commentator")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "moonshotai.kimi-k2.5")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 AGENTCORE_RUNTIME_ARN = os.environ.get("AGENTCORE_RUNTIME_ARN", "")
+
+
+def _build_openclaw_content_block(
+    prompt_text: str,
+    image_base64_p1: str,
+    image_format_p1: str,
+    image_base64_p2: str,
+    image_format_p2: str,
+):
+    """Build OpenAI-compatible multimodal content for OpenClaw-compatible runtimes."""
+    has_images = bool(image_base64_p1 or image_base64_p2)
+    if not has_images:
+        return prompt_text
+
+    content = [{"type": "text", "text": prompt_text}]
+    if image_base64_p1:
+        content.append(
+            {"type": "text", "text": "Here is the Webcam Snapshot of Player 1 (P1):"}
+        )
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/{image_format_p1};base64,{image_base64_p1}"
+                },
+            }
+        )
+    if image_base64_p2:
+        content.append(
+            {"type": "text", "text": "Here is the Webcam Snapshot of Player 2 (P2):"}
+        )
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/{image_format_p2};base64,{image_base64_p2}"
+                },
+            }
+        )
+    return content
+
+
+def _extract_agentcore_commentary(payload):
+    """Extract text from multiple AgentCore/OpenClaw response schemas."""
+    if payload is None:
+        return ""
+
+    if isinstance(payload, str):
+        return payload
+
+    if isinstance(payload, dict):
+        direct_text = (
+            payload.get("response")
+            or payload.get("output")
+            or payload.get("commentary")
+        )
+        if isinstance(direct_text, str) and direct_text.strip():
+            return direct_text
+
+        message_obj = payload.get("message")
+        if isinstance(message_obj, str) and message_obj.strip():
+            return message_obj
+        if isinstance(message_obj, dict):
+            msg_content = message_obj.get("content")
+            if isinstance(msg_content, str) and msg_content.strip():
+                return msg_content
+
+        choices = payload.get("choices")
+        if isinstance(choices, list) and choices:
+            first = choices[0]
+            if isinstance(first, dict):
+                message = first.get("message")
+                if isinstance(message, dict):
+                    content = message.get("content")
+                    if isinstance(content, str) and content.strip():
+                        return content
+                    if isinstance(content, list):
+                        text_parts = [
+                            part.get("text", "")
+                            for part in content
+                            if isinstance(part, dict)
+                            and isinstance(part.get("text"), str)
+                        ]
+                        merged = " ".join([p for p in text_parts if p]).strip()
+                        if merged:
+                            return merged
+
+                text = first.get("text")
+                if isinstance(text, str) and text.strip():
+                    return text
+
+        nested_response = payload.get("response")
+        if isinstance(nested_response, dict):
+            nested_text = nested_response.get("text") or nested_response.get("message")
+            if isinstance(nested_text, str) and nested_text.strip():
+                return nested_text
+
+    return ""
+
 
 # JJK Character Translations (Translate base English name tokens to JJK lore terms)
 def translate_detail(text: str) -> str:
@@ -55,13 +155,14 @@ def translate_detail(text: str) -> str:
         r"\bPlayer 1 scored!\b": "P1 成功得分！",
         r"\bPlayer 2 scored!\b": "P2 成功得分！",
         r"\bPlayer 1\b": "P1",
-        r"\bPlayer 2\b": "P2"
+        r"\bPlayer 2\b": "P2",
     }
-    
+
     result = text
     for pattern, rep in replacements.items():
         result = re.sub(pattern, rep, result, flags=re.IGNORECASE)
     return result
+
 
 def load_system_prompt() -> str:
     identity = """You are Kugisaki Nobara (釘崎野薔薇) from Jujutsu Kaisen. Speak entirely as Kugisaki Nobara, serving as the live combat commentator.
@@ -85,50 +186,62 @@ Maintain her personality:
 
     return f"{identity}\n\n{soul}"
 
-def direct_bedrock_fallback(prompt: str, image_bytes_p1: bytes = None, image_format_p1: str = "jpeg", image_bytes_p2: bytes = None, image_format_p2: str = "jpeg") -> str:
+
+def direct_bedrock_fallback(
+    prompt: str,
+    image_bytes_p1: bytes = None,
+    image_format_p1: str = "jpeg",
+    image_bytes_p2: bytes = None,
+    image_format_p2: str = "jpeg",
+) -> str:
     """Robust fallback making direct bedrock.converse calls when higher-level engines fail."""
     logger.info("Executing direct Bedrock Converse multimodal fallback.")
     try:
         bedrock_client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
-        
+
         system_prompt = load_system_prompt()
-        
+
         # Build message structure
         content_list = []
         if image_bytes_p1:
             content_list.append({"text": "Player 1 webcam snapshot:"})
-            content_list.append({
-                "image": {
-                    "format": image_format_p1,
-                    "source": {"bytes": image_bytes_p1}
+            content_list.append(
+                {
+                    "image": {
+                        "format": image_format_p1,
+                        "source": {"bytes": image_bytes_p1},
+                    }
                 }
-            })
+            )
         if image_bytes_p2:
             content_list.append({"text": "Player 2 webcam snapshot:"})
-            content_list.append({
-                "image": {
-                    "format": image_format_p2,
-                    "source": {"bytes": image_bytes_p2}
+            content_list.append(
+                {
+                    "image": {
+                        "format": image_format_p2,
+                        "source": {"bytes": image_bytes_p2},
+                    }
                 }
-            })
-            
+            )
+
         content_list.append({"text": prompt})
-        
+
         messages = [{"role": "user", "content": content_list}]
-        
+
         response = bedrock_client.converse(
             modelId=BEDROCK_MODEL_ID,
             messages=messages,
             system=[{"text": system_prompt}],
-            inferenceConfig={"temperature": 0.8, "maxTokens": 200}
+            inferenceConfig={"temperature": 0.8, "maxTokens": 200},
         )
-        
+
         commentary = response["output"]["message"]["content"][0]["text"]
         logger.info(f"Direct Bedrock commentary generated successfully: {commentary}")
         return commentary
     except Exception as e:
         logger.error(f"Ultimate direct Bedrock fallback failed: {e}")
         return "領域干擾！Cursed Energy connection unstable. Give me a moment to gather my nails!"
+
 
 def generate_ai_commentary(
     agent_engine: str,
@@ -139,102 +252,221 @@ def generate_ai_commentary(
     image_bytes_p2: bytes = None,
     image_format_p2: str = "jpeg",
     image_base64_p1: str = "",
-    image_base64_p2: str = ""
+    image_base64_p2: str = "",
 ) -> str:
     """Central manager to generate AI game commentary using the selected engine."""
-    commentary_text = ""
+    env_session_id = os.environ.get("OPENCLAW_SESSION_ID")
+    if env_session_id and agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
+        session_id = env_session_id
 
+    commentary_text = ""
     if agent_engine == "strands_local":
         try:
-            from strands import Agent
-            from strands.models import BedrockModel
             import asyncio
 
+            from strands import Agent
+            from strands.models import BedrockModel
+
             system_prompt = load_system_prompt()
-            model = BedrockModel(model_id=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION, temperature=0.8)
+            model = BedrockModel(
+                model_id=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION, temperature=0.8
+            )
             agent = Agent(model=model, system_prompt=system_prompt)
-            
+
             # Support asyncio event loop runner
             try:
                 loop = asyncio.get_event_loop()
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                
+
             # Support multimodal context inputs if images are present
             if image_bytes_p1 or image_bytes_p2:
                 message_content = [{"text": content_block}]
                 if image_bytes_p1:
-                    message_content.append({"text": "Here is Player 1 (P1) webcam snapshot:"})
-                    message_content.append({
-                        "image": {
-                            "format": image_format_p1,
-                            "source": {"bytes": image_bytes_p1}
+                    message_content.append(
+                        {"text": "Here is Player 1 (P1) webcam snapshot:"}
+                    )
+                    message_content.append(
+                        {
+                            "image": {
+                                "format": image_format_p1,
+                                "source": {"bytes": image_bytes_p1},
+                            }
                         }
-                    })
+                    )
                 if image_bytes_p2:
-                    message_content.append({"text": "Here is Player 2 (P2) webcam snapshot:"})
-                    message_content.append({
-                        "image": {
-                            "format": image_format_p2,
-                            "source": {"bytes": image_bytes_p2}
+                    message_content.append(
+                        {"text": "Here is Player 2 (P2) webcam snapshot:"}
+                    )
+                    message_content.append(
+                        {
+                            "image": {
+                                "format": image_format_p2,
+                                "source": {"bytes": image_bytes_p2},
+                            }
                         }
-                    })
+                    )
             else:
                 message_content = content_block
 
-            commentary_response = loop.run_until_complete(agent.invoke_async(message_content))
+            commentary_response = loop.run_until_complete(
+                agent.invoke_async(message_content)
+            )
             commentary_text = str(commentary_response)
             logger.info(f"Strands Local commentary generated: {commentary_text}")
         except Exception as e:
             logger.error(f"Strands Local Engine failed, falling back: {e}")
-            commentary_text = direct_bedrock_fallback(content_block, image_bytes_p1, image_format_p1, image_bytes_p2, image_format_p2)
+            commentary_text = direct_bedrock_fallback(
+                content_block,
+                image_bytes_p1,
+                image_format_p1,
+                image_bytes_p2,
+                image_format_p2,
+            )
 
-    elif agent_engine == "agentcore_runtime":
+    elif agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
         try:
-            if not AGENTCORE_RUNTIME_ARN:
-                raise ValueError("AGENTCORE_RUNTIME_ARN environment variable is not defined")
+            if agent_engine == "standard_commentator_runtime":
+                runtime_arn = "arn:aws:bedrock-agentcore:us-east-1:111964674713:runtime/domain_commentator_agentcore-XTgv50C4B1"
+            else:
+                runtime_arn = os.environ.get("AGENTCORE_RUNTIME_ARN") or AGENTCORE_RUNTIME_ARN
+                
+            if not runtime_arn:
+                raise ValueError(
+                    f"Runtime ARN is not defined for engine: {agent_engine}"
+                )
+
 
             agent_client = boto3.client("bedrock-agentcore", region_name=BEDROCK_REGION)
-            
-            payload_dict = {"prompt": content_block, "session_id": session_id}
-            if image_base64_p1:
-                payload_dict["image"] = image_base64_p1
-                payload_dict["image_format"] = image_format_p1
-            if image_base64_p2:
-                payload_dict["image_p2"] = image_base64_p2
-                payload_dict["image_format_p2"] = image_format_p2
+
+            # Check if this is the OpenClaw Runtime
+            is_openclaw = "openclaw" in runtime_arn.lower()
 
             import hashlib
-            compliant_session_id = session_id
-            if len(compliant_session_id) < 33:
-                compliant_session_id = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
+
+            if session_id.startswith("telegram:"):
+                # Match openclaw-character-dashboard fallback SHA-1 session ID format
+                sha1_hash = hashlib.sha1(session_id.encode("utf-8")).hexdigest()[:24]
+                compliant_session_id = f"dashboard_session_{sha1_hash}"
+                actor_id = session_id
+                user_id = session_id.split(":")[1] if ":" in session_id else session_id
+            else:
+                compliant_session_id = hashlib.sha256(
+                    session_id.encode("utf-8")
+                ).hexdigest()
+                actor_id = f"telegram:{compliant_session_id[:16]}"
+                user_id = compliant_session_id
+
+
+            if is_openclaw:
+                openclaw_content = _build_openclaw_content_block(
+                    content_block,
+                    image_base64_p1,
+                    image_format_p1,
+                    image_base64_p2,
+                    image_format_p2,
+                )
+
+                # OpenClaw expects its custom payload schema (action: chat)
+                payload_dict = {
+                    "action": "chat",
+                    "userId": user_id,
+                    "actorId": actor_id,
+                    "channel": "telegram",
+                    "message": openclaw_content,
+                    # Compatibility payload for OpenAI-style runtimes proxied behind AgentCore.
+                    "messages": [{"role": "user", "content": openclaw_content}],
+                    "model": f"openclaw/{OPENCLAW_AGENT_ID}",
+                    "user": user_id,
+                    "agentId": OPENCLAW_AGENT_ID,
+                }
+                if image_base64_p1:
+                    payload_dict["image"] = image_base64_p1
+                    payload_dict["image_format"] = image_format_p1
+                if image_base64_p2:
+                    payload_dict["image_p2"] = image_base64_p2
+                    payload_dict["image_format_p2"] = image_format_p2
+            else:
+                payload_dict = {
+                    "prompt": content_block,
+                    "session_id": compliant_session_id,
+                }
+                if image_base64_p1:
+                    payload_dict["image"] = image_base64_p1
+                    payload_dict["image_format"] = image_format_p1
+                if image_base64_p2:
+                    payload_dict["image_p2"] = image_base64_p2
+                    payload_dict["image_format_p2"] = image_format_p2
 
             response = agent_client.invoke_agent_runtime(
-                agentRuntimeArn=AGENTCORE_RUNTIME_ARN,
+                agentRuntimeArn=runtime_arn,
                 runtimeSessionId=compliant_session_id,
-                payload=json.dumps(payload_dict).encode("utf-8")
+                payload=json.dumps(payload_dict).encode("utf-8"),
             )
-            
-            chunks = []
-            for chunk in response.get("response", []):
-                chunks.append(chunk.decode("utf-8"))
-            
-            agentcore_payload = json.loads("".join(chunks))
-            commentary_text = agentcore_payload.get("response", "Sorcerer interference detected!")
+
+            body = response.get("response")
+            if hasattr(body, "read"):
+                payload_bytes = body.read()
+            elif isinstance(body, bytes):
+                payload_bytes = body
+            elif isinstance(body, str):
+                payload_bytes = body.encode("utf-8")
+            else:
+                chunks = []
+                for chunk in body or []:
+                    if isinstance(chunk, bytes):
+                        chunks.append(chunk)
+                    elif isinstance(chunk, str):
+                        chunks.append(chunk.encode("utf-8"))
+                payload_bytes = b"".join(chunks)
+
+            payload_str = payload_bytes.decode("utf-8")
+
+            try:
+                agentcore_payload = json.loads(payload_str)
+            except json.JSONDecodeError:
+                agentcore_payload = payload_str
+
+            commentary_text = _extract_agentcore_commentary(agentcore_payload)
+            if not commentary_text:
+                commentary_text = "Sorcerer interference detected!"
+
             logger.info(f"AgentCore Runtime response generated: {commentary_text}")
+
         except Exception as e:
             logger.error(f"AgentCore Runtime call failed: {e}")
-            commentary_text = direct_bedrock_fallback(content_block, image_bytes_p1, image_format_p1, image_bytes_p2, image_format_p2)
+            commentary_text = direct_bedrock_fallback(
+                content_block,
+                image_bytes_p1,
+                image_format_p1,
+                image_bytes_p2,
+                image_format_p2,
+            )
 
-    else: # 'openclaw'
+    else:  # 'openclaw'
         try:
             import urllib3
+
             http_client = urllib3.PoolManager()
             url = f"{OPENCLAW_GATEWAY_URL}/v1/chat/completions"
+            import hashlib
+
+            if session_id.startswith("telegram:"):
+                compliant_session_id = session_id.replace(":", "_")
+                base_session = session_id.split("_")[0]
+                actor_id = base_session
+                user_id = base_session.split(":")[1]
+            else:
+                compliant_session_id = hashlib.sha256(
+                    session_id.encode("utf-8")
+                ).hexdigest()
+                actor_id = f"telegram:{compliant_session_id[:16]}"
+                user_id = compliant_session_id
+
             headers_api = {
                 "Content-Type": "application/json",
-                "x-openclaw-session-key": f"agent:{OPENCLAW_AGENT_ID}:domain-expansion-ar-game:{session_id}"
+                "x-openclaw-session-key": f"agent:{OPENCLAW_AGENT_ID}:{actor_id}",
             }
             if OPENCLAW_TOKEN:
                 headers_api["Authorization"] = f"Bearer {OPENCLAW_TOKEN}"
@@ -242,7 +474,7 @@ def generate_ai_commentary(
             api_payload = {
                 "model": f"openclaw/{OPENCLAW_AGENT_ID}",
                 "messages": [{"role": "user", "content": content_block}],
-                "user": session_id
+                "user": user_id,
             }
 
             logger.info(f"Calling OpenClaw at URL: {url}")
@@ -251,7 +483,7 @@ def generate_ai_commentary(
                 url,
                 headers=headers_api,
                 body=json.dumps(api_payload),
-                timeout=30.0
+                timeout=30.0,
             )
             if resp_api.status == 200:
                 resp_data = json.loads(resp_api.data.decode("utf-8"))
@@ -261,6 +493,12 @@ def generate_ai_commentary(
                 raise Exception(f"OpenClaw returned status code {resp_api.status}")
         except Exception as e:
             logger.error(f"OpenClaw Gateway call failed: {e}")
-            commentary_text = direct_bedrock_fallback(content_block, image_bytes_p1, image_format_p1, image_bytes_p2, image_format_p2)
+            commentary_text = direct_bedrock_fallback(
+                content_block,
+                image_bytes_p1,
+                image_format_p1,
+                image_bytes_p2,
+                image_format_p2,
+            )
 
     return commentary_text

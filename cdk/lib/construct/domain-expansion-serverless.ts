@@ -1,6 +1,8 @@
 import { Construct } from "constructs";
 import * as path from "path";
 import * as os from "os";
+import * as fs from "fs";
+import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -19,6 +21,29 @@ import { DatabaseConstruct } from "./datebase";
 import { RobotSimulatorServerlessConstruct } from "./robot-simulator-serverless";
 import * as logs from "aws-cdk-lib/aws-logs";
 import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
+
+function parseDotEnv(filePath: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  try {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      content.split("\n").forEach((line) => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#")) {
+          const parts = trimmed.split("=");
+          if (parts.length >= 2) {
+            const key = parts[0].trim();
+            const value = parts.slice(1).join("=").trim().replace(/^['"]|['"]$/g, "");
+            env[key] = value;
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.warn("Failed to parse .env file:", err);
+  }
+  return env;
+}
 
 export interface DomainExpansionServerlessConstructProps {
   readonly database: DatabaseConstruct;
@@ -39,6 +64,14 @@ export class DomainExpansionServerlessConstruct extends Construct {
     props: DomainExpansionServerlessConstructProps
   ) {
     super(scope, id);
+
+    const openclawRuntimeArn = ssm.StringParameter.valueForStringParameter(
+      this,
+      "/openclaw/agentcore/runtime-arn-dev"
+    );
+
+    const cdkEnv = parseDotEnv(path.join(__dirname, "../../.env"));
+    const openclawSessionId = cdkEnv["OPENCLAW_SESSION_ID"] || "telegram:default";
 
     // 1. Pack and deploy JJK Commentator container as a dedicated Bedrock AgentCore Runtime
     const agentRuntimeArtifact = agentcore.AgentRuntimeArtifact.fromAsset(
@@ -166,7 +199,8 @@ export class DomainExpansionServerlessConstruct extends Construct {
         CONNECTIONS_TABLE: connectionsTable.tableName,
         SESSIONS_TABLE: sessionsTable.tableName,
         AGENT_TYPE: "agentcore_runtime",
-        AGENTCORE_RUNTIME_ARN: runtime.agentRuntimeArn,
+        AGENTCORE_RUNTIME_ARN: openclawRuntimeArn,
+        OPENCLAW_SESSION_ID: openclawSessionId,
         BEDROCK_MODEL_ID: "moonshotai.kimi-k2.5",
         BEDROCK_REGION: Stack.of(this).region,
         PHOTOS_S3_BUCKET: photosBucket.bucketName,
@@ -216,6 +250,8 @@ export class DomainExpansionServerlessConstruct extends Construct {
         resources: [
           runtime.agentRuntimeArn,
           `${runtime.agentRuntimeArn}/*`,
+          openclawRuntimeArn,
+          `${openclawRuntimeArn}/*`,
         ],
       })
     );
