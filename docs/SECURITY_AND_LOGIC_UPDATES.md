@@ -46,3 +46,30 @@ Enhanced support for secondary displays (Popup Player Window).
 - **Local Mode**: The system remains fully compatible with local `OpenClaw` server modes. 
 - **Media Assets**: Asset path resolution in `getVideoUrl()` dynamically switches between `localhost` and GitHub Pages depending on the environment.
 - **Authentication**: When running locally without AWS credentials, the system supports a "No-Auth" fallback or bridge-based forwarding to development clusters.
+
+---
+
+## 5. Server-Side Technique Triggering & Orchestration (`/api/trigger-technique`)
+To centralize and optimize robot control and audio synthesis, the game orchestrates JJK techniques via the serverless backend instead of sending direct, raw commands from the client browser.
+
+### Architectural Workflow:
+1. **Client Trigger:** When a player performs a hand sign gesture, the game client sends a single `POST` request to the secure backend endpoint `/api/trigger-technique` with the payload:
+   ```json
+   {
+     "technique": "hollow_purple",
+     "robotId": "all",
+     "role": "player1"
+   }
+   ```
+2. **Server-Side Mapping (`JJK_ACTION_MAP`):** The serverless Lambda backend maintains the canonical translation map mapping JJK moves to physical simulator stances and Japanese Polly speech text:
+   - **`lapse_blue`** ➔ Stance: `left_shot_fast`, Speech: `"術式順転、蒼"`
+   - **`reversal_red`** ➔ Stance: `right_shot_fast`, Speech: `"術式反転、赫"`
+   - **`hollow_purple`** ➔ Stance: `kick`, Speech: `"虚式、茈"`
+3. **Concurrent Execution:** The serverless backend triggers the physical action and the AWS Polly voice concurrently:
+   - **Physical Action:** Makes a direct REST POST call to the configured `ROBOT_API_ENDPOINT` (`/run_action/{target}`).
+   - **Speech Synthesis:** Invokes the Robotics MCP Lambda server asynchronously (`robot_speak` tool) to synthesize Polly audio without blocking the physical motion execution.
+
+### Backwards-Compatible Local Fallback:
+If the serverless backend is unavailable (or the game is running in static local mode), the client browser automatically catches the failure and falls back to direct client-side direct calling:
+- Directly triggers `/run_action/{robot_id}` on the local robot simulator endpoint configured in the Settings Panel, guaranteeing offline/local compatibility and preserving existing hardware integration workflows.
+

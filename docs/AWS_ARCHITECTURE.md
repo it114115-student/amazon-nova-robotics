@@ -237,7 +237,8 @@ The JJK Domain Expansion AR Game incorporates high-fidelity hand sign gesture re
 To deliver a secure game that perfectly integrates with native browser media elements (which cannot attach custom HTTP bearer authorization headers), we designed a **split-route API Gateway Rest API**:
 
 * 🔒 **Cognito Protected Endpoints (Catch-All Proxy `/{proxy+}`)**:
-  * Critical HTTP methods like `/api/enhance-portrait` (triggering expensive Bedrock Canvas style fusions), `/api/register-room`, `/api/live-status`, and `/api/battle-result` are proxy-mapped to the AWS Lambda backend.
+  * Critical HTTP methods like `/api/enhance-portrait` (triggering expensive Bedrock Canvas style fusions), `/api/register-room`, `/api/live-status`, `/api/battle-result`, and `/api/trigger-technique` (orchestrating server-side JJK techniques) are proxy-mapped to the AWS Lambda backend.
+  * **Server-Side Orchestration (`/api/trigger-technique`)**: Hand sign gestures and techniques are now sent directly to the serverless backend. The Lambda handler uses a server-defined mapping dictionary (`JJK_ACTION_MAP`) to translate JJK techniques to physical robot simulator actions, concurrently calling (1) the simulator REST endpoint and (2) the asynchronous MCP `robot_speak` tool for AWS Polly synthesized audio. This migrates high-fidelity cloud orchestration from client browser to backend server.
   * They are protected by an **API Gateway Cognito User Pools Authorizer**. If the client request lacks a valid Cognito bearer token, API Gateway drops the query instantly with a `401 Unauthorized` response.
 * 🔓 **Public Media Access (`/api/get-snapshot` & `/api/last-image`)**:
   * Because standard browser HTML image elements (e.g., `<img src="...">`) fetch images natively and cannot append custom authorization headers, protecting image retrievals with Cognito would prevent pictures from loading.
