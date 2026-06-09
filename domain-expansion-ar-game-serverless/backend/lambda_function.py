@@ -823,29 +823,52 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
 
         # 3. Trigger physical action and AWS Polly voice concurrently for all targets
         triggered_targets = []
-        sim_endpoint = os.environ.get("ROBOT_API_ENDPOINT")
-        session_key = os.environ.get("DEFAULT_SESSION_KEY", "mcpserver")
         mcp_func = os.environ.get("MCP_SERVER_FUNCTION_NAME")
 
+        # Map JJK technique directly to the exact existing MCP tool API
+        technique_to_mcp_tool = {
+            "domain_unlimited_void": "robot_kung_fu",
+            "domain_malevolent_shrine": "robot_right_uppercut",
+            "domain_self_embodiment": "robot_twist",
+            "domain_authentic_love": "robot_wave",
+            "domain_idle_death_gamble": "robot_dance_one",
+            "domain_yuji_itadori": "robot_left_shot_fast",
+            "domain_chimera_shadow_garden": "robot_squat",
+            "domain_time_cell_moon_palace": "robot_twist",
+            "lapse_blue": "robot_left_shot_fast",
+            "reversal_red": "robot_right_shot_fast",
+            "hollow_purple": "robot_left_kick"
+        }
+
         for target in targets:
-            # A. Trigger Robot Simulator Action
-            if sim_endpoint:
-                url = f"{sim_endpoint.rstrip('/')}/run_action/{target}?session_key={session_key}"
-                req_data = json.dumps({"action": stance}).encode("utf-8")
+            # Resolve the specific existing MCP tool name directly from the technique
+            mcp_tool_name = technique_to_mcp_tool.get(technique, f"robot_{technique}")
+
+            # A. Trigger Robot Action via MCP Server (which will trigger IoT and the simulator)
+            if mcp_func:
+                mcp_payload = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": mcp_tool_name,
+                        "arguments": {
+                            "robot_id": target
+                        }
+                    }
+                }
                 try:
-                    req = urllib.request.Request(
-                        url,
-                        data=req_data,
-                        headers={"Content-Type": "application/json"},
-                        method="POST"
+                    boto3.client("lambda").invoke(
+                        FunctionName=mcp_func,
+                        InvocationType="Event", # Asynchronous invocation like speech case
+                        Payload=json.dumps(mcp_payload)
                     )
-                    with urllib.request.urlopen(req, timeout=5) as r:
-                        logger.info(f"Simulator action {stance} triggered successfully for {target}")
-                        triggered_targets.append(target)
+                    logger.info(f"Asynchronously triggered MCP tool {mcp_tool_name} for {target}")
+                    triggered_targets.append(target)
                 except Exception as e:
-                    logger.error(f"Simulator action failed for {target}: {e}")
+                    logger.error(f"Failed to invoke MCP lambda tool {mcp_tool_name} for {target}: {e}")
             else:
-                logger.warning("ROBOT_API_ENDPOINT is not configured. Skipping simulator trigger.")
+                logger.warning("MCP_SERVER_FUNCTION_NAME is not configured. Skipping robot action trigger.")
 
             # B. Trigger Speak/Polly synthesizer via direct Lambda call to MCP Server
             if speech and mcp_func:
