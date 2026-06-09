@@ -198,6 +198,7 @@ const textControlWebConstruct = new TextControlWebConstruct(
         robotSimulatorServerlessConstruct: humanoidRobotSimulatorServerlessConstruct,
         userPool: authenticator.userPool,
         userPoolClient: authenticator.userPoolClient,
+        mcpServerConstruct: mcpServerConstruct,
       }
     );
 

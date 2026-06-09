@@ -45,11 +45,14 @@ function parseDotEnv(filePath: string): Record<string, string> {
   return env;
 }
 
+import { LambdaMcpServerConstruct } from "./mcp-server";
+
 export interface DomainExpansionServerlessConstructProps {
   readonly database: DatabaseConstruct;
   readonly robotSimulatorServerlessConstruct: RobotSimulatorServerlessConstruct;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
+  readonly mcpServerConstruct: LambdaMcpServerConstruct;
 }
 
 export class DomainExpansionServerlessConstruct extends Construct {
@@ -209,8 +212,14 @@ export class DomainExpansionServerlessConstruct extends Construct {
         COGNITO_USER_POOL_ID: props.userPool.userPoolId,
         COGNITO_USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
         COGNITO_REGION: Stack.of(this).region,
+        ROBOT_API_ENDPOINT: "https://" + props.robotSimulatorServerlessConstruct.serviceUrl,
+        DEFAULT_SESSION_KEY: "mcpserver",
+        MCP_SERVER_FUNCTION_NAME: props.mcpServerConstruct.mcpFunction.functionName,
       },
     });
+
+    // Grant direct invoke permission on MCP Lambda
+    props.mcpServerConstruct.mcpFunction.grantInvoke(lambdaFunction);
 
     // Grant DynamoDB & S3 access to Lambda
     connectionsTable.grantReadWriteData(lambdaFunction);
@@ -292,6 +301,12 @@ export class DomainExpansionServerlessConstruct extends Construct {
 
     const battleResultResource = apiResource.addResource("battle-result");
     battleResultResource.addMethod("POST", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: restAuthorizer,
+    });
+
+    const triggerTechniqueResource = apiResource.addResource("trigger-technique");
+    triggerTechniqueResource.addMethod("POST", lambdaIntegration, {
       authorizationType: apigateway.AuthorizationType.COGNITO,
       authorizer: restAuthorizer,
     });

@@ -96,6 +96,35 @@ async def invoke_agent(request: Request):
         session_id = body.get("session_id", "main")
         
         if not prompt_text:
+            # Try to extract prompt from OpenClaw messages schema
+            messages = body.get("messages")
+            if isinstance(messages, list) and len(messages) > 0:
+                first_msg = messages[0]
+                if isinstance(first_msg, dict):
+                    content = first_msg.get("content")
+                    if isinstance(content, str):
+                        prompt_text = content
+                    elif isinstance(content, list):
+                        text_parts = []
+                        for part in content:
+                            if isinstance(part, dict):
+                                if part.get("type") == "text":
+                                    text_parts.append(part.get("text", ""))
+                        prompt_text = "\n".join([p for p in text_parts if p]).strip()
+            
+            if not prompt_text:
+                message = body.get("message")
+                if isinstance(message, str):
+                    prompt_text = message
+                elif isinstance(message, list):
+                    text_parts = []
+                    for part in message:
+                        if isinstance(part, dict):
+                            if part.get("type") == "text":
+                                text_parts.append(part.get("text", ""))
+                    prompt_text = "\n".join([p for p in text_parts if p]).strip()
+
+        if not prompt_text:
             return JSONResponse(
                 status_code=400,
                 content={"error": "Prompt field is required."}
@@ -122,6 +151,50 @@ async def invoke_agent(request: Request):
         image_format_p1 = body.get("image_format", "jpeg")
         image_b64_p2 = body.get("image_p2", "")
         image_format_p2 = body.get("image_format_p2", "jpeg")
+
+        # Extract images from OpenAI/OpenClaw-style messages/message if not present in root
+        if not image_b64_p1 or not image_b64_p2:
+            extracted_images = [] # list of (b64_str, format)
+            
+            def find_images_in_blocks(blocks):
+                if not isinstance(blocks, list):
+                    return
+                for part in blocks:
+                    if isinstance(part, dict) and part.get("type") == "image_url":
+                        img_url_obj = part.get("image_url", {})
+                        if isinstance(img_url_obj, dict):
+                            url_str = img_url_obj.get("url", "")
+                            if isinstance(url_str, str) and url_str.startswith("data:image/"):
+                                try:
+                                    header, b64_data = url_str.split(";base64,", 1)
+                                    img_format = header.split("data:image/", 1)[1]
+                                    extracted_images.append((b64_data, img_format))
+                                except Exception:
+                                    pass
+
+            messages = body.get("messages")
+            if isinstance(messages, list):
+                for msg in messages:
+                    if isinstance(msg, dict):
+                        content = msg.get("content")
+                        if isinstance(content, list):
+                            find_images_in_blocks(content)
+            
+            message = body.get("message")
+            if isinstance(message, list):
+                find_images_in_blocks(message)
+
+            if len(extracted_images) >= 1:
+                if not image_b64_p1:
+                    image_b64_p1, image_format_p1 = extracted_images[0]
+            if len(extracted_images) >= 2:
+                if not image_b64_p2:
+                    image_b64_p2, image_format_p2 = extracted_images[1]
+
+        if image_format_p1 == "jpg":
+            image_format_p1 = "jpeg"
+        if image_format_p2 == "jpg":
+            image_format_p2 = "jpeg"
 
         multimodal_parts = []
 

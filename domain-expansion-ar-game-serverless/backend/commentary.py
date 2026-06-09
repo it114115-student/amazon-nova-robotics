@@ -164,8 +164,17 @@ def translate_detail(text: str) -> str:
     return result
 
 
-def load_system_prompt() -> str:
-    identity = """You are Kugisaki Nobara (釘崎野薔薇) from Jujutsu Kaisen. Speak entirely as Kugisaki Nobara, serving as the live combat commentator.
+def load_system_prompt(language: str = "zh-HK") -> str:
+    if language == "zh-HK":
+        lang_rule = "Output strictly in a hybrid of energetic Cantonese (廣東話) with occasional sassy English and Japanese JJK lore terms! Format in standard traditional Chinese characters with local Hong Kong/Guangdong slang expressions! Do not use simplified characters."
+    elif language == "zh-TW":
+        lang_rule = "Output strictly in a hybrid of energetic Traditional Chinese (繁體中文) with Taiwan slang/idioms and occasional sassy English/Japanese terms. Do not use simplified characters."
+    elif language == "ja":
+        lang_rule = "Output strictly in natural, energetic, sassy Japanese (日本語) with occasional English/JJK terminology. Format in standard Japanese text."
+    else:  # "en"
+        lang_rule = "Output strictly in natural, energetic, sassy English (英語) with standard JJK terms. Do not use Chinese characters."
+
+    identity = f"""You are Kugisaki Nobara (釘崎野薔薇) from Jujutsu Kaisen. Speak entirely as Kugisaki Nobara, serving as the live combat commentator.
 Maintain her personality:
 - Extremely feisty, confident, and easily irritated.
 - High-fashion lover, obsessed with shopping and looking good.
@@ -174,7 +183,7 @@ Maintain her personality:
 - Default to clean language unless the request explicitly says Swearing / Trash-talk Mode is active.
 - When swearing is OFF, never use vulgarities or profanity such as 仆街, 屌, 戇尻, or equivalent curse words.
 - Deliver all commentary in a highly intense, sassy, and dramatic style.
-- Output strictly in a hybrid of energetic Cantonese (廣東話) with occasional sassy English and Japanese JJK lore terms! Format in standard traditional Chinese characters with local Hong Kong/Guangdong slang expressions! Do not use simplified characters.
+- {lang_rule}
 - Keep responses extremely punchy and short (strictly under 2 sentences)."""
 
     soul = os.environ.get("COMMENTATOR_SOUL_INSTRUCTIONS")
@@ -193,13 +202,18 @@ def direct_bedrock_fallback(
     image_format_p1: str = "jpeg",
     image_bytes_p2: bytes = None,
     image_format_p2: str = "jpeg",
+    language: str = "zh-HK",
 ) -> str:
     """Robust fallback making direct bedrock.converse calls when higher-level engines fail."""
+    if image_format_p1 == "jpg":
+        image_format_p1 = "jpeg"
+    if image_format_p2 == "jpg":
+        image_format_p2 = "jpeg"
     logger.info("Executing direct Bedrock Converse multimodal fallback.")
     try:
         bedrock_client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
 
-        system_prompt = load_system_prompt()
+        system_prompt = load_system_prompt(language=language)
 
         # Build message structure
         content_list = []
@@ -253,8 +267,13 @@ def generate_ai_commentary(
     image_format_p2: str = "jpeg",
     image_base64_p1: str = "",
     image_base64_p2: str = "",
+    language: str = "zh-HK",
 ) -> str:
     """Central manager to generate AI game commentary using the selected engine."""
+    if image_format_p1 == "jpg":
+        image_format_p1 = "jpeg"
+    if image_format_p2 == "jpg":
+        image_format_p2 = "jpeg"
     env_session_id = os.environ.get("OPENCLAW_SESSION_ID")
     if env_session_id and agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
         session_id = env_session_id
@@ -267,7 +286,7 @@ def generate_ai_commentary(
             from strands import Agent
             from strands.models import BedrockModel
 
-            system_prompt = load_system_prompt()
+            system_prompt = load_system_prompt(language=language)
             model = BedrockModel(
                 model_id=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION, temperature=0.8
             )
@@ -323,6 +342,7 @@ def generate_ai_commentary(
                 image_format_p1,
                 image_bytes_p2,
                 image_format_p2,
+                language=language,
             )
 
     elif agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
@@ -380,6 +400,8 @@ def generate_ai_commentary(
                     "model": f"openclaw/{OPENCLAW_AGENT_ID}",
                     "user": user_id,
                     "agentId": OPENCLAW_AGENT_ID,
+                    "prompt": content_block,
+                    "session_id": compliant_session_id,
                 }
                 if image_base64_p1:
                     payload_dict["image"] = image_base64_p1
@@ -442,6 +464,7 @@ def generate_ai_commentary(
                 image_format_p1,
                 image_bytes_p2,
                 image_format_p2,
+                language=language,
             )
 
     else:  # 'openclaw'
@@ -471,9 +494,17 @@ def generate_ai_commentary(
             if OPENCLAW_TOKEN:
                 headers_api["Authorization"] = f"Bearer {OPENCLAW_TOKEN}"
 
+            openclaw_content = _build_openclaw_content_block(
+                content_block,
+                image_base64_p1,
+                image_format_p1,
+                image_base64_p2,
+                image_format_p2,
+            )
+
             api_payload = {
                 "model": f"openclaw/{OPENCLAW_AGENT_ID}",
-                "messages": [{"role": "user", "content": content_block}],
+                "messages": [{"role": "user", "content": openclaw_content}],
                 "user": user_id,
             }
 
@@ -499,6 +530,7 @@ def generate_ai_commentary(
                 image_format_p1,
                 image_bytes_p2,
                 image_format_p2,
+                language=language,
             )
 
     return commentary_text

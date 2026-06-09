@@ -237,6 +237,65 @@ def handle_websocket(event, r_ctx):
     return {"statusCode": 200, "body": "OK"}
 
 
+JJK_ACTION_MAP = {
+    "domain_unlimited_void": {
+        "stance": "kung_fu",
+        "speech": "領域展開、無量空処",
+        "language": "ja"
+    },
+    "domain_malevolent_shrine": {
+        "stance": "right_uppercut",
+        "speech": "領域展開、伏魔御厨子",
+        "language": "ja"
+    },
+    "domain_self_embodiment": {
+        "stance": "twist",
+        "speech": "領域展開、自閉円頓裹",
+        "language": "ja"
+    },
+    "domain_authentic_love": {
+        "stance": "wave",
+        "speech": "領域展開、真贋相愛",
+        "language": "ja"
+    },
+    "domain_idle_death_gamble": {
+        "stance": "dance",
+        "speech": "領域展開、坐殺博徒",
+        "language": "ja"
+    },
+    "domain_yuji_itadori": {
+        "stance": "punch",
+        "speech": "領域展開",
+        "language": "ja"
+    },
+    "domain_chimera_shadow_garden": {
+        "stance": "squat",
+        "speech": "領域展開、嵌合暗翳庭",
+        "language": "ja"
+    },
+    "domain_time_cell_moon_palace": {
+        "stance": "twist",
+        "speech": "領域展開、時胞月宮殿",
+        "language": "ja"
+    },
+    "lapse_blue": {
+        "stance": "left_shot_fast",
+        "speech": "術式順転、蒼",
+        "language": "ja"
+    },
+    "reversal_red": {
+        "stance": "right_shot_fast",
+        "speech": "術式反転、赫",
+        "language": "ja"
+    },
+    "hollow_purple": {
+        "stance": "kick",
+        "speech": "虚式、茈",
+        "language": "ja"
+    }
+}
+
+
 # HTTP REST API Handler
 def handle_http(event):
     path = event.get("path", "")
@@ -603,6 +662,38 @@ Tone rule: {tone_directive}
 React instantly to this specific action! Give sassy, feisty sorcerer trash-talk or hype up the battle with extreme energy. Speak directly to them like an arrogant fashion-lover. Keep it to 2 short, punchy sentences max!
 """
 
+        # Select language directive
+        lang_directives = {
+            "zh-HK": (
+                "IMPORTANT LANGUAGE CONSTRAINT: You must output the entire response in a hybrid of energetic Cantonese (廣東話) "
+                "with occasional sassy English and Japanese JJK terms. Format strictly in traditional Chinese characters with "
+                "local Hong Kong/Guangdong slang expressions! Do not use simplified characters."
+            ),
+            "zh-TW": (
+                "IMPORTANT LANGUAGE CONSTRAINT: You must output the entire response in a hybrid of energetic Traditional Chinese (繁體中文) "
+                "with Taiwan slang/idioms. Do not use simplified characters."
+            ),
+            "ja": (
+                "IMPORTANT LANGUAGE CONSTRAINT: You must output the entire response in natural, energetic, sassy Japanese (日本語) "
+                "with occasional English/JJK terminology. Format strictly in standard Japanese text."
+            ),
+            "en": (
+                "IMPORTANT LANGUAGE CONSTRAINT: You must output the entire response in natural, energetic, sassy English (英語) "
+                "with standard JJK terms. Do not use Chinese characters."
+            )
+        }
+        
+        lang_directive = lang_directives.get(commentary_language)
+        if not lang_directive:
+            if commentary_language.startswith("zh"):
+                lang_directive = lang_directives["zh-HK"]
+            elif commentary_language.startswith("ja"):
+                lang_directive = lang_directives["ja"]
+            else:
+                lang_directive = lang_directives["en"]
+                
+        content_block = content_block.strip() + f"\n\n{lang_directive}"
+
         # Try to retrieve the latest webcam frames for multimodal analysis
         image_bytes_p1 = None
         image_bytes_p2 = None
@@ -661,7 +752,8 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             image_bytes_p2=image_bytes_p2,
             image_format_p2=image_format_p2,
             image_base64_p1=image_base64_p1,
-            image_base64_p2=image_base64_p2
+            image_base64_p2=image_base64_p2,
+            language=commentary_language
         )
 
         audio_payload = None
@@ -702,6 +794,94 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             "statusCode": 200,
             "headers": headers,
             "body": json.dumps(response_body)
+        }
+
+    # Endpoint: /api/trigger-technique
+    elif path == "/api/trigger-technique" and method == "POST":
+        import urllib.request
+        technique = body.get("technique", "")
+        robot_id = body.get("robotId", "robot_1")
+        role = body.get("role", "none")
+        
+        # 1. Resolve target robots
+        targets = []
+        if robot_id == "all":
+            if role == "player1":
+                targets = ["robot_1", "robot_2", "robot_3"]
+            elif role == "player2":
+                targets = ["robot_4", "robot_5", "robot_6"]
+            else:
+                targets = ["robot_1"]
+        else:
+            targets = [robot_id]
+
+        # 2. Match technique against JJK_ACTION_MAP
+        map_info = JJK_ACTION_MAP.get(technique)
+        stance = map_info["stance"] if map_info else technique
+        speech = map_info["speech"] if map_info else None
+        language = map_info.get("language", "ja") if map_info else "ja"
+
+        # 3. Trigger physical action and AWS Polly voice concurrently for all targets
+        triggered_targets = []
+        sim_endpoint = os.environ.get("ROBOT_API_ENDPOINT")
+        session_key = os.environ.get("DEFAULT_SESSION_KEY", "mcpserver")
+        mcp_func = os.environ.get("MCP_SERVER_FUNCTION_NAME")
+
+        for target in targets:
+            # A. Trigger Robot Simulator Action
+            if sim_endpoint:
+                url = f"{sim_endpoint.rstrip('/')}/run_action/{target}?session_key={session_key}"
+                req_data = json.dumps({"action": stance}).encode("utf-8")
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=req_data,
+                        headers={"Content-Type": "application/json"},
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(req, timeout=5) as r:
+                        logger.info(f"Simulator action {stance} triggered successfully for {target}")
+                        triggered_targets.append(target)
+                except Exception as e:
+                    logger.error(f"Simulator action failed for {target}: {e}")
+            else:
+                logger.warning("ROBOT_API_ENDPOINT is not configured. Skipping simulator trigger.")
+
+            # B. Trigger Speak/Polly synthesizer via direct Lambda call to MCP Server
+            if speech and mcp_func:
+                mcp_payload = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "robot_speak",
+                        "arguments": {
+                            "robot_id": target,
+                            "text": speech,
+                            "language": language
+                        }
+                    }
+                }
+                try:
+                    boto3.client("lambda").invoke(
+                        FunctionName=mcp_func,
+                        InvocationType="Event", # Asynchronous invocation so speaking doesn't delay action trigger
+                        Payload=json.dumps(mcp_payload)
+                    )
+                    logger.info(f"Asynchronously triggered MCP robot_speak for {target}")
+                except Exception as e:
+                    logger.error(f"Failed to invoke MCP lambda for {target}: {e}")
+
+        return {
+            "statusCode": 200,
+            "headers": headers,
+            "body": json.dumps({
+                "success": len(triggered_targets) > 0,
+                "targets": targets,
+                "triggered_targets": triggered_targets,
+                "action": stance,
+                "speech_triggered": bool(speech)
+            })
         }
 
     return {"statusCode": 404, "headers": headers, "body": json.dumps({"error": "Route not found"})}
