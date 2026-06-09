@@ -32,12 +32,12 @@ The system consists of several interconnected components:
    - Real-time dynamic system prompt adaptation matching selected hardware devices
    - Fluid, zero-refresh reconnection state machine and microphonic resource cleanup
 
-2. **Humanoid Robot Simulator** (`humanoid-robot-simulator/`)
+2. **Serverless Humanoid Robot Simulator** (`humanoid-robot-simulator-serverless/`)
 
    - 3D web interface with Three.js visualization
    - 6 humanoid robots with 38 realistic actions
    - Real-time WebSocket communication
-   - Python Flask backend with comprehensive API
+   - Serverless AWS Lambda Python Router backend and S3 static website hosted via CloudFront CDN
 
 3. **Text Control** (`text_control/`)
 

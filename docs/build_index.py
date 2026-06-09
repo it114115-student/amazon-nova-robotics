@@ -126,10 +126,7 @@ def generate_index(root: Path, out_readme: Path) -> None:
         ("AWS Cost Estimation Guide", root / "docs" / "COST_ESTIMATION.md"),
         ("Text Control: README", root / "text_control" / "README.md"),
         ("Speech Control: README", root / "speech_control_agentcore" / "README.md"),
-        (
-            "Humanoid Robot Simulator: README",
-            root / "humanoid-robot-simulator" / "README.md",
-        ),
+
         ("CDK Infrastructure: README", root / "cdk" / "README.md"),
     ]
     present = [(label, p) for (label, p) in quick_links if p.exists()]

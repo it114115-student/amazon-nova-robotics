@@ -847,13 +847,23 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             # A. Trigger Robot Action via MCP Server (which will trigger IoT and the simulator)
             if mcp_func:
                 mcp_payload = {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "tools/call",
-                    "params": {
-                        "name": mcp_tool_name,
-                        "arguments": {
-                            "robot_id": target
+                    "body": json.dumps({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/call",
+                        "params": {
+                            "name": mcp_tool_name,
+                            "arguments": {
+                                "robot_id": target
+                            }
+                        }
+                    }),
+                    "headers": {
+                        "content-type": "application/json"
+                    },
+                    "requestContext": {
+                        "http": {
+                            "method": "POST"
                         }
                     }
                 }
@@ -873,15 +883,25 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             # B. Trigger Speak/Polly synthesizer via direct Lambda call to MCP Server
             if speech and mcp_func:
                 mcp_payload = {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "robot_speak",
-                        "arguments": {
-                            "robot_id": target,
-                            "text": speech,
-                            "language": language
+                    "body": json.dumps({
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "robot_speak",
+                            "arguments": {
+                                "robot_id": target,
+                                "text": speech,
+                                "language": language
+                            }
+                        }
+                    }),
+                    "headers": {
+                        "content-type": "application/json"
+                    },
+                    "requestContext": {
+                        "http": {
+                            "method": "POST"
                         }
                     }
                 }
