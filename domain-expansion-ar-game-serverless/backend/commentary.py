@@ -345,7 +345,7 @@ def generate_ai_commentary(
                 language=language,
             )
 
-    elif agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
+    elif agent_engine in ("agentcore_runtime", "standard_commentator_runtime") or (agent_engine == "openclaw" and (os.environ.get("AGENTCORE_RUNTIME_ARN") or AGENTCORE_RUNTIME_ARN)):
         try:
             if agent_engine == "standard_commentator_runtime":
                 runtime_arn = "arn:aws:bedrock-agentcore:us-east-1:111964674713:runtime/domain_commentator_agentcore-XTgv50C4B1"
