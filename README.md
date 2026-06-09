@@ -76,6 +76,31 @@ The system consists of several interconnected components:
 
 ## 🚀 Quick Start
 
+### 🔄 Keeping the Code Up-to-Date (Git Submodules)
+
+This repository uses **Git Submodules** (like `humanoid-robot-simulator` and `domain-expansion-ar-game`). By default, a standard `git pull` updates the parent repository's commit reference but **does not** automatically update the submodule folders themselves.
+
+To ensure your local submodules are always kept up-to-date when you pull, we recommend configuring Git to recurse into submodules:
+
+#### Recommended: Configure Git to automatically update submodules on pull
+Run this command once in this repository:
+```bash
+git config submodule.recurse true
+```
+*(Optional: Use `git config --global submodule.recurse true` to enable this behavior globally across all your repositories.)*
+
+#### Alternative: Pull with recurse flag
+```bash
+git pull --recurse-submodules
+```
+
+#### Alternative: Manually update submodules after pulling
+```bash
+git submodule update --init --recursive
+```
+
+---
+
 ### Prerequisites
 
 - Node.js 23+ (for speech control)
