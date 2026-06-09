@@ -6,12 +6,13 @@ import {
 } from "aws-cdk-lib/aws-lambda";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Construct } from "constructs";
-import { Duration, Stack, RemovalPolicy } from "aws-cdk-lib";
+import { Duration, Stack, RemovalPolicy, DockerImage } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { DatabaseConstruct } from "./datebase";
 import { AttributeType, Billing, TableV2 } from "aws-cdk-lib/aws-dynamodb";
 import * as cdk from "aws-cdk-lib";
+import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
 
 import path = require("path");
 
@@ -65,12 +66,9 @@ export class LambdaMcpServerConstruct extends Construct {
 
     this.mcpFunction = new PythonFunction(this, "McpFunction", {
       entry: path.join(__dirname, "../../../mcp_server"), // required
-      runtime: Runtime.PYTHON_3_13, // required
+      runtime: SHARED_PYTHON_RUNTIME, // required
       timeout: Duration.seconds(30), // optional, defaults to 3 seconds
-      bundling: {
-        // translates to `rsync --exclude='.venv'`
-        assetExcludes: [".venv", "create_virtual_env.sh"],
-      },
+      bundling: SHARED_PYTHON_BUNDLING,
       environment: {
         IMAGE_BUCKET_NAME: this.imageBucket.bucketName,
         SpeechTable: this.speechTable.tableName,

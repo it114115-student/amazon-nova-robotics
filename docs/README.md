@@ -1,6 +1,6 @@
 # Project Documentation Index
 
-Generated: 2025-10-24 03:37 UTC
+Generated: 2026-05-25 02:26 UTC
 
 > This index links to original files across the repo. Source docs remain in their project folders.
 
@@ -8,48 +8,68 @@ Generated: 2025-10-24 03:37 UTC
 ## Quick links
 
 - [Repository README](../README.md)
+- [AWS Cloud System Architecture Specification](AWS_ARCHITECTURE.md)
+- [AWS Cost Estimation Guide](COST_ESTIMATION.md)
+- [Security and Logic Updates (June 2026)](SECURITY_AND_LOGIC_UPDATES.md)
+- [Architecture Diagrams (June 2026)](ARCHITECTURE_DIAGRAMS.md)
 - [Text Control: README](../text_control/README.md)
-- [Speech Control: README](../speech_control/README.md)
+- [Speech Control: README](../speech_control_agentcore/README.md)
 - [Humanoid Robot Simulator: README](../humanoid-robot-simulator/README.md)
 - [CDK Infrastructure: README](../cdk/README.md)
 
 ## All documents by area
 
-### (root) (1)
+### (root) (2)
 
+- [Lambda Function Url Security Update](../LAMBDA_FUNCTION_URL_SECURITY_UPDATE.md)
 - [Readme](../README.md)
 
 ### cdk (1)
 
 - [Readme](../cdk/README.md)
 
-### humanoid-robot-simulator (6)
+### domain-expansion-ar-game (3)
+
+- [Readme](../domain-expansion-ar-game/README.md)
+- [Custom Agent Setup](../domain-expansion-ar-game/docs/custom_agent_setup.md)
+- [Openclaw Integration](../domain-expansion-ar-game/docs/openclaw_integration.md)
+
+### domain-expansion-commentator-agentcore (2)
+
+- [Identity](../domain-expansion-commentator-agentcore/prompts/IDENTITY.md)
+- [Soul](../domain-expansion-commentator-agentcore/prompts/SOUL.md)
+
+### humanoid-robot-simulator (7)
 
 - [Cloud Run Deployment](../humanoid-robot-simulator/CLOUD_RUN_DEPLOYMENT.md)
 - [Readme](../humanoid-robot-simulator/README.md)
 - [Api Reference](../humanoid-robot-simulator/docs/API_REFERENCE.md)
 - [Deployment](../humanoid-robot-simulator/docs/DEPLOYMENT.md)
 - [Readme](../humanoid-robot-simulator/docs/README.md)
+- [User Guide Gestures](../humanoid-robot-simulator/docs/USER_GUIDE_GESTURES.md)
 - [Readme](../humanoid-robot-simulator/test_commands/README.md)
 
-### speech_control (4)
+### robot_client (1)
 
-- [Aws Secure Mcp](../speech_control/AWS_SECURE_MCP.md)
-- [Cognito Setup](../speech_control/COGNITO_SETUP.md)
-- [Mcp Integration](../speech_control/MCP_INTEGRATION.md)
-- [Readme](../speech_control/README.md)
+- [Readme](../robot_client/humanoid/README.md)
 
-### TestServerApp (4)
+### robot_skills (6)
 
-- [Help](../TestServerApp/HELP.md)
-- [端侧外接第三方Asr接口文档](../TestServerApp/doc/端侧外接第三方ASR接口文档.md)
-- [端侧外接第三方Tts接口文档](../TestServerApp/doc/端侧外接第三方TTS接口文档.md)
-- [端侧外接第三方对话接口文档](../TestServerApp/doc/端侧外接第三方对话接口文档.md)
+- [Readme](../robot_skills/README.md)
+- [Skill](../robot_skills/digital_human/SKILL.md)
+- [Skill](../robot_skills/digital_human_adb/SKILL.md)
+- [Skill](../robot_skills/dog/SKILL.md)
+- [Skill](../robot_skills/drone/SKILL.md)
+- [Skill](../robot_skills/humanoid/SKILL.md)
+
+### speech_control_agentcore (1)
+
+- [Readme](../speech_control_agentcore/README.md)
 
 ### text_control (4)
 
-- [Api Implementation Summary](../text_control/API_IMPLEMENTATION_SUMMARY.md)
+- [Cleanup Summary](../text_control/CLEANUP_SUMMARY.md)
 - [Readme](../text_control/README.md)
-- [Readme Simple Commands](../text_control/README_simple_commands.md)
-- [Robot Service Documentation](../text_control/services/ROBOT_SERVICE_DOCUMENTATION.md)
+- [Api Implementation](../text_control/docs/api_implementation.md)
+- [Readme](../text_control/tests/README.md)
 

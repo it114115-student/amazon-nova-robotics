@@ -1,5 +1,5 @@
 import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
-import { CfnOutput, Duration } from "aws-cdk-lib";
+import { CfnOutput, Duration, DockerImage } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 
 import { Construct } from "constructs";
@@ -11,6 +11,7 @@ import { LambdaMcpServerConstruct } from "./mcp-server";
 import * as crypto from "crypto";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
 export interface TextControlWebConstructProps {
   readonly database: DatabaseConstruct;
   readonly mcpServerConstruct: LambdaMcpServerConstruct;
@@ -53,7 +54,7 @@ export class TextControlWebConstruct extends Construct {
 
     const flaskLambda = new PythonFunction(this, "TextControlLambda", {
       entry: path.join(__dirname, "../../../text_control"),
-      runtime: lambda.Runtime.PYTHON_3_12,
+      runtime: SHARED_PYTHON_RUNTIME,
       index: "app.py",
       handler: "handler",
       timeout: Duration.seconds(30),
@@ -69,6 +70,7 @@ export class TextControlWebConstruct extends Construct {
         SpeechTable: props.mcpServerConstruct.speechTable.tableName,
       },
       bundling: {
+        ...SHARED_PYTHON_BUNDLING,
         assetExcludes: [
           ".venv",
           "create_virtual_env.sh",

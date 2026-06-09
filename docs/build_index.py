@@ -123,8 +123,9 @@ def generate_index(root: Path, out_readme: Path) -> None:
     # Quick links for common entry points if present
     quick_links = [
         ("Repository README", root / "README.md"),
+        ("AWS Cost Estimation Guide", root / "docs" / "COST_ESTIMATION.md"),
         ("Text Control: README", root / "text_control" / "README.md"),
-        ("Speech Control: README", root / "speech_control" / "README.md"),
+        ("Speech Control: README", root / "speech_control_agentcore" / "README.md"),
         (
             "Humanoid Robot Simulator: README",
             root / "humanoid-robot-simulator" / "README.md",

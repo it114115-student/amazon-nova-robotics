@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 3D Humanoid Robot Simulator</title>
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
+    <link rel="stylesheet" href="./css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        /* Enhanced styles for corrected version */
+        #three-canvas {
+            background-color: #1a1a2e !important;
+            border: 2px solid #444;
+            user-select: none;
+            /* Prevent text selection during camera controls */
+        }
+
+        /* Camera control cursor styles */
+        #three-canvas.grabbing {
+            cursor: grabbing !important;
+        }
+
+        #three-canvas.grab {
+            cursor: grab !important;
+        }
+
+        #three-canvas.zoom {
+            cursor: ns-resize !important;
+        }
+
+        .status-panel {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+
+        .connected {
+            color: #4CAF50;
+        }
+
+        .disconnected {
+            color: #f44336;
+        }
+
+        #session-info {
+            color: #9c27b0;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #4CAF50;
+        }
+
+        .error {
+            color: #f44336;
+        }
+
+        .action-btn {
+            background: #4A90E2;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin: 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: #357ABD;
+            transform: translateY(-1px);
+        }
+
+        .action-btn:active {
+            background: #2E6DA4;
+            transform: translateY(0px);
+        }
+
+        .movement-btn {
+            background: #28a745;
+        }
+
+        .movement-btn:hover {
+            background: #218838;
+        }
+
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 10px 0;
+        }
+
+        .action-grid h4 {
+            grid-column: 1 / -1;
+            margin: 15px 0 5px 0;
+            color: #4A90E2;
+            border-bottom: 1px solid #4A90E2;
+            padding-bottom: 5px;
+        }
+
+        .movement-section h4 {
+            color: #28a745 !important;
+            border-bottom-color: #28a745 !important;
+        }
+
+        .sequence-btn {
+            background: #9c27b0 !important;
+            color: white !important;
+        }
+
+        .sequence-btn:hover {
+            background: #7b1fa2 !important;
+        }
+
+        .queue-btn {
+            background: #ff5722 !important;
+            color: white !important;
+        }
+
+        .queue-btn:hover {
+            background: #e64a19 !important;
+        }
+
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            z-index: 1000;
+        }
+
+        #loading-screen.hidden {
+            display: none;
+        }
+
+        .animation-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(74, 144, 226, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .animation-indicator.active {
+            display: block;
+            animation: pulse 1s infinite;
+        }
+
+        .animation-indicator.movement {
+            background: rgba(40, 167, 69, 0.8);
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.8;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.8;
+            }
+        }
+
+        .correction-notice {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        /* Panel Toggle Functionality */
+        #control-panel {
+            transition: transform 0.3s ease;
+            transform: translateX(100%);
+        }
+
+        #control-panel.visible {
+            transform: translateX(0);
+        }
+
+        /* Speech toggle switch */
+        .speech-toggle input:checked+span {
+            background: #28a745 !important;
+        }
+
+        .speech-toggle input:checked+span+span {
+            left: 23px !important;
+        }
+
+        /* Fix instruction panel text overflow */
+        .panel-section {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .panel-section ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+
+        .panel-section li {
+            margin-bottom: 8px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .panel-section strong {
+            display: inline-block;
+            max-width: 100%;
+            word-wrap: break-word;
+        }
+
+
+
+        #toggle-panel {
+            background: rgba(74, 144, 226, 0.8) !important;
+            transition: all 0.3s ease;
+        }
+
+        #toggle-panel:hover {
+            background: rgba(74, 144, 226, 1) !important;
+        }
+
+        /* Mobile responsive styles */
+        @media (max-width: 768px) {
+
+            /* Hide header title on mobile */
+            #header h1 {
+                display: none;
+            }
+
+            /* Hide session info on mobile */
+            #session-info {
+                display: none;
+            }
+
+            /* Adjust header spacing for mobile */
+            #header {
+                padding: 10px;
+                min-height: auto;
+            }
+
+            /* Make status bar more compact on mobile */
+            #status {
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+
+            #status span {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div>
+            <h2>🤖 Loading 3D Robot Simulator...</h2>
+            <p>Initializing robots with realistic animations...</p>
+        </div>
+    </div>
+
+    <div id="container">
+        <!-- Header -->
+        <header id="header">
+            <h1>🤖 雲端系統及數據中心管理高級文憑 3D人形機器人模擬器</h1>
+            <div id="status">
+                <span id="connection-status" class="disconnected">🔴 Connecting...</span>
+                <span id="session-info">🔐 Session: <span id="session-key-val">Loading...</span></span>
+                <span id="robot-count">Robots: 0/6</span>
+                <span id="action-status"></span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div id="main-content">
+            <!-- 3D Viewport -->
+            <div id="viewport-container" style="position: relative;">
+                <canvas id="three-canvas" width="800" height="600"></canvas>
+                <div class="animation-indicator" id="animation-indicator">🎭 Animating...</div>
+                <div id="viewport-controls">
+                    <button id="toggle-panel" class="action-btn">📋 Show Panel</button>
+                    <button id="reset-camera" class="action-btn">📷 Reset Camera</button>
+                    <button id="reset" class="action-btn" style="background: #dc3545;">🔄 Reset</button>
+                </div>
+            </div>
+
+            <!-- Control Panel -->
+            <div id="control-panel">
+
+                <div class="panel-section">
+                    <h3>🎮 Robot Control</h3>
+
+                    <!-- Robot Selection -->
+                    <div class="control-group">
+                        <label for="robot-select">Select Robot:</label>
+                        <select id="robot-select">
+                            <option value="all">🤖 All Robots</option>
+                            <option value="robot_1">🔵 Robot 1</option>
+                            <option value="robot_2">🔴 Robot 2</option>
+                            <option value="robot_3">🟢 Robot 3</option>
+                            <option value="robot_4">🟠 Robot 4</option>
+                            <option value="robot_5">🟣 Robot 5</option>
+                            <option value="robot_6">🟡 Robot 6</option>
+                        </select>
+                    </div>
+
+
+
+                    <!-- Action Buttons -->
+                    <div class="action-grid">
+
+                        <h4>🚶 MOVEMENT</h4>
+                        <button class="action-btn movement-btn" data-action="go_forward">⬆️ Forward</button>
+                        <button class="action-btn movement-btn" data-action="turn_left">⬅️ Turn Left</button>
+                        <button class="action-btn movement-btn" data-action="turn_right">➡️ Turn Right</button>
+                        <button class="action-btn movement-btn" data-action="right_move_fast">➡️ Right Fast</button>
+                        <button class="action-btn movement-btn" data-action="left_move_fast">⬅️ Left Fast</button>
+                        <button class="action-btn movement-btn" data-action="back_fast">⬇️ Back Fast</button>
+                        <button class="action-btn movement-btn" data-action="stepping">🦶 Stepping</button>
+                        <button class="action-btn movement-btn" data-action="twist">🌪️ Twist</button>
+
+
+                        <h4>💃 DANCE COLLECTION</h4>
+                        <button class="action-btn" data-action="dance_two">💃 Dance 2</button>
+                        <button class="action-btn" data-action="dance_three">💃 Dance 3</button>
+                        <button class="action-btn" data-action="dance_four">💃 Dance 4</button>
+                        <button class="action-btn" data-action="dance_five">💃 Dance 5</button>
+                        <button class="action-btn" data-action="dance_six">💃 Dance 6</button>
+                        <button class="action-btn" data-action="dance_seven">💃 Dance 7</button>
+                        <button class="action-btn" data-action="dance_eight">💃 Dance 8</button>
+                        <button class="action-btn" data-action="dance_nine">💃 Dance 9</button>
+                        <button class="action-btn" data-action="dance_ten">💃 Dance 10</button>
+
+                        <h4>🥋 COMBAT MOVES</h4>
+                        <button class="action-btn" data-action="kung_fu">🥋 Kung Fu</button>
+                        <button class="action-btn" data-action="wing_chun">🥋 Wing Chun</button>
+                        <button class="action-btn" data-action="right_kick">🦵 Right Kick</button>
+                        <button class="action-btn" data-action="left_kick">🦵 Left Kick</button>
+                        <button class="action-btn" data-action="right_uppercut">👊 Right Uppercut</button>
+                        <button class="action-btn" data-action="left_uppercut">👊 Left Uppercut</button>
+                        <button class="action-btn" data-action="right_shot_fast">👊 Right Shot Fast</button>
+                        <button class="action-btn" data-action="left_shot_fast">👊 Left Shot Fast</button>
+
+                        <h4>💪 EXERCISE & FITNESS</h4>
+                        <button class="action-btn" data-action="push_ups">💪 Push Ups</button>
+                        <button class="action-btn" data-action="sit_ups">🪑 Sit Ups</button>
+                        <button class="action-btn" data-action="squat">🏋️ Squat</button>
+                        <button class="action-btn" data-action="squat_up">🏋️ Squat Up</button>
+                        <button class="action-btn" data-action="weightlifting">🏋️ Weightlifting</button>
+                        <button class="action-btn" data-action="chest">💪 Chest</button>
+
+                        <h4>🎭 BASIC ACTIONS</h4>
+                        <button class="action-btn" data-action="wave">👋 Wave</button>
+                        <button class="action-btn" data-action="bow">🙇 Bow</button>
+                        <button class="action-btn" data-action="stand_up_back">🧍 Stand Up Back</button>
+                        <button class="action-btn" data-action="stand_up_front">🧍 Stand Up Front</button>
+                        <button class="action-btn" data-action="stand">🧍 Stand</button>
+                        <button class="action-btn" data-action="stop">� Stop</button>
+
+                        <h4>⚡ QUEUE CONTROLS</h4>
+                        <button class="action-btn queue-btn" onclick="clearQueue()">🗑️ Clear Queue</button>
+                        <button class="action-btn queue-btn" onclick="showQueueStatus()">📋 Queue Status</button>
+                        <button class="action-btn queue-btn" onclick="showActionTimings()">⏱️ Action
+                            Timings</button>
+                    </div>
+                </div>
+
+                <!-- Status Panel -->
+                <div class="panel-section">
+                    <h3>📊 Status</h3>
+                    <div class="status-panel">
+                        <p><strong>Connection:</strong> <span id="connection-status-detail">Initializing...</span></p>
+                        <p><strong>Robots Loaded:</strong> <span id="robots-loaded">0/6</span></p>
+                        <p><strong>3D Scene:</strong> <span id="scene-status">Loading...</span></p>
+                        <p><strong>Last Action:</strong> <span id="last-action">None</span></p>
+                        <p><strong>Queue Status:</strong> <span id="queue-status">Empty</span></p>
+                        <p><strong>Current Action:</strong> <span id="current-action">None</span></p>
+                        <p><strong>Movement:</strong> <span id="movement-status" style="color: #28a745;">✅
+                                Working</span></p>
+                        <p style="display:flex;align-items:center;gap:8px;">
+                            <strong>🔊 Robot Speech:</strong>
+                            <label class="speech-toggle"
+                                style="position:relative;display:inline-block;width:44px;height:24px;margin:0;">
+                                <input type="checkbox" id="speech-toggle" checked style="opacity:0;width:0;height:0;"
+                                    onchange="toggleSpeech(this.checked)">
+                                <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+                                    background:#ccc;border-radius:24px;transition:.3s;"></span>
+                                <span style="position:absolute;content:'';height:18px;width:18px;left:3px;bottom:3px;
+                                    background:white;border-radius:50%;transition:.3s;pointer-events:none;"></span>
+                            </label>
+                            <span id="speech-status" style="color:#28a745;">✅ On</span>
+                        </p>
+                        <p style="display:flex;align-items:center;gap:8px;">
+                            <strong>🔄 Video Reload:</strong>
+                            <label class="speech-toggle"
+                                style="position:relative;display:inline-block;width:44px;height:24px;margin:0;">
+                                <input type="checkbox" id="video-reload-toggle" style="opacity:0;width:0;height:0;"
+                                    onchange="toggleVideoReload(this.checked)">
+                                <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;
+                                    background:#ccc;border-radius:24px;transition:.3s;"></span>
+                                <span style="position:absolute;content:'';height:18px;width:18px;left:3px;bottom:3px;
+                                    background:white;border-radius:50%;transition:.3s;pointer-events:none;"></span>
+                            </label>
+                            <span id="video-reload-status" style="color:#999;">❌ Off</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="panel-section">
+                    <h3>📖 Camera Controls</h3>
+                    <ul>
+                        <li><strong>Mouse Drag:</strong> Rotate camera around robots</li>
+                        <li><strong>Shift + Drag:</strong> Pan camera (move view)</li>
+                        <li><strong>Middle Click + Drag:</strong> Pan camera</li>
+                        <li><strong>Ctrl + Drag:</strong> Zoom camera in/out</li>
+                        <li><strong>Right Click + Drag:</strong> Rotate camera</li>
+                        <li><strong>Mouse Wheel:</strong> Zoom in/out</li>
+                        <li><strong>Shift + Wheel:</strong> Fast zoom</li>
+                        <li><strong>Ctrl + Wheel:</strong> Precise zoom</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Corrected Animation System -->
+    <script>
+        function toggleSpeech(enabled) {
+            if (window.speechPlayer) {
+                window.speechPlayer.enabled = enabled;
+                if (!enabled) {
+                    window.speechPlayer.stopAll();
+                }
+            }
+            const status = document.getElementById('speech-status');
+            if (status) {
+                status.textContent = enabled ? '✅ On' : '🔇 Off';
+                status.style.color = enabled ? '#28a745' : '#999';
+            }
+            console.log('🔊 Robot speech ' + (enabled ? 'enabled' : 'disabled'));
+        }
+
+        function toggleVideoReload(enabled) {
+            if (window.simulator) {
+                window.simulator.forceVideoReload = enabled;
+                if (enabled) {
+                    // Generate a new random key to bust the previous cache
+                    const newKey = Math.random().toString(36).substring(2, 15);
+                    window.simulator.videoCacheKey = newKey;
+                    localStorage.setItem('video_cache_key', newKey);
+                    console.log('🔄 Generated new video cache key:', newKey);
+                }
+            }
+            const status = document.getElementById('video-reload-status');
+            if (status) {
+                status.textContent = enabled ? '✅ On' : '❌ Off';
+                status.style.color = enabled ? '#28a745' : '#999';
+            }
+            console.log('🔄 Video force reload ' + (enabled ? 'enabled' : 'disabled'));
+        }
+    </script>
+    <script src="./js/robot_animations.js"></script>
+    <script src="./js/robot3d.js"></script>
+    <script src="./js/speech_player.js"></script>
+    <script src="./js/simulator.js"></script>
+    <script src="./js/index.js"></script>
+</body>
+
+</html>
