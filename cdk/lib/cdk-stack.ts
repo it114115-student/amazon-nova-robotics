@@ -8,7 +8,6 @@ import { RobotSsmConstruct } from "./construct/robot-ssm";
 import { SsmUserConstruct } from "./construct/ssm-user";
 import { DatabaseConstruct } from "./construct/datebase";
 import { LambdaMcpServerConstruct } from "./construct/mcp-server";
-import { RobotSimulatorConstruct } from "./construct/robot-simulator";
 import { RobotSimulatorServerlessConstruct } from "./construct/robot-simulator-serverless";
 import { Authenticator } from "./construct/authenticator";
 import { DomainExpansionServerlessConstruct } from "./construct/domain-expansion-serverless";
@@ -36,12 +35,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
 
     const databaseConstruct = new DatabaseConstruct(this, "DatabaseConstruct");
 
-    // Create robot simulator first to get its URL
-    const humanoidRobotSimulatorConstruct = new RobotSimulatorConstruct(
-      this,
-      "RobotSimulatorConstruct",
-      {}
-    );
+
 
     // Create the new serverless robot simulator construct side-by-side
     const humanoidRobotSimulatorServerlessConstruct = new RobotSimulatorServerlessConstruct(
@@ -242,20 +236,7 @@ const textControlWebConstruct = new TextControlWebConstruct(
       value: textControlWebConstruct.serviceUrl,
     });
 
-    new cdk.CfnOutput(this, "humanoidRobotSimulatorUrl", {
-      description: "The URL of the Humanoid Robot Simulator",
-      value: "https://" + humanoidRobotSimulatorConstruct.serviceUrl,
-    });
 
-    new cdk.CfnOutput(this, "SongWebsiteBucket", {
-      value: humanoidRobotSimulatorConstruct.songWebsiteBucket.bucketName,
-      description: "The name of the S3 bucket for the Humanoid Robot Simulator",
-    });
-    new cdk.CfnOutput(this, "SongWebsiteBucketUrl", {
-      value: humanoidRobotSimulatorConstruct.songWebsiteBucket.bucketWebsiteUrl,
-      description:
-        "The website URL of the S3 bucket for the Humanoid Robot Simulator",
-    });
 
     new cdk.CfnOutput(this, "humanoidRobotSimulatorServerlessUrl", {
       description: "The URL of the Humanoid Robot Simulator (Serverless)",

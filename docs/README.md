@@ -1,6 +1,6 @@
 # Project Documentation Index
 
-Generated: 2026-05-25 02:26 UTC
+Generated: 2026-06-09 05:58 UTC
 
 > This index links to original files across the repo. Source docs remain in their project folders.
 
@@ -8,13 +8,9 @@ Generated: 2026-05-25 02:26 UTC
 ## Quick links
 
 - [Repository README](../README.md)
-- [AWS Cloud System Architecture Specification](AWS_ARCHITECTURE.md)
 - [AWS Cost Estimation Guide](COST_ESTIMATION.md)
-- [Security and Logic Updates (June 2026)](SECURITY_AND_LOGIC_UPDATES.md)
-- [Architecture Diagrams (June 2026)](ARCHITECTURE_DIAGRAMS.md)
 - [Text Control: README](../text_control/README.md)
 - [Speech Control: README](../speech_control_agentcore/README.md)
-- [Humanoid Robot Simulator: README](../humanoid-robot-simulator/README.md)
 - [CDK Infrastructure: README](../cdk/README.md)
 
 ## All documents by area
@@ -28,9 +24,10 @@ Generated: 2026-05-25 02:26 UTC
 
 - [Readme](../cdk/README.md)
 
-### domain-expansion-ar-game (3)
+### domain-expansion-ar-game (4)
 
 - [Readme](../domain-expansion-ar-game/README.md)
+- [Commentary System](../domain-expansion-ar-game/docs/commentary_system.md)
 - [Custom Agent Setup](../domain-expansion-ar-game/docs/custom_agent_setup.md)
 - [Openclaw Integration](../domain-expansion-ar-game/docs/openclaw_integration.md)
 
@@ -38,16 +35,6 @@ Generated: 2026-05-25 02:26 UTC
 
 - [Identity](../domain-expansion-commentator-agentcore/prompts/IDENTITY.md)
 - [Soul](../domain-expansion-commentator-agentcore/prompts/SOUL.md)
-
-### humanoid-robot-simulator (7)
-
-- [Cloud Run Deployment](../humanoid-robot-simulator/CLOUD_RUN_DEPLOYMENT.md)
-- [Readme](../humanoid-robot-simulator/README.md)
-- [Api Reference](../humanoid-robot-simulator/docs/API_REFERENCE.md)
-- [Deployment](../humanoid-robot-simulator/docs/DEPLOYMENT.md)
-- [Readme](../humanoid-robot-simulator/docs/README.md)
-- [User Guide Gestures](../humanoid-robot-simulator/docs/USER_GUIDE_GESTURES.md)
-- [Readme](../humanoid-robot-simulator/test_commands/README.md)
 
 ### robot_client (1)
 

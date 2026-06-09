@@ -1,6 +1,3 @@
-[submodule "humanoid-robot-simulator"]
-	path = humanoid-robot-simulator
-	url = https://github.com/wongcyrus/humanoid-robot-simulator
 [submodule "domain-expansion-ar-game"]
 	path = domain-expansion-ar-game
 	url = https://github.com/wongcyrus/domain-expansion-ar-game
