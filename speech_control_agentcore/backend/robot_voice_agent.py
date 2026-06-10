@@ -23,7 +23,7 @@ from strands.experimental.bidi.types.events import (
     BidiImageInputEvent,
 )
 
-from tools import get_all_tools
+from tools import cleanup_tools, get_all_tools, warmup_tools
 
 # Configure Logger
 logging.basicConfig(
@@ -60,9 +60,11 @@ def load_system_prompt() -> str:
             return f.read()
     
     # Fallback default prompt
-    return """You are a robot Command assistant. 
-Your primary role is to assist the user by calling available tools to perform actions or physical tasks. 
-Keep your responses concise and focused on the task at hand."""
+    return """You are a robot command assistant.
+Your primary role is to execute physical actions by calling the available tools.
+Interpret natural spoken forms like "robot 1" as structured IDs like `robot_1`.
+Map natural action phrases like "stand up", "go forward", and "take off" to the closest matching tool.
+Keep spoken replies concise and action-oriented."""
 
 
 def generate_dynamic_prompt(robots: list) -> str:
@@ -75,7 +77,6 @@ def generate_dynamic_prompt(robots: list) -> str:
     # Extract categories
     robots_list = [r for r in robots if r.startswith("robot_")]
     drones_list = [r for r in robots if r.startswith("drone_")]
-    dogs_list = [r for r in robots if r.startswith("dog_")]
     xiaoice_list = [r for r in robots if r.startswith("xiaoice_")]
     
     # FILTER BASE PROMPT: Completely purge references to unselected hardware categories.
@@ -86,8 +87,6 @@ def generate_dynamic_prompt(robots: list) -> str:
         line_lower = line.lower()
         if not drones_list and any(kw in line_lower for kw in ["drone", "drum", "dom,", "drome"]):
             continue
-        if not dogs_list and "dog" in line_lower:
-            continue
         filtered_lines.append(line)
     base_prompt = "\n".join(filtered_lines)
     
@@ -96,8 +95,6 @@ def generate_dynamic_prompt(robots: list) -> str:
         focus_areas.append(f"Robots ({', '.join(robots_list)})")
     if drones_list:
         focus_areas.append(f"Drones ({', '.join(drones_list)})")
-    if dogs_list:
-        focus_areas.append(f"Robotic Dogs ({', '.join(dogs_list)})")
     if xiaoice_list:
         focus_areas.append(f"Digital Human ({', '.join(xiaoice_list)})")
         
@@ -106,22 +103,22 @@ def generate_dynamic_prompt(robots: list) -> str:
     dynamic_instruction = "\n\n=== DYNAMIC HARDWARE SELECTION CONTEXT ===\n"
     if has_all:
         dynamic_instruction += (
-            "You are currently commanding the entire integrated fleet synchronously: all Robots, Drones, Dogs, and Xiaoice.\n"
-            "You have full access to all command tools. You can coordinate multiple devices together or refer to the collective fleet."
+            "You are currently commanding the entire integrated fleet synchronously: all Robots, Drones, and Xiaoice.\n"
+            "You have full access to all command tools. You can coordinate multiple devices together or refer to the collective fleet.\n"
+            'Interpret collective phrases like "all robots", "all drones", "everyone", and "all of them" as commands for the relevant full active group.'
         )
     else:
         dynamic_instruction += (
             f"IMPORTANT: The user has selected a restricted subset of active devices. You are currently commanding ONLY: {', '.join(robots)}.\n"
             f"Active Focus Area(s): {focus_summary}.\n"
             "Your tool executions and spoken replies must be strictly limited to these selected systems.\n"
+            'When the user says "all robots", "all drones", "everyone", or "all of them", interpret that as the full currently selected subset for the relevant category.\n'
             "For example:\n"
         )
         # Shift to positive-only constraints to prevent attention-leakage keywords from seeding the LLM context
-        if drones_list and not robots_list and not dogs_list:
+        if drones_list and not robots_list:
             dynamic_instruction += "- Since ONLY drones are active, focus 100% on aerial maneuvers (takeoff, land, fly) and discuss only flight operations.\n"
-        elif dogs_list and not robots_list and not drones_list:
-            dynamic_instruction += "- Since ONLY robotic dogs are active, focus 100% on quadruped movements (stand, sit, walk, shake) and discuss only canine actions.\n"
-        elif robots_list and not drones_list and not dogs_list:
+        elif robots_list and not drones_list:
             dynamic_instruction += "- Since ONLY humanoid/wheeled robots are active, focus 100% on robot actions (stand, move, walk, check sensors) and discuss only robot telemetry.\n"
         else:
             dynamic_instruction += "- Coordinate and execute tools strictly targeting the specific devices that are checked above.\n"
@@ -134,9 +131,21 @@ def generate_dynamic_prompt(robots: list) -> str:
 async def lifespan(_app: FastAPI):
     """Manage application startup and shutdown hooks."""
     logger.info("🤖 Robot Voice Control AgentCore Service starting up...")
+    logger.info(
+        "MCP runtime configuration: gateway_url=%s tool_prefix_allow=%s tool_exclude=%s",
+        os.environ.get("McpServerGatewayUrl", ""),
+        os.environ.get("MCP_TOOL_PREFIX_ALLOW", ""),
+        os.environ.get("MCP_TOOL_EXCLUDE", ""),
+    )
+    try:
+        warmed_tools = warmup_tools()
+        logger.info(f"MCP tools warmed at startup: {len(warmed_tools)} loaded")
+    except Exception as e:
+        logger.warning(f"MCP tool warmup failed at startup; will retry on demand: {e}")
     # Add the endpoint filter after Uvicorn startup to prevent logger override
     logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
     yield
+    cleanup_tools()
     logger.info("🤖 Robot Voice Control AgentCore Service shutting down...")
 
 
@@ -254,21 +263,13 @@ async def websocket_endpoint(websocket: WebSocket):
     # Parse voice selection
     voice_id = websocket.query_params.get("voice_id", "tiffany")
 
-    # 1. Read the very first message synchronously to capture the initial selected robot list!
-    first_message = None
-    try:
-        first_message = await websocket.receive_json()
-        if first_message.get("type") == "robot":
-            robots = first_message.get("robots", ["all"])
-            if not isinstance(robots, list):
-                robots = [robots]
-            logger.info(f"Handshake - Initial selected robots: {robots}")
-        else:
-            robots = ["all"]
-            logger.warning(f"Handshake - Unexpected initial event: {first_message.get('type')}. Defaulting to all.")
-    except Exception as e:
-        logger.error(f"Handshake - Failed to read initial selection: {e}")
+    # 1. Initialize immediately from query parameters so AgentCore doesn't sit idle
+    # waiting for the first frontend message after the socket has already opened.
+    robots_param = websocket.query_params.get("robots", "all")
+    robots = [item.strip() for item in robots_param.split(",") if item.strip()]
+    if not robots:
         robots = ["all"]
+    logger.info(f"Handshake - Initial selected robots from query params: {robots}")
 
     # Set active session state
     selected_robots_var.set(robots)
@@ -303,21 +304,15 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # Converter function to map incoming websocket JSON payloads into Strands Events
         async def receive_and_convert():
-            nonlocal first_message
             while True:
-                # If we have a cached first message from connection start, process it first!
-                if first_message is not None:
-                    data = first_message
-                    first_message = None  # Consume it
-                else:
-                    try:
-                        data = await websocket.receive_json()
-                    except WebSocketDisconnect:
-                        logger.info("WebSocket client disconnected abruptly.")
-                        raise
-                    except Exception as ex:
-                        logger.error(f"Error receiving websocket JSON: {ex}")
-                        raise
+                try:
+                    data = await websocket.receive_json()
+                except WebSocketDisconnect:
+                    logger.info("WebSocket client disconnected abruptly.")
+                    raise
+                except Exception as ex:
+                    logger.error(f"Error receiving websocket JSON: {ex}")
+                    raise
 
                 event_type = data.get("type")
                 if not event_type:
@@ -361,13 +356,18 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 elif event_type == "stopAudio":
                     logger.info("Client requested audio stream termination.")
-                    # Standard closing signal
-                    return None
+                    # Stop microphone capture without injecting an invalid event into BidiAgent.
+                    continue
 
         # Output adapter to serialize Strands Agent events into Bedrock WebSocket payloads
         async def output_adapter(event):
             event_type = type(event).__name__
             logger.info(f"Outbound agent event: {event_type}")
+            if "Tool" in event_type or "tool" in event_type:
+                logger.info(
+                    "Tool-related outbound event payload: %s",
+                    getattr(event, "__dict__", str(event)),
+                )
             
             # 1. Handle Transcripts
             if event_type == "BidiTranscriptStreamEvent":

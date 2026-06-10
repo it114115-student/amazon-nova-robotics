@@ -11,6 +11,7 @@ import { LambdaMcpServerConstruct } from "./construct/mcp-server";
 import { RobotSimulatorServerlessConstruct } from "./construct/robot-simulator-serverless";
 import { Authenticator } from "./construct/authenticator";
 import { DomainExpansionServerlessConstruct } from "./construct/domain-expansion-serverless";
+import { RobotToolGatewayConstruct } from "./construct/robot-tool-gateway";
 
 function normalizeContextList(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -49,6 +50,14 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       "LambdaMcpServerConstruct",
       {
         database: databaseConstruct,
+        simulatorEndpoint: humanoidRobotSimulatorServerlessConstruct.serviceUrl,
+      }
+    );
+
+    const robotToolGatewayConstruct = new RobotToolGatewayConstruct(
+      this,
+      "RobotToolGatewayConstruct",
+      {
         simulatorEndpoint: humanoidRobotSimulatorServerlessConstruct.serviceUrl,
       }
     );
@@ -92,7 +101,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       "SpeechControlAgentcoreConstruct",
       {
         database: databaseConstruct,
-        mcpServerConstruct: mcpServerConstruct,
+        robotGatewayConstruct: robotToolGatewayConstruct,
         userPoolId: authenticator.userPool.userPoolId,
         userPoolClientId: authenticator.userPoolClient.userPoolClientId,
         identityPoolId: authenticator.identityPool.ref,
@@ -134,6 +143,7 @@ const textControlWebConstruct = new TextControlWebConstruct(
       userName: "AmazonNovaRoboticsSkillUser",
     });
     mcpServerConstruct.grantInvokeFunctionUrl(skillUser);
+    mcpServerConstruct.grantInvokeGateway(skillUser);
     // Identity-based policy so the IAM user can invoke the function URL with SigV4
     skillUser.addToPolicy(
       new iam.PolicyStatement({
@@ -261,6 +271,16 @@ const textControlWebConstruct = new TextControlWebConstruct(
     new cdk.CfnOutput(this, "McpServerUrl", {
       value: mcpServerConstruct.functionUrl.url,
       description: "The URL of the MCP Server Lambda Function",
+    });
+
+    new cdk.CfnOutput(this, "McpServerAgentCoreGatewayUrl", {
+      value: mcpServerConstruct.gatewayUrl,
+      description: "The URL of the MCP Server Bedrock AgentCore Gateway",
+    });
+
+    new cdk.CfnOutput(this, "McpServerAgentCoreGatewayArn", {
+      value: mcpServerConstruct.gateway.gatewayArn,
+      description: "The ARN of the MCP Server Bedrock AgentCore Gateway",
     });
 
     new cdk.CfnOutput(this, "SkillMcpUserAccessKeyId", {

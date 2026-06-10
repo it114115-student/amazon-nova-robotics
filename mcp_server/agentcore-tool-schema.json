@@ -1,0 +1,1849 @@
+[
+  {
+    "name": "dog_activate",
+    "description": "Toggle the dog's activation state.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_backleg_lift",
+    "description": "Lift one of the dog's back legs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "leg_side": {
+          "type": "string"
+        },
+        "height": {
+          "type": "number"
+        },
+        "time_uni": {
+          "type": "number"
+        },
+        "time_acc": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_balance",
+    "description": "Balance the dog with specific roll and pitch angles.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "roll_deg": {
+          "type": "number"
+        },
+        "pitch_deg": {
+          "type": "number"
+        },
+        "time_uni": {
+          "type": "number"
+        },
+        "time_acc": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_body_cycle",
+    "description": "Make the dog draw a circle with its body center while maintaining orientation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_body_roll",
+    "description": "Tilt the dog's body to a specific roll angle.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "roll_deg": {
+          "type": "number"
+        },
+        "time_uni": {
+          "type": "number"
+        },
+        "time_acc": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_bow_back",
+    "description": "Make the dog bow its head and move backwards.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "angle": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_circle_movement",
+    "description": "Make the dog move in a circle.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "radius": {
+          "type": "number"
+        },
+        "clockwise": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_enable_dancing",
+    "description": "Toggle the dog's dancing mode.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_enable_walking",
+    "description": "Toggle the dog's walking mode.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_foreleg_lift",
+    "description": "Lift one of the dog's front legs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "leg_side": {
+          "type": "string"
+        },
+        "height": {
+          "type": "number"
+        },
+        "time_uni": {
+          "type": "number"
+        },
+        "time_acc": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_gait_uniform",
+    "description": "Make the dog gait uniformly with specified velocities.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "v_x": {
+          "type": "number"
+        },
+        "v_y": {
+          "type": "number"
+        },
+        "time_uni": {
+          "type": "number"
+        },
+        "time_acc": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_head_ellipse",
+    "description": "Make the dog draw an ellipse-shaped trajectory with its head.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_head_move",
+    "description": "Move the dog's head to specific pitch and yaw angles.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "pitch_deg": {
+          "type": "number"
+        },
+        "yaw_deg": {
+          "type": "number"
+        },
+        "time_uni": {
+          "type": "number"
+        },
+        "time_acc": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_height_move",
+    "description": "Adjust the dog's height by ascending or descending.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "height": {
+          "type": "number"
+        },
+        "time_uni": {
+          "type": "number"
+        },
+        "time_acc": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_hop",
+    "description": "Command the dog to hop.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_lay_down",
+    "description": "Command the dog to lay down.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_look_down",
+    "description": "Command the dog to look down.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_look_left",
+    "description": "Command the dog to look left.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_look_leftlower",
+    "description": "Command the dog to look down and left.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_look_right",
+    "description": "Command the dog to look right.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_look_rightlower",
+    "description": "Command the dog to look down and right.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_look_up",
+    "description": "Command the dog to look up.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_look_upperleft",
+    "description": "Command the dog to look up and left.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_look_upperright",
+    "description": "Command the dog to look up and right.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_move_backward",
+    "description": "Command the dog to move backward.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_move_forward",
+    "description": "Command the dog to move forward.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_move_left",
+    "description": "Command the dog to move left.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_move_leftback",
+    "description": "Command the dog to move diagonally left-backward.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_move_leftfront",
+    "description": "Command the dog to move diagonally left-forward.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_move_right",
+    "description": "Command the dog to move right.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_move_rightback",
+    "description": "Command the dog to move diagonally right-backward.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_move_rightfront",
+    "description": "Command the dog to move diagonally right-forward.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_rotate",
+    "description": "Rotate the dog around its body center.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "angle": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_stand_up",
+    "description": "Command the dog to stand up.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_stop",
+    "description": "Stop all dog movement immediately.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "dog_stop_with_time",
+    "description": "Return dog to default standing position for a specified time.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dog_id": {
+          "type": "string",
+          "description": "Allowed values: all, dog_1, dog_2, dog_3."
+        },
+        "time": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "dog_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_flip_back",
+    "description": "Command the drone to flip backward.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_flip_forward",
+    "description": "Command the drone to flip forward.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_flip_left",
+    "description": "Command the drone to flip to the left.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_flip_right",
+    "description": "Command the drone to flip to the right.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_land",
+    "description": "Command the drone to land.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_move_back",
+    "description": "Command the drone to move back for DRONE_MOVE_DISTANCE_CM cm.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_move_down",
+    "description": "Command the drone to move down for DRONE_MOVE_DISTANCE_CM cm.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_move_forward",
+    "description": "Command the drone to move forward for DRONE_MOVE_DISTANCE_CM cm.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_move_left",
+    "description": "Command the drone to move left for DRONE_MOVE_DISTANCE_CM cm.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_move_right",
+    "description": "Command the drone to move right for DRONE_MOVE_DISTANCE_CM cm.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_move_up",
+    "description": "Command the drone to move up for DRONE_MOVE_DISTANCE_CM cm.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_takeoff",
+    "description": "Command the drone to take off.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_turn_back",
+    "description": "Command the drone to turn back by 180 degrees.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_turn_left",
+    "description": "Command the drone to turn left by a 90 degree angle.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "drone_turn_right",
+    "description": "Command the drone to turn right by a 90 degree angle.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "drone_id": {
+          "type": "string",
+          "description": "Allowed values: all, drone_1, drone_2."
+        }
+      },
+      "required": [
+        "drone_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "get_image",
+    "description": "Capture an image from the robot's camera. The robot will take a photo and upload it to S3. Returns a presigned URL to view the image, or an error message if the robot did not upload in time.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_back_fast",
+    "description": "Command the robot to move backward quickly.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_bow",
+    "description": "Command the robot to bow.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_chest",
+    "description": "Command the robot to perform chest exercises.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_eight",
+    "description": "Command the robot to perform dance eight.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_five",
+    "description": "Command the robot to perform dance five.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_four",
+    "description": "Command the robot to perform dance four.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_nine",
+    "description": "Command the robot to perform dance nine.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_one",
+    "description": "Command the robot to perform dance one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_seven",
+    "description": "Command the robot to perform dance seven.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_six",
+    "description": "Command the robot to perform dance six.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_ten",
+    "description": "Command the robot to perform dance ten.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_three",
+    "description": "Command the robot to perform dance three.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_dance_two",
+    "description": "Command the robot to perform dance two.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_go_forward",
+    "description": "Command the robot to move forward in the direction it is currently facing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_kung_fu",
+    "description": "Command the robot to perform kung fu moves.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_left_kick",
+    "description": "Command the robot to perform a left kick.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_left_move_fast",
+    "description": "Command the robot to move left quickly.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_left_shot_fast",
+    "description": "Command the robot to perform a fast left punch.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_left_uppercut",
+    "description": "Command the robot to perform a left uppercut.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_push_ups",
+    "description": "Command the robot to perform push-ups.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_right_kick",
+    "description": "Command the robot to perform a right kick.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_right_move_fast",
+    "description": "Command the robot to move right quickly.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_right_shot_fast",
+    "description": "Command the robot to perform a fast right punch.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_right_uppercut",
+    "description": "Command the robot to perform a right uppercut.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_sit_ups",
+    "description": "Command the robot to perform sit-ups.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_speak",
+    "description": "Make the robot speak a message aloud using Amazon Polly text-to-speech.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        },
+        "text": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "robot_id",
+        "text"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_squat",
+    "description": "Command the robot to squat down.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_squat_up",
+    "description": "Command the robot to stand up from a squat.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_stand",
+    "description": "Command the robot to stand up and maintain a standing position.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_stand_up_back",
+    "description": "Command the robot to stand up from the back.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_stand_up_front",
+    "description": "Command the robot to stand up from the front.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_stepping",
+    "description": "Command the robot to perform stepping motions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_stop",
+    "description": "Command the robot to stop all movement.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_turn_left",
+    "description": "Command the robot to turn left.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_turn_right",
+    "description": "Command the robot to turn right.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_twist",
+    "description": "Command the robot to twist its body.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_wave",
+    "description": "Command the robot to wave its hand.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_weightlifting",
+    "description": "Command the robot to perform weightlifting.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "robot_wing_chun",
+    "description": "Command the robot to perform Wing Chun moves.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "xiaoice_speech",
+    "description": "Command the xiaoice Digital Human to speak a message aloud.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  }
+]

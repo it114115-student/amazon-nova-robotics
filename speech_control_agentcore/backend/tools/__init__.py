@@ -1,87 +1,44 @@
 """Robot voice control tools collection."""
 
-from tools.robot_actions import (
-    robot_stand,
-    robot_squat,
-    robot_squat_up,
-    robot_go_forward,
-    robot_back_fast,
-    robot_left_move_fast,
-    robot_right_move_fast,
-    robot_dance_one,
-    robot_dance_two,
-    drone_takeoff,
-    drone_land,
-    drone_move_up,
-    drone_move_down,
-    drone_move_left,
-    drone_move_right,
-    drone_move_forward,
-    drone_move_back,
-    dog_stand_up,
-    dog_lay_down,
-    dog_move_forward,
-    dog_move_backward,
-    dog_move_left,
-    dog_move_right,
-    dog_stop,
-)
+import logging
+from tools.mcp_client import cleanup_mcp_client
+from tools.robot_actions import get_dynamic_tools
+
+logger = logging.getLogger(__name__)
+
+_cached_tools = None
+
+
+def warmup_tools() -> list:
+    """Warm up IAM-backed MCP tools at process start for lower first-turn latency."""
+    global _cached_tools
+    if _cached_tools is None:
+        _cached_tools = get_dynamic_tools()
+        logger.info(
+            "MCP tool warmup complete: loaded %d tools names=%s",
+            len(_cached_tools),
+            [
+                getattr(getattr(tool, "mcp_tool", None), "name", getattr(tool, "tool_name", str(tool)))
+                for tool in _cached_tools
+            ],
+        )
+    return _cached_tools
 
 
 def get_all_tools() -> list:
-    """Return a list of all registered robot control tools."""
-    return [
-        robot_stand,
-        robot_squat,
-        robot_squat_up,
-        robot_go_forward,
-        robot_back_fast,
-        robot_left_move_fast,
-        robot_right_move_fast,
-        robot_dance_one,
-        robot_dance_two,
-        drone_takeoff,
-        drone_land,
-        drone_move_up,
-        drone_move_down,
-        drone_move_left,
-        drone_move_right,
-        drone_move_forward,
-        drone_move_back,
-        dog_stand_up,
-        dog_lay_down,
-        dog_move_forward,
-        dog_move_backward,
-        dog_move_left,
-        dog_move_right,
-        dog_stop,
-    ]
+    """Return IAM-authenticated MCP tools for the Strands agent.
+
+    This project uses the native Strands MCPClient over AgentCore Gateway.
+    """
+    logger.info("Using native Strands MCP client over AgentCore Gateway.")
+    return warmup_tools()
 
 
-__all__ = [
-    "robot_stand",
-    "robot_squat",
-    "robot_squat_up",
-    "robot_go_forward",
-    "robot_back_fast",
-    "robot_left_move_fast",
-    "robot_right_move_fast",
-    "robot_dance_one",
-    "robot_dance_two",
-    "drone_takeoff",
-    "drone_land",
-    "drone_move_up",
-    "drone_move_down",
-    "drone_move_left",
-    "drone_move_right",
-    "drone_move_forward",
-    "drone_move_back",
-    "dog_stand_up",
-    "dog_lay_down",
-    "dog_move_forward",
-    "dog_move_backward",
-    "dog_move_left",
-    "dog_move_right",
-    "dog_stop",
-    "get_all_tools",
-]
+def cleanup_tools() -> None:
+    """Release the shared MCP client and tool cache."""
+    global _cached_tools
+    _cached_tools = None
+    cleanup_mcp_client()
+
+
+__all__ = ["cleanup_tools", "get_all_tools", "warmup_tools"]

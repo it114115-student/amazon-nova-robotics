@@ -10,14 +10,57 @@ import { Platform } from "aws-cdk-lib/aws-ecr-assets";
 import { DatabaseConstruct } from "./datebase";
 import { LambdaMcpServerConstruct } from "./mcp-server";
 import { Stack, RemovalPolicy } from "aws-cdk-lib";
+import {
+  applyAgentCoreRuntimeLogRetention,
+  createAgentCoreRuntimeObservability,
+} from "./agentcore-observability";
 
 export interface SpeechControlAgentcoreConstructProps {
   readonly database: DatabaseConstruct;
-  readonly mcpServerConstruct: LambdaMcpServerConstruct;
+  readonly robotGatewayConstruct: Pick<
+    LambdaMcpServerConstruct,
+    "gatewayUrl" | "grantInvokeGateway"
+  >;
   readonly userPoolId: string;
   readonly userPoolClientId: string;
   readonly identityPoolId: string;
 }
+
+const SUPPORTED_ROBOT_TOOL_NAMES = [
+  "robot_go_forward",
+  "robot_back_fast",
+  "robot_left_move_fast",
+  "robot_right_move_fast",
+  "robot_stand",
+  "robot_squat",
+  "robot_squat_up",
+  "robot_stand_up_back",
+  "robot_stand_up_front",
+  "robot_bow",
+  "robot_push_ups",
+  "robot_sit_ups",
+  "robot_chest",
+  "robot_stepping",
+  "robot_left_kick",
+  "robot_right_kick",
+  "robot_left_shot_fast",
+  "robot_right_shot_fast",
+  "robot_left_uppercut",
+  "robot_right_uppercut",
+  "robot_kung_fu",
+  "robot_wing_chun",
+  "robot_weightlifting",
+  "robot_turn_left",
+  "robot_turn_right",
+  "robot_twist",
+  "robot_wave",
+  "robot_stop",
+];
+
+const ROBOT_GATEWAY_TARGET_NAME = "robot-only-mcp-lambda";
+const SUPPORTED_ROBOT_GATEWAY_TOOL_NAMES = SUPPORTED_ROBOT_TOOL_NAMES.map(
+  (toolName) => `${ROBOT_GATEWAY_TARGET_NAME}___${toolName}`
+).join(",");
 
 export class SpeechControlAgentcoreConstruct extends Construct {
   public readonly runtimeArn: string;
@@ -31,6 +74,12 @@ export class SpeechControlAgentcoreConstruct extends Construct {
     super(scope, id);
 
     // 1. Package container directly onto AWS Bedrock AgentCore Runtime
+    const observability = createAgentCoreRuntimeObservability(
+      this,
+      "SpeechAgentcoreObservability",
+      "robot_voice_agentcore"
+    );
+
     const agentRuntimeArtifact = agentcore.AgentRuntimeArtifact.fromAsset(
       path.join(__dirname, "../../../speech_control_agentcore"),
       {
@@ -44,15 +93,20 @@ export class SpeechControlAgentcoreConstruct extends Construct {
       runtimeName: "robot_voice_agentcore",
       agentRuntimeArtifact: agentRuntimeArtifact,
       authorizerConfiguration: agentcore.RuntimeAuthorizerConfiguration.usingIAM(),
+      tracingEnabled: true,
+      loggingConfigs: observability.loggingConfigs,
       environmentVariables: {
         IsInCloud: "yes",
         AWS_BEDROCK_REGION: "us-east-1",
         RobotTable: props.database.robotTable.tableName,
-        McpServerUrl: props.mcpServerConstruct.functionUrl.url,
+        McpServerGatewayUrl: props.robotGatewayConstruct.gatewayUrl,
+        MCP_TOOL_PREFIX_ALLOW: `${ROBOT_GATEWAY_TARGET_NAME}___robot_`,
+        MCP_TOOL_NAME_ALLOW: SUPPORTED_ROBOT_GATEWAY_TOOL_NAMES,
       },
     });
 
     this.runtimeArn = runtime.agentRuntimeArn;
+    applyAgentCoreRuntimeLogRetention(this, "SpeechAgentcore", runtime);
 
     // 3. Grant full access to DynamoDB tables
     props.database.robotTable.grantFullAccess(runtime.role);
@@ -72,14 +126,8 @@ export class SpeechControlAgentcoreConstruct extends Construct {
       })
     );
 
-    // 5. Grant Lambda invocation for MCP backend routing
-    runtime.role.addToPrincipalPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["lambda:InvokeFunction", "lambda:InvokeFunctionUrl"],
-        resources: [props.mcpServerConstruct.mcpFunction.functionArn],
-      })
-    );
+    // 5. Grant MCP backend invocation through the AgentCore Gateway
+    props.robotGatewayConstruct.grantInvokeGateway(runtime.role);
 
     // 6. Serverless Frontend S3 Website Bucket
     const websiteBucket = new s3.Bucket(this, "SpeechAgentcoreWebsiteBucket", {

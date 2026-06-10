@@ -2,11 +2,22 @@
 import { AudioPlayer } from './lib/play/AudioPlayer.js';
 import { ChatHistoryManager } from "./lib/util/ChatHistoryManager.js";
 import { setupRobotModal } from './robotModal.js';
-import { initLive2DAvatar } from './live2d-avatar.js?v=1.0.23';
+import { initLive2DAvatar } from './live2d-avatar.js?v=1.0.25';
 // Setup robot modal popup on page load
 document.addEventListener('DOMContentLoaded', () => {
     setupRobotModal();
 });
+
+function setSystemDialogue(message) {
+    const speakerNameEl = document.getElementById('current-speaker');
+    const dialogueTextEl = document.getElementById('dialogue-text');
+    if (speakerNameEl) {
+        speakerNameEl.textContent = 'System';
+    }
+    if (dialogueTextEl) {
+        dialogueTextEl.textContent = message;
+    }
+}
 
 // Connect to the serverless AWS Bedrock AgentCore with authentication via SigV4 signed WebSocket
 class NativeSocketEmulator {
@@ -15,18 +26,13 @@ class NativeSocketEmulator {
         this.connected = false;
         this.ws = null;
         this.connectPromise = null;
-        
-        // Auto-connect in background on load
-        this.connect().catch(err => {
-            console.error("Auto-connection error on load:", err);
-        });
     }
-    
+
     async connect() {
         if (this.connected && this.ws && this.ws.readyState === WebSocket.OPEN) {
             return;
         }
-        
+
         // If there's already an active connection attempt, reuse it
         if (this.connectPromise) {
             return this.connectPromise;
@@ -45,13 +51,13 @@ class NativeSocketEmulator {
             }
             this.ws = null;
         }
-        
+
         this.connectPromise = new Promise(async (resolve, reject) => {
             const timeoutDuration = 12000; // 12 second global timeout for establishing connection
             let timeoutId = setTimeout(() => {
                 console.error("Connection attempt timed out globally!");
                 if (this.ws) {
-                    try { this.ws.close(); } catch(e) {}
+                    try { this.ws.close(); } catch (e) { }
                     this.ws = null;
                 }
                 this.connected = false;
@@ -61,7 +67,7 @@ class NativeSocketEmulator {
 
             try {
                 this.trigger('connecting');
-                
+
                 // 1. Fetch config with timeout
                 console.log("Fetching serverless config.json...");
                 const configResp = await Promise.race([
@@ -70,7 +76,7 @@ class NativeSocketEmulator {
                 ]);
                 if (!configResp.ok) throw new Error("Could not fetch serverless config.json");
                 const config = await configResp.json();
-                
+
                 // 2. Retrieve identity ID token from storage
                 const idToken = localStorage.getItem('idToken');
                 if (!idToken) {
@@ -80,11 +86,11 @@ class NativeSocketEmulator {
                     this.connectPromise = null;
                     return;
                 }
-                
+
                 // 3. Authenticate with Federated Identity Pool and get credentials with timeout
                 const providerName = `cognito-idp.${config.region}.amazonaws.com/${config.userPoolId}`;
                 console.log("Retrieving temporary AWS credentials from Identity Pool...");
-                
+
                 const cognitoPromise = (async () => {
                     const idResponse = await fetch(`https://cognito-identity.${config.region}.amazonaws.com/`, {
                         method: "POST",
@@ -144,6 +150,7 @@ class NativeSocketEmulator {
                 const host = `bedrock-agentcore.${config.region}.amazonaws.com`;
                 const path = `/runtimes/${encodedArn}/ws`;
                 const voiceId = getQueryParams().voice_id || 'tiffany';
+                const runtimeSessionId = crypto.randomUUID();
 
                 const selectedRobots = getSelectedRobots();
                 const robotsParam = selectedRobots.length > 0 ? selectedRobots.join(',') : 'all';
@@ -154,7 +161,11 @@ class NativeSocketEmulator {
                     hostname: host,
                     path: path,
                     headers: { host },
-                    query: { voice_id: voiceId, robots: robotsParam },
+                    query: {
+                        voice_id: voiceId,
+                        robots: robotsParam,
+                        'X-Amzn-Bedrock-AgentCore-Runtime-Session-Id': runtimeSessionId,
+                    },
                 });
 
                 const signer = new SignatureV4({
@@ -172,9 +183,9 @@ class NativeSocketEmulator {
                 console.log(`Connecting to serverless AWS Bedrock AgentCore WebSocket...`);
                 const ws = new WebSocket(wsUrl);
                 this.ws = ws;
-                
+
                 let isConnectionSettled = false;
-                
+
                 ws.onopen = () => {
                     console.log("WebSocket connection established!");
                     clearTimeout(timeoutId);
@@ -185,7 +196,7 @@ class NativeSocketEmulator {
                         resolve(ws);
                     }
                 };
-                
+
                 ws.onclose = (event) => {
                     console.log(`WebSocket connection closed: code=${event.code}, reason=${event.reason}`);
                     clearTimeout(timeoutId);
@@ -197,7 +208,7 @@ class NativeSocketEmulator {
                         reject(new Error(`WebSocket connection closed: code=${event.code}`));
                     }
                 };
-                
+
                 ws.onerror = (error) => {
                     console.error("WebSocket transport error:", error);
                     clearTimeout(timeoutId);
@@ -209,7 +220,7 @@ class NativeSocketEmulator {
                         reject(error);
                     }
                 };
-                
+
                 ws.onmessage = (event) => {
                     try {
                         console.log("📥 Raw WebSocket Message from Bedrock AgentCore:", event.data);
@@ -238,23 +249,23 @@ class NativeSocketEmulator {
                 reject(err);
             }
         });
-        
+
         return this.connectPromise;
     }
-    
+
     on(event, callback) {
         if (!this.listeners[event]) {
             this.listeners[event] = [];
         }
         this.listeners[event].push(callback);
     }
-    
+
     emit(event, data = {}) {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             console.warn(`WebSocket is not open. Packet dropped.`);
             return;
         }
-        
+
         let payload = {};
         if (event === 'audioInput') {
             payload = {
@@ -283,10 +294,10 @@ class NativeSocketEmulator {
                 data: data
             };
         }
-        
+
         this.ws.send(JSON.stringify(payload));
     }
-    
+
     trigger(event, data) {
         const callbacks = this.listeners[event];
         if (callbacks) {
@@ -337,6 +348,7 @@ let displayAssistantText = false;
 let role;
 const audioPlayer = new AudioPlayer();
 let sessionInitialized = false;
+let hasStartedSession = false;
 
 // Voice-Text Real-time Lip-Sync and Typewriter synchronization variables
 let totalSamplesReceived = 0;
@@ -380,7 +392,7 @@ function startSyncLoop() {
         if (visibleText) {
             // High performance, target-pointed direct element text content updates
             chatHistoryManager.updateTypewriterMessage(visibleText);
-            
+
             // Update RPG Dialogue Box
             const rpgDialogueText = document.getElementById('dialogue-text');
             if (rpgDialogueText) {
@@ -407,34 +419,30 @@ let SYSTEM_PROMPT = "You are a friend. The user and you will engage in a spoken 
 // Helper to get all selected robots as an array
 function getSelectedRobots() {
     const selected = Array.from(robotSelect.selectedOptions).map(opt => opt.value);
-    
+
     if (selected.includes('all')) {
-        return [
+        return Array.from(new Set([
             "robot_1", "robot_2", "robot_3", "robot_4", "robot_5", "robot_6",
             "drone_1", "drone_2",
-            "dog_1", "dog_2", "dog_3",
             "xiaoice_1"
-        ];
+        ]));
     }
-    
+
     let result = new Set();
-    
+
     if (selected.includes('all_robots')) {
         for (let i = 1; i <= 6; i++) result.add(`robot_${i}`);
     }
     if (selected.includes('all_drones')) {
         for (let i = 1; i <= 2; i++) result.add(`drone_${i}`);
     }
-    if (selected.includes('all_dogs')) {
-        for (let i = 1; i <= 3; i++) result.add(`dog_${i}`);
-    }
-    
+
     selected.forEach(val => {
-        if (!['all', 'all_robots', 'all_drones', 'all_dogs'].includes(val)) {
+        if (!['all', 'all_robots', 'all_drones'].includes(val)) {
             result.add(val);
         }
     });
-    
+
     return Array.from(result).filter(val => val !== '');
 }
 
@@ -479,24 +487,21 @@ async function initializeSession() {
     if (sessionInitialized) return;
 
     statusElement.textContent = "Initializing session...";
+    statusElement.className = "connecting";
 
     try {
         // Ensure WebSocket is connected
         await socket.connect();
-        
-        // Send events in sequence 
+
+        // Send the active robot selection immediately after the runtime socket is ready.
         const robots = getSelectedRobots();
         socket.emit('robot', robots);
-        await new Promise(resolve => setTimeout(resolve, 250));
-        socket.emit('promptStart');
-        socket.emit('systemPrompt');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        socket.emit('audioStart');
 
         // Mark session as initialized
         sessionInitialized = true;
+        hasStartedSession = true;
         statusElement.textContent = "Session initialized successfully";
+        statusElement.className = "connected";
     } catch (error) {
         console.error("Failed to initialize session:", error);
         statusElement.textContent = "Error: " + error.message;
@@ -520,13 +525,40 @@ async function startStreaming() {
             }
         }
 
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+
         // First, make sure the session is initialized
         if (!sessionInitialized) {
             await initializeSession();
         }
 
+        if (!socket.ws || socket.ws.readyState !== WebSocket.OPEN) {
+            throw new Error("Runtime connection closed before audio streaming could start.");
+        }
+
+        // Reset any previous audio graph before wiring a new stream.
+        if (processor) {
+            try {
+                processor.disconnect();
+            } catch (e) {
+                console.warn("Error disconnecting previous processor:", e);
+            }
+            processor = null;
+        }
+        if (sourceNode) {
+            try {
+                sourceNode.disconnect();
+            } catch (e) {
+                console.warn("Error disconnecting previous source node:", e);
+            }
+            sourceNode = null;
+        }
+
         // Create audio processor
         sourceNode = audioContext.createMediaStreamSource(audioStream);
+        isStreaming = true;
 
         // Use ScriptProcessorNode for audio processing
         if (audioContext.createScriptProcessor) {
@@ -568,7 +600,7 @@ async function startStreaming() {
             processor.connect(audioContext.destination);
         }
 
-        isStreaming = true;
+        socket.emit('audioStart');
         startButton.disabled = true;
         stopButton.disabled = false;
         statusElement.textContent = "Streaming... Speak now";
@@ -618,7 +650,11 @@ function stopStreaming() {
     // Clean up audio processing
     if (processor) {
         processor.disconnect();
+        processor = null;
+    }
+    if (sourceNode) {
         sourceNode.disconnect();
+        sourceNode = null;
     }
 
     startButton.disabled = false;
@@ -646,7 +682,7 @@ function base64ToFloat32Array(base64String) {
         let pcmDataBytes = bytes;
 
         // Check if this is a WAV container file (RIFF...WAVE)
-        if (bytes.length > 44 && 
+        if (bytes.length > 44 &&
             bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && // "RIFF"
             bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45  // "WAVE"
         ) {
@@ -654,7 +690,7 @@ function base64ToFloat32Array(base64String) {
             // Scan for the "data" subchunk marker to locate raw PCM payload
             let dataOffset = -1;
             for (let i = 12; i < bytes.length - 8; i++) {
-                if (bytes[i] === 0x64 && bytes[i+1] === 0x61 && bytes[i+2] === 0x74 && bytes[i+3] === 0x61) { // "data"
+                if (bytes[i] === 0x64 && bytes[i + 1] === 0x61 && bytes[i + 2] === 0x74 && bytes[i + 3] === 0x61) { // "data"
                     dataOffset = i + 8; // skip 4 bytes of "data" and 4 bytes of subchunk size
                     break;
                 }
@@ -730,7 +766,7 @@ function updateChatUI() {
             if (index < existingMessageDivs.length) {
                 // Reuse existing DOM node
                 messageDiv = existingMessageDivs[index];
-                
+
                 // Ensure proper css styling classes are mirrored
                 if (!messageDiv.classList.contains(roleLowerCase)) {
                     messageDiv.className = `message ${roleLowerCase}`;
@@ -942,7 +978,7 @@ socket.on('textOutput', (data) => {
     else if (currentRole === 'ASSISTANT') {
         hideUserThinkingIndicator();
         hideAssistantThinkingIndicator();
-        
+
         // Boot up typewriter synchronizer for assistant responses
         if (!isSpeakingTurn) {
             isSpeakingTurn = true;
@@ -996,7 +1032,7 @@ socket.on('audioOutput', (data) => {
     if (data.content) {
         try {
             const audioData = base64ToFloat32Array(data.content);
-            
+
             // Real-time direct WebSocket volume calculation for flawless lip sync
             let sum = 0;
             for (let i = 0; i < audioData.length; i++) {
@@ -1069,27 +1105,42 @@ socket.on('streamComplete', () => {
 socket.on('connect', () => {
     statusElement.textContent = "Connected to server";
     statusElement.className = "connected";
+    setSystemDialogue("AI Core connected. Click Start Streaming to begin.");
     sessionInitialized = false;
 });
 
 socket.on('disconnect', () => {
     console.log("WebSocket disconnected. Cleaning up streaming state...");
-    
+
     // Clean up audio processing if active
     if (isStreaming) {
         isStreaming = false;
         if (processor) {
             try {
                 processor.disconnect();
-                sourceNode.disconnect();
             } catch (e) {
                 console.warn("Error disconnecting audio nodes:", e);
             }
+            processor = null;
+        }
+        if (sourceNode) {
+            try {
+                sourceNode.disconnect();
+            } catch (e) {
+                console.warn("Error disconnecting source node:", e);
+            }
+            sourceNode = null;
         }
         audioPlayer.stop();
     }
 
-    statusElement.textContent = "Session ended (finished or timed out). Click Start to resume.";
+    if (hasStartedSession) {
+        statusElement.textContent = "Session ended (finished or timed out). Click Start to resume.";
+        setSystemDialogue("Session ended. Click Start Streaming to reconnect.");
+    } else {
+        statusElement.textContent = "Disconnected. Click Start Streaming to connect.";
+        setSystemDialogue("AI Core is idle. Click Start Streaming to connect.");
+    }
     statusElement.className = "disconnected";
     startButton.disabled = false; // Keep start button enabled for instant reconnection!
     stopButton.disabled = true;
@@ -1107,6 +1158,7 @@ socket.on('connect_error', (error) => {
     } else {
         statusElement.textContent = "Connection error: " + (error.message || error);
         statusElement.className = "error";
+        setSystemDialogue("AI Core connection failed. Please retry Start Streaming.");
         startButton.disabled = false; // Allow retrying connection
         stopButton.disabled = true;
     }
@@ -1117,6 +1169,7 @@ socket.on('error', (error) => {
     console.error("Server error:", error);
     statusElement.textContent = "Error: " + (error.message || JSON.stringify(error).substring(0, 100));
     statusElement.className = "error";
+    setSystemDialogue("AI Core reported an error. Please retry the session.");
     startButton.disabled = false; // Allow restarting session on error
     stopButton.disabled = true;
     hideUserThinkingIndicator();

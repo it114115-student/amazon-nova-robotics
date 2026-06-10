@@ -21,6 +21,10 @@ import { DatabaseConstruct } from "./datebase";
 import { RobotSimulatorServerlessConstruct } from "./robot-simulator-serverless";
 import * as logs from "aws-cdk-lib/aws-logs";
 import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
+import {
+  applyAgentCoreRuntimeLogRetention,
+  createAgentCoreRuntimeObservability,
+} from "./agentcore-observability";
 
 function parseDotEnv(filePath: string): Record<string, string> {
   const env: Record<string, string> = {};
@@ -77,6 +81,12 @@ export class DomainExpansionServerlessConstruct extends Construct {
     const openclawSessionId = cdkEnv["OPENCLAW_SESSION_ID"] || "telegram:default";
 
     // 1. Pack and deploy JJK Commentator container as a dedicated Bedrock AgentCore Runtime
+    const observability = createAgentCoreRuntimeObservability(
+      this,
+      "DomainExpansionObservability",
+      "domain_commentator_agentcore"
+    );
+
     const agentRuntimeArtifact = agentcore.AgentRuntimeArtifact.fromAsset(
       path.join(__dirname, "../../../domain-expansion-commentator-agentcore"),
       {
@@ -92,6 +102,8 @@ export class DomainExpansionServerlessConstruct extends Construct {
         idleRuntimeSessionTimeout: Duration.seconds(120),
         maxLifetime: Duration.seconds(900),
       },
+      tracingEnabled: true,
+      loggingConfigs: observability.loggingConfigs,
       environmentVariables: {
         IsInCloud: "yes",
         AWS_BEDROCK_REGION: "us-east-1",
@@ -100,6 +112,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
     });
 
     this.runtimeArn = runtime.agentRuntimeArn;
+    applyAgentCoreRuntimeLogRetention(this, "DomainExpansionAgentcore", runtime);
 
     // Grant access to Bedrock models to the AgentCore execution role
     runtime.role.addToPrincipalPolicy(

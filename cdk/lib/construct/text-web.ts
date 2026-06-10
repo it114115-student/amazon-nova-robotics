@@ -62,6 +62,7 @@ export class TextControlWebConstruct extends Construct {
         AWS_BEDROCK_REGION: "us-east-1",
         RobotTable: props.database.robotTable.tableName,
         McpServerUrl: props.mcpServerConstruct.functionUrl.url,
+        McpServerGatewayUrl: props.mcpServerConstruct.gatewayUrl,
         CognitoUserPoolId: props.userPool.userPoolId,
         CognitoUserPoolClientId: props.userPoolClient.userPoolClientId,
         FlaskSecretKey: hash,
@@ -144,6 +145,7 @@ export class TextControlWebConstruct extends Construct {
 
     // Grant permission to invoke the MCP server Lambda function URL
     props.mcpServerConstruct.grantInvokeFunctionUrl(flaskLambda.role!);
+    props.mcpServerConstruct.grantInvokeGateway(flaskLambda.role!);
 
     const rootResource = restApi.root;
 

@@ -9,10 +9,12 @@ import { Construct } from "constructs";
 import { Duration, Stack, RemovalPolicy, DockerImage } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as bedrockagentcore from "aws-cdk-lib/aws-bedrockagentcore";
 import { DatabaseConstruct } from "./datebase";
 import { AttributeType, Billing, TableV2 } from "aws-cdk-lib/aws-dynamodb";
 import * as cdk from "aws-cdk-lib";
 import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
+import { applyAgentCoreGatewayObservability } from "./agentcore-observability";
 
 import path = require("path");
 
@@ -24,6 +26,9 @@ export interface LambdaMcpServerConstructProps {
 export class LambdaMcpServerConstruct extends Construct {
   public readonly mcpFunction: PythonFunction;
   public readonly functionUrl: FunctionUrl;
+  public readonly gateway: bedrockagentcore.Gateway;
+  public readonly gatewayTarget: bedrockagentcore.GatewayTarget;
+  public readonly gatewayUrl: string;
   public readonly imageBucket: s3.Bucket;
   public readonly speechTable: TableV2;
   private permissionCounter = 0;
@@ -117,6 +122,22 @@ export class LambdaMcpServerConstruct extends Construct {
         allowedHeaders: ["*"],
       },
     });
+
+    this.gateway = new bedrockagentcore.Gateway(this, "McpAgentCoreGateway", {
+      description: "AgentCore gateway fronting the robotics MCP Lambda server",
+      authorizerConfiguration: bedrockagentcore.GatewayAuthorizer.usingAwsIam(),
+    });
+    applyAgentCoreGatewayObservability(this, "RobotMcp", this.gateway);
+
+    this.gatewayTarget = this.gateway.addLambdaTarget("McpLambdaTarget", {
+      description: "Lambda target exposing the robotics MCP tools through AgentCore",
+      gatewayTargetName: "robotics-mcp-lambda",
+      lambdaFunction: this.mcpFunction,
+      toolSchema: bedrockagentcore.ToolSchema.fromLocalAsset(
+        path.join(__dirname, "../../../mcp_server/agentcore-tool-schema.json")
+      ),
+    });
+    this.gatewayUrl = this.gateway.gatewayUrl ?? "";
   }
 
   /**
@@ -142,5 +163,9 @@ export class LambdaMcpServerConstruct extends Construct {
       principal: principal,
       action: "lambda:InvokeFunction",
     });
+  }
+
+  public grantInvokeGateway(grantee: iam.IGrantable): void {
+    this.gateway.grantInvoke(grantee);
   }
 }

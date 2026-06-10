@@ -37,13 +37,15 @@ graph TB
         APIGatewayText["API Gateway REST API (Text Control)"]
         APIGatewayGame["API Gateway REST API (Game)"]
         APIGatewayWS["API Gateway WebSocket API (Game Signaling)"]
-        BedrockAgentRuntime["Bedrock AgentCore Gateway (SigV4)"]
+        BedrockAgentRuntime["Bedrock AgentCore Runtime (SigV4 WebSocket)"]
+        BedrockMcpGateway["Bedrock AgentCore MCP Gateway (robot-only)"]
     end
 
     subgraph ComputeLayer ["Compute & Orchestration Layer"]
         FastAPIAgent["FastAPI Container (Voice Agent Runtime)"]
         LambdaText["Lambda Handler (Flask Text Control)"]
-        LambdaMCP["Lambda Function URL (Robotics MCP Server)"]
+        LambdaMCP["Lambda Function URL (Shared Robotics MCP Server)"]
+        LambdaRobotGateway["Lambda Target (Robot-only MCP Gateway)"]
         LambdaGame["Lambda Handler (Python Game Backend)"]
         SQSGame[("Amazon SQS (Image Fusion Queue)")]
         LambdaWorker["Lambda Worker (Bedrock Image Fusion)"]
@@ -87,7 +89,8 @@ graph TB
     BrowserVoice -->|SigV4 WebSocket Handshake| BedrockAgentRuntime
     BedrockAgentRuntime -->|Bidirectional Streaming| FastAPIAgent
     FastAPIAgent -->|Speech-to-Speech Inference| NovaSonic
-    FastAPIAgent -->|Tool Calls| LambdaMCP
+    FastAPIAgent -->|SigV4 tools/list + tools/call| BedrockMcpGateway
+    BedrockMcpGateway -->|Lambda Target Invocation| LambdaRobotGateway
 
     %% Text path
     APIGatewayText -->|Lambda Proxy| LambdaText
@@ -133,31 +136,33 @@ The Speech Control Cockpit is a high-performance, real-time voice streaming cont
   2. The browser exchanges the Cognito Identity Token with an **AWS Cognito Identity Pool**.
   3. The Identity Pool vends short-lived, temporary AWS IAM credentials.
   4. The browser utilizes these credentials to cryptographically generate an **AWS Signature Version 4 (SigV4)** pre-signed handshake URL.
-  5. The browser opens a secure WebSocket connection directly with the **AWS Bedrock AgentCore API Gateway** boundary.
+  5. The browser opens a secure WebSocket connection directly with the **AWS Bedrock AgentCore Runtime** boundary.
 * **Security Benefit**: Zero AWS secrets are stored on the frontend, and no custom middleware server is needed to sign connections. Authentications are handled entirely at the AWS Cloud frontier.
 
 ### 2. Live2D Real-time Lip-Sync Processing Engine (`v1.0.11`)
-Standard Web Audio implementations often suffer from security limits, such as browsers suspending the active `AudioContext` until a manual user gesture occurs. To ensure perfect, bulletproof lip-syncing, we implemented an event-driven blending audio loop:
+The current browser lip-sync path combines real playback and microphone amplitude while staying compatible with Cubism 2 Live2D models:
 
-1. **Direct WebSocket RMS Extraction**:
-   Upon receiving raw WebSocket audio streaming chunks (`audioOutput` event), the client immediately decodes the binary 16-bit PCM (`PCM_16`) array on the main loop and computes the raw **Root Mean Square (RMS)** amplitude:
+1. **Assistant playback RMS**:
+   Upon receiving raw WebSocket audio streaming chunks (`audioOutput` event), the client decodes the 16-bit PCM payload, computes RMS, and forwards it into `AudioPlayer`:
    $$\text{rms} = \sqrt{\frac{1}{N}\sum_{i=1}^N \text{pcm}[i]^2}$$
-   This RMS value is pushed instantly to the audio player via `audioPlayer.setWebSocketVolume(rms)`.
+   The `AudioWorklet` remains the source of truth for active playback volume during speaker output.
 
-2. **Decay Envelope Tracking**:
-   In `AudioPlayer.js`, a decay filter tracking variable (`websocketVolume`) is updated on each frame. If no new packets are received within $120\text{ms}$, the volume smoothly decays down to zero to close the mouth naturally:
-   ```javascript
-   if (elapsedTime > 120) {
-       this.websocketVolume *= 0.85;
-   }
-   ```
+2. **User microphone RMS**:
+   During capture, `main.js` computes microphone RMS in the recording loop and pushes it into `audioPlayer.setInputVolume(rms)` for the right-side avatar.
 
-3. **Multi-Source Audio Blending**:
-   The Live2D Avatar update loop fetches the volume by blending speaker playback volumes and WebSocket packet volumes:
-   $$\text{volume} = \max(\text{speakerVolume}, \text{websocketVolume})$$
-   * **Result**: The avatar's mouth is **guaranteed to move instantly** when speech data arrives over the network, completely bypassing browser audio suspension limitations.
-   * **Console Debugging**: Includes a real-time throttled console logger showing active calculations:
-     `[Live2D Mouth Sync Debug] rawVolume=0.0384, targetMouthOpen=0.1075, smoothedVolume=0.0892`
+3. **Cubism 2-safe mouth updates**:
+   `live2d-avatar.js` applies the smoothed mouth-open value across multiple compatible parameter IDs, including:
+   - `ParamMouthOpenY`
+   - `PARAM_MOUTH_OPEN_Y`
+   - `ParamMouthOpen`
+   - `PARAM_MOUTH_OPEN`
+   - `ParamA`
+
+4. **Important debugging finding**:
+   A lip-sync regression was caused by returning after the first attempted mouth parameter write. Some models only react when multiple IDs/API variants are tried, so the current code applies the value across all supported candidates each frame.
+
+5. **Staging/browser cache finding**:
+   Frontend version query strings on `main.js` and `live2d-avatar.js` matter. Without a cache bump, staging may continue serving an older broken module even after the source code is fixed.
 
 ---
 
@@ -192,7 +197,22 @@ This means the system already separates:
 | AR image fusion | Image generation | `amazon.nova-canvas-v1:0` |
 
 ### 3. Robotics MCP Server as the Action Plane
-The **MCP server** is deployed as a separate **AWS Lambda Function URL** with **AWS IAM / SigV4** protection and acts as the system's canonical tool execution boundary.
+The platform currently has two MCP execution surfaces:
+
+1. A **shared MCP Lambda Function URL** used by text-control and broader tool domains.
+2. A **robot-only AgentCore Gateway + Lambda target** used by the speech cockpit.
+
+For the speech cockpit:
+
+* The FastAPI AgentCore runtime calls the robot-only AgentCore Gateway with an **AWS SigV4-authenticated MCP client**.
+* The gateway exposes tools using the required AgentCore name format:
+  `{target_name}___{tool_name}`
+* In this deployment, names look like:
+  `robot-only-mcp-lambda___robot_wave`
+* The speech runtime keeps these exact names end-to-end and does not rename them for the model.
+* The robot-only Lambda strips the `robot-only-mcp-lambda___` prefix before dispatching to the internal robot action map.
+
+For text control:
 
 * The Text Control Lambda never publishes raw robot actions directly through ad hoc HTTP handlers when operating in agent mode.
 * Instead, it uses an **AWS SigV4-authenticated MCP client** to:
@@ -217,7 +237,15 @@ After a tool is selected, the MCP server becomes the operational control plane:
 3. Physical robots and the browser-based simulator consume the same command stream, which keeps digital twins and real hardware synchronized.
 4. For speech playback, the MCP server synthesizes audio with **Amazon Polly**, uploads it to **Amazon S3**, creates a presigned URL, and publishes that URL through IoT for device playback.
 
-### 5. Why This Split Architecture Matters
+### 5. AgentCore gateway debugging finding
+
+During the robot-only speech migration, the most important operational finding was:
+
+- **tool discovery success does not guarantee tool invocation success**
+
+The decisive failure signal came from **BedrockAgentCoreGateway application logs**, which showed the Lambda target was being invoked but could not find the supported tool name in the invocation context. The current Lambda implementation now follows the documented AgentCore context contract and avoids broad fallback parsing.
+
+### 6. Why This Split Architecture Matters
 This Text Control + MCP decomposition cleanly separates concerns:
 
 * **API Gateway + Flask Lambda** handles web/API protocol compatibility, auth, session management, and streaming responses.

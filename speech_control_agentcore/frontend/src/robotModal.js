@@ -16,16 +16,13 @@ export function setupRobotModal() {
         <div class="category-section" style="margin-bottom: 16px;">
           <div class="category-header" style="font-weight: bold; color: #646cff; border-bottom: 1px solid #333; margin-bottom: 10px; padding-bottom: 4px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">Shortcuts</div>
           <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer; font-size: 0.95rem; user-select: none;">
-            <input type="checkbox" value="all" class="robot-checkbox" id="cb-all" style="margin-right: 10px; width: 16px; height: 16px; cursor: pointer;" /> <strong>All (Robots + Drones + Dogs)</strong>
+            <input type="checkbox" value="all" class="robot-checkbox" id="cb-all" style="margin-right: 10px; width: 16px; height: 16px; cursor: pointer;" /> <strong>All (Robots + Drones + Digital Human)</strong>
           </label>
           <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer; font-size: 0.95rem; user-select: none;">
             <input type="checkbox" value="all_robots" class="robot-checkbox" id="cb-all-robots" style="margin-right: 10px; width: 16px; height: 16px; cursor: pointer;" checked /> All Robots (1 - 6)
           </label>
           <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer; font-size: 0.95rem; user-select: none;">
             <input type="checkbox" value="all_drones" class="robot-checkbox" id="cb-all-drones" style="margin-right: 10px; width: 16px; height: 16px; cursor: pointer;" /> All Drones (1 - 2)
-          </label>
-          <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer; font-size: 0.95rem; user-select: none;">
-            <input type="checkbox" value="all_dogs" class="robot-checkbox" id="cb-all-dogs" style="margin-right: 10px; width: 16px; height: 16px; cursor: pointer;" /> All Dogs (1 - 3)
           </label>
         </div>
 
@@ -48,16 +45,6 @@ export function setupRobotModal() {
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" value="drone_1" class="robot-checkbox device-cb group-drones" style="margin-right: 8px; width: 14px; height: 14px;" /> Drone 1</label>
             <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" value="drone_2" class="robot-checkbox device-cb group-drones" style="margin-right: 8px; width: 14px; height: 14px;" /> Drone 2</label>
-          </div>
-        </div>
-
-        <!-- dogs category -->
-        <div class="category-section" style="margin-bottom: 16px;">
-          <div class="category-header" style="font-weight: bold; color: #646cff; border-bottom: 1px solid #333; margin-bottom: 10px; padding-bottom: 4px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">Robotic Dogs</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
-            <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" value="dog_1" class="robot-checkbox device-cb group-dogs" style="margin-right: 8px; width: 14px; height: 14px;" /> Dog 1</label>
-            <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" value="dog_2" class="robot-checkbox device-cb group-dogs" style="margin-right: 8px; width: 14px; height: 14px;" /> Dog 2</label>
-            <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" value="dog_3" class="robot-checkbox device-cb group-dogs" style="margin-right: 8px; width: 14px; height: 14px;" /> Dog 3</label>
           </div>
         </div>
 
@@ -91,19 +78,16 @@ export function setupRobotModal() {
   const cbAll = document.getElementById('cb-all');
   const cbAllRobots = document.getElementById('cb-all-robots');
   const cbAllDrones = document.getElementById('cb-all-drones');
-  const cbAllDogs = document.getElementById('cb-all-dogs');
 
   const robotCbs = document.querySelectorAll('.group-robots');
   const droneCbs = document.querySelectorAll('.group-drones');
-  const dogCbs = document.querySelectorAll('.group-dogs');
   const deviceCbs = document.querySelectorAll('.device-cb');
 
-  // Shortcut 1: All (Robots + Drones + Dogs)
+  // Shortcut 1: All (Robots + Drones + Digital Human)
   cbAll.addEventListener('change', () => {
     const isChecked = cbAll.checked;
     cbAllRobots.checked = isChecked;
     cbAllDrones.checked = isChecked;
-    cbAllDogs.checked = isChecked;
     deviceCbs.forEach(cb => cb.checked = isChecked);
   });
 
@@ -118,13 +102,6 @@ export function setupRobotModal() {
   cbAllDrones.addEventListener('change', () => {
     const isChecked = cbAllDrones.checked;
     droneCbs.forEach(cb => cb.checked = isChecked);
-    updateAllShortcutState();
-  });
-
-  // Shortcut 4: All Dogs (1 - 3)
-  cbAllDogs.addEventListener('change', () => {
-    const isChecked = cbAllDogs.checked;
-    dogCbs.forEach(cb => cb.checked = isChecked);
     updateAllShortcutState();
   });
 
@@ -145,14 +122,6 @@ export function setupRobotModal() {
     });
   });
 
-  dogCbs.forEach(cb => {
-    cb.addEventListener('change', () => {
-      const allChecked = Array.from(dogCbs).every(c => c.checked);
-      cbAllDogs.checked = allChecked;
-      updateAllShortcutState();
-    });
-  });
-
   function updateAllShortcutState() {
     const allDevicesChecked = Array.from(deviceCbs).every(c => c.checked);
     cbAll.checked = allDevicesChecked;
@@ -162,28 +131,27 @@ export function setupRobotModal() {
   document.getElementById('robot-modal-save').onclick = () => {
     const mainSelect = document.getElementById('robot-select');
     Array.from(mainSelect.options).forEach(opt => opt.selected = false);
-    
+
     const checkedValues = [];
     if (cbAll.checked) checkedValues.push('all');
     if (cbAllRobots.checked) checkedValues.push('all_robots');
     if (cbAllDrones.checked) checkedValues.push('all_drones');
-    if (cbAllDogs.checked) checkedValues.push('all_dogs');
-    
+
     deviceCbs.forEach(cb => {
       if (cb.checked) checkedValues.push(cb.value);
     });
-    
+
     checkedValues.forEach(val => {
       const match = Array.from(mainSelect.options).find(o => o.value === val);
       if (match) match.selected = true;
     });
-    
+
     modal.style.display = 'none';
     mainSelect.dispatchEvent(new Event('change'));
   };
 
   // Close modal on outside click
-  window.onclick = function(event) {
+  window.onclick = function (event) {
     if (event.target == modal) {
       modal.style.display = 'none';
     }

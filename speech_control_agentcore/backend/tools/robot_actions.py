@@ -1,200 +1,122 @@
 import logging
-from typing import Optional
-from strands import tool
-from tools.mcp_client import call_mcp_tool
+import os
+from typing import Any
+
+from tools.mcp_client import get_mcp_client
 
 logger = logging.getLogger(__name__)
 
-# ==========================================
-# Humanoid Robot Tools
-# ==========================================
+# Comma-separated prefixes to include from MCP tools/list.
+# Default keeps robot + drone controls and excludes unrelated MCP tools.
+MCP_TOOL_PREFIX_ALLOW = os.environ.get(
+    "MCP_TOOL_PREFIX_ALLOW", "robot_,drone_,xiaoice_"
+)
 
-@tool
-def robot_stand(robot_id: str) -> dict:
-    """Command the humanoid robot to stand up and maintain a standing position.
+# Comma-separated exact names to exclude.
+MCP_TOOL_EXCLUDE = os.environ.get("MCP_TOOL_EXCLUDE", "")
+MCP_TOOL_NAME_ALLOW = os.environ.get("MCP_TOOL_NAME_ALLOW", "")
 
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_stand({robot_id})")
-    return call_mcp_tool("robot_stand", {"robot_id": robot_id})
+_ALLOWED_PREFIXES = tuple(
+    prefix.strip() for prefix in MCP_TOOL_PREFIX_ALLOW.split(",") if prefix.strip()
+)
+_EXCLUDED_NAMES = {
+    name.strip() for name in MCP_TOOL_EXCLUDE.split(",") if name.strip()
+}
+_ALLOWED_NAMES = {
+    name.strip() for name in MCP_TOOL_NAME_ALLOW.split(",") if name.strip()
+}
 
-
-@tool
-def robot_squat(robot_id: str) -> dict:
-    """Command the humanoid robot to squat down.
-
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_squat({robot_id})")
-    return call_mcp_tool("robot_squat", {"robot_id": robot_id})
+_DYNAMIC_TOOLS_CACHE = None
 
 
-@tool
-def robot_squat_up(robot_id: str) -> dict:
-    """Command the humanoid robot to stand up from a squat position.
-
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_squat_up({robot_id})")
-    return call_mcp_tool("robot_squat_up", {"robot_id": robot_id})
-
-
-@tool
-def robot_go_forward(robot_id: str) -> dict:
-    """Command the humanoid robot to walk forward.
-
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_go_forward({robot_id})")
-    return call_mcp_tool("robot_go_forward", {"robot_id": robot_id})
+def _tool_name(tool: Any) -> str:
+    if hasattr(tool, "mcp_tool") and hasattr(tool.mcp_tool, "name"):
+        return tool.mcp_tool.name
+    if hasattr(tool, "tool_name"):
+        return tool.tool_name
+    if isinstance(tool, dict):
+        return tool.get("name", "")
+    return ""
 
 
-@tool
-def robot_back_fast(robot_id: str) -> dict:
-    """Command the humanoid robot to walk backward quickly.
-
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_back_fast({robot_id})")
-    return call_mcp_tool("robot_back_fast", {"robot_id": robot_id})
+def _matches_allowed_prefix(tool: Any) -> bool:
+    if not _ALLOWED_PREFIXES:
+        return True
+    return _tool_name(tool).startswith(_ALLOWED_PREFIXES)
 
 
-@tool
-def robot_left_move_fast(robot_id: str) -> dict:
-    """Command the humanoid robot to slide left quickly.
-
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_left_move_fast({robot_id})")
-    return call_mcp_tool("robot_left_move_fast", {"robot_id": robot_id})
+def _matches_allowed_name(tool: Any) -> bool:
+    if not _ALLOWED_NAMES:
+        return True
+    return _tool_name(tool) in _ALLOWED_NAMES
 
 
-@tool
-def robot_right_move_fast(robot_id: str) -> dict:
-    """Command the humanoid robot to slide right quickly.
-
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_right_move_fast({robot_id})")
-    return call_mcp_tool("robot_right_move_fast", {"robot_id": robot_id})
+def _matches_excluded_name(tool: Any) -> bool:
+    if not _EXCLUDED_NAMES:
+        return False
+    return _tool_name(tool) in _EXCLUDED_NAMES
 
 
-@tool
-def robot_dance_one(robot_id: str) -> dict:
-    """Command the humanoid robot to perform dance sequence number one.
+def _build_tool_filters() -> dict | None:
+    filters = {}
 
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_dance_one({robot_id})")
-    return call_mcp_tool("robot_dance_one", {"robot_id": robot_id})
+    if _ALLOWED_NAMES:
+        filters["allowed"] = [_matches_allowed_name]
 
+    if _ALLOWED_PREFIXES:
+        existing_allowed = filters.get("allowed", [])
+        existing_allowed.append(_matches_allowed_prefix)
+        filters["allowed"] = existing_allowed
 
-@tool
-def robot_dance_two(robot_id: str) -> dict:
-    """Command the humanoid robot to perform dance sequence number two.
+    if _EXCLUDED_NAMES:
+        filters["rejected"] = [_matches_excluded_name]
 
-    Args:
-        robot_id: The ID of the humanoid robot to control (e.g. 'robot_1').
-    """
-    logger.info(f"Tool invoked: robot_dance_two({robot_id})")
-    return call_mcp_tool("robot_dance_two", {"robot_id": robot_id})
+    return filters or None
 
 
-# ==========================================
-# Drone Tools
-# ==========================================
+def get_dynamic_tools() -> list:
+    """Load AgentCore Gateway tools through the native Strands MCP client."""
+    global _DYNAMIC_TOOLS_CACHE
 
-@tool
-def drone_takeoff(drone_id: str) -> dict:
-    """Command the drone to take off and hover in the air.
+    if _DYNAMIC_TOOLS_CACHE is not None:
+        return _DYNAMIC_TOOLS_CACHE
 
-    Args:
-        drone_id: The ID of the drone to control (e.g. 'drone_1').
-    """
-    logger.info(f"Tool invoked: drone_takeoff({drone_id})")
-    return call_mcp_tool("drone_takeoff", {"drone_id": drone_id})
+    mcp_client = get_mcp_client()
+    tool_filters = _build_tool_filters()
+    dynamic_tools = []
+    pagination_token = None
 
+    logger.info(
+        "Starting MCP tool discovery. allowed_names=%s allowed_prefixes=%s excluded_names=%s",
+        sorted(_ALLOWED_NAMES),
+        list(_ALLOWED_PREFIXES),
+        sorted(_EXCLUDED_NAMES),
+    )
 
-@tool
-def drone_land(drone_id: str) -> dict:
-    """Command the drone to descend and land on the ground.
+    try:
+        while True:
+            paginated_tools = mcp_client.list_tools_sync(
+                pagination_token=pagination_token,
+                tool_filters=tool_filters,
+            )
+            page_tools = list(paginated_tools)
+            logger.info(
+                "MCP tools page received. count=%d names=%s",
+                len(page_tools),
+                [_tool_name(tool) for tool in page_tools],
+            )
+            dynamic_tools.extend(page_tools)
+            pagination_token = paginated_tools.pagination_token
+            if pagination_token is None:
+                break
+    except Exception:
+        logger.exception("MCP tool discovery failed.")
+        raise
 
-    Args:
-        drone_id: The ID of the drone to control (e.g. 'drone_1').
-    """
-    logger.info(f"Tool invoked: drone_land({drone_id})")
-    return call_mcp_tool("drone_land", {"drone_id": drone_id})
-
-
-@tool
-def drone_move_up(drone_id: str) -> dict:
-    """Command the drone to fly straight upwards.
-
-    Args:
-        drone_id: The ID of the drone to control (e.g. 'drone_1').
-    """
-    logger.info(f"Tool invoked: drone_move_up({drone_id})")
-    return call_mcp_tool("drone_move_up", {"drone_id": drone_id})
-
-
-@tool
-def drone_move_down(drone_id: str) -> dict:
-    """Command the drone to fly straight downwards.
-
-    Args:
-        drone_id: The ID of the drone to control (e.g. 'drone_1').
-    """
-    logger.info(f"Tool invoked: drone_move_down({drone_id})")
-    return call_mcp_tool("drone_move_down", {"drone_id": drone_id})
-
-
-@tool
-def drone_move_left(drone_id: str) -> dict:
-    """Command the drone to slide or fly to the left.
-
-    Args:
-        drone_id: The ID of the drone to control (e.g. 'drone_1').
-    """
-    logger.info(f"Tool invoked: drone_move_left({drone_id})")
-    return call_mcp_tool("drone_move_left", {"drone_id": drone_id})
-
-
-@tool
-def drone_move_right(drone_id: str) -> dict:
-    """Command the drone to slide or fly to the right.
-
-    Args:
-        drone_id: The ID of the drone to control (e.g. 'drone_1').
-    """
-    logger.info(f"Tool invoked: drone_move_right({drone_id})")
-    return call_mcp_tool("drone_move_right", {"drone_id": drone_id})
-
-
-@tool
-def drone_move_forward(drone_id: str) -> dict:
-    """Command the drone to fly forward.
-
-    Args:
-        drone_id: The ID of the drone to control (e.g. 'drone_1').
-    """
-    logger.info(f"Tool invoked: drone_move_forward({drone_id})")
-    return call_mcp_tool("drone_move_forward", {"drone_id": drone_id})
-
-
-@tool
-def drone_move_back(drone_id: str) -> dict:
-    """Command the drone to fly backward.
-
-    Args:
-        drone_id: The ID of the drone to control (e.g. 'drone_1').
-    """
-    logger.info(f"Tool invoked: drone_move_back({drone_id})")
-    return call_mcp_tool("drone_move_back", {"drone_id": drone_id})
+    logger.info(
+        "Loaded %d MCP tools through native Strands MCPClient. tool_names=%s",
+        len(dynamic_tools),
+        [_tool_name(tool) for tool in dynamic_tools],
+    )
+    _DYNAMIC_TOOLS_CACHE = dynamic_tools
+    return _DYNAMIC_TOOLS_CACHE
