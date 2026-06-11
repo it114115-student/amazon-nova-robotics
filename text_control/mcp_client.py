@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 import logging
 import os
 import re
+import time
 import uuid
 from typing import Any, Dict, Optional, Set
 
@@ -155,6 +156,7 @@ class SecureMCPClient:
             self._create_transport,
             startup_timeout=max(self.timeout_seconds, 30),
         )
+        self._cached_tools = None
         self.start()
 
     @asynccontextmanager
@@ -201,6 +203,7 @@ class SecureMCPClient:
         except Exception as e:
             print(f"Error stopping client during reset: {e}")
         
+        self._cached_tools = None
         self._client = MCPClient(
             self._create_transport,
             startup_timeout=max(self.timeout_seconds, 30),
@@ -235,6 +238,9 @@ class SecureMCPClient:
 
     async def list_tools(self) -> list:
         """List available tools"""
+        if getattr(self, "_cached_tools", None) is not None:
+            return self._cached_tools
+
         def _sync_list():
             tools = []
             pagination_token = None
@@ -272,6 +278,7 @@ class SecureMCPClient:
                 elif hasattr(tool, "_tool_spec") and isinstance(tool._tool_spec, dict):
                     setattr(tool, "description", tool._tool_spec.get("description", "No description"))
         
+        self._cached_tools = tools
         return tools
 
     async def close(self):
@@ -297,16 +304,31 @@ class MCPError(Exception):
 
 
 _last_request_id: Optional[str] = None
+_last_invocation_time: Optional[float] = None
 
 
 def notify_new_invocation(request_id: str):
     """Notify the MCP client module of a new Lambda invocation request ID to proactively heal the connection."""
-    global _last_request_id, _mcp_client
+    global _last_request_id, _last_invocation_time, _mcp_client
     if _last_request_id != request_id:
         print(f"New Lambda invocation detected. request_id={request_id}, previous={_last_request_id}")
         _last_request_id = request_id
+        
+        now = time.time()
+        should_recycle = False
         if _mcp_client is not None:
-            print("Proactively closing stale MCP client from previous invocation to avoid freeze timeouts...")
+            if _last_invocation_time is not None:
+                idle_duration = now - _last_invocation_time
+                if idle_duration > 300:
+                    print(f"Proactively recycling idle MCP client (idle for {idle_duration:.1f}s > 300s) to avoid stale connection...")
+                    should_recycle = True
+            else:
+                print("Proactively recycling MCP client (no last invocation timestamp) to be safe...")
+                should_recycle = True
+                
+        _last_invocation_time = now
+        
+        if should_recycle:
             cleanup_mcp_client()
 
 

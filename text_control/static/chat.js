@@ -48,23 +48,12 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
 
-      // If 'all_dogs' is selected with individual dogs or 'all', deselect conflicts
-      if (selected.includes("all_dogs")) {
-        const conflicts = selected.filter(val => val.startsWith("dog_") || val === "all");
-        if (conflicts.length > 0) {
-          deselectOptions(conflicts);
-        }
-      }
-
       // If individual items are selected, deselect their corresponding 'all_*' and 'all'
       if (selected.some(val => val.startsWith("robot_"))) {
         deselectOptions(["all_robots", "all"]);
       }
       if (selected.some(val => val.startsWith("drone_"))) {
         deselectOptions(["all_drones", "all"]);
-      }
-      if (selected.some(val => val.startsWith("dog_"))) {
-        deselectOptions(["all_dogs", "all"]);
       }
 
       // If xiaoice is selected, deselect 'all'
@@ -96,6 +85,14 @@ document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("send-button").addEventListener("click", function () {
     sendMessage();
   });
+
+  // Add click event for New Chat button
+  const newChatBtn = document.getElementById("new-chat-btn");
+  if (newChatBtn) {
+    newChatBtn.addEventListener("click", function () {
+      startNewChat();
+    });
+  }
 });
 
 async function sendMessage() {
@@ -131,7 +128,7 @@ async function sendMessage() {
         body: JSON.stringify({
           message,
           robots: selectedRobots,
-          session_id: Math.floor(Math.random() * 1000000),
+          session_id: getOrCreateSessionId(),
         }),
       });
     } else {
@@ -144,7 +141,7 @@ async function sendMessage() {
         body: JSON.stringify({
           message,
           robots: selectedRobots,
-          session_id: Math.floor(Math.random() * 1000000),
+          session_id: getOrCreateSessionId(),
         }),
       });
     }
@@ -261,3 +258,39 @@ async function sendMessage() {
     userInput.focus();
   }
 }
+
+function getOrCreateSessionId() {
+  let sessionId = localStorage.getItem("robot_session_id");
+  if (!sessionId) {
+    sessionId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Math.floor(Math.random() * 1e16).toString();
+    localStorage.setItem("robot_session_id", sessionId);
+  }
+  return sessionId;
+}
+
+function startNewChat() {
+  const newSessionId = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Math.floor(Math.random() * 1e16).toString();
+  localStorage.setItem("robot_session_id", newSessionId);
+  const messagesDiv = document.getElementById("messages");
+  if (messagesDiv) {
+    messagesDiv.innerHTML = '<div class="message system-message mb-2 text-center text-muted small"><em>已開始新的對話。</em></div>';
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+  const userInput = document.getElementById("user-input");
+  if (userInput) {
+    userInput.value = "";
+    userInput.disabled = false;
+    userInput.focus();
+  }
+  const sendButton = document.getElementById("send-button");
+  if (sendButton) {
+    sendButton.disabled = false;
+  }
+  const robotSelect = document.getElementById("robot-select");
+  if (robotSelect) {
+    robotSelect.disabled = false;
+  }
+  isRequestInProgress = false;
+  document.getElementById("loading").style.display = "none";
+}
+

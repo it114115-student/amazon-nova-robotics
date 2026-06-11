@@ -131,6 +131,7 @@ const textControlWebConstruct = new TextControlWebConstruct(
     robotGatewayConstruct: robotToolGatewayConstruct,
     userPool: authenticator.userPool,
     userPoolClient: authenticator.userPoolClient,
+    roboticBucket: roboticConstruct.bucket,
   }
 );
 

@@ -3,11 +3,13 @@ Strands Agents service for robot control using existing MCP client
 This version dynamically creates Strands tools from MCP server tools
 """
 
+import os
 import config
 from mcp_client import get_mcp_client
 from strands import Agent
 from strands.models import BedrockModel
 from strands.session.file_session_manager import FileSessionManager
+from strands.session.s3_session_manager import S3SessionManager
 from utils.lambda_logger import get_lambda_logger
 
 logger = get_lambda_logger(__name__)
@@ -36,8 +38,9 @@ async def create_robot_agent_with_mcp(session_id: str, background: str = "") -> 
     # Get existing MCP client (HTTP-based, already initialized)
     mcp_client = get_mcp_client()
 
+    # Use FileSessionManager storing in /tmp (the only writable directory in Lambda)
     session_manager = FileSessionManager(
-        session_id=session_id, base_dir="./agent_sessions"
+        session_id=session_id, storage_dir="/tmp/agent_sessions"
     )
 
     system_prompt = """You are a helpful robot control assistant that executes commands for robots, drones, and dogs.

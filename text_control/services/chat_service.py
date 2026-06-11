@@ -7,9 +7,11 @@ from typing import Any, Dict, List
 import config
 from models.actions import get_available_action_and_description, get_available_actions
 from services.database_service import get_robot
+import os
 from strands import Agent, tool
 from strands.models import BedrockModel
 from strands.session.file_session_manager import FileSessionManager
+from strands.session.s3_session_manager import S3SessionManager
 
 # Configure Nova model
 nova_model = BedrockModel(
@@ -39,7 +41,7 @@ async def get_chat_response(
     """Get a response from the Nova chatbot using Strands"""
 
     # Nova Chatbot system prompt
-    system_prompt_template = f"""
+    SYSTEM_PROMPT = f"""
     You are a helpful robots, dogs and drones assistant.
     You control various robots, dogs and drones that can perform physical actions.
 
@@ -74,9 +76,9 @@ background: {background}
     else:
         system_prompt = SYSTEM_PROMPT.replace("<background></background>", "")
 
-    # Create Strands agent with session management
+    # Use FileSessionManager storing in /tmp (the only writable directory in Lambda)
     session_manager = FileSessionManager(
-        session_id=str(session_id), base_dir="./chat_sessions"
+        session_id=str(session_id), storage_dir="/tmp/chat_sessions"
     )
 
     agent = Agent(

@@ -1,6 +1,7 @@
 import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
 import { CfnOutput, Duration, DockerImage } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as s3 from "aws-cdk-lib/aws-s3";
 
 import { Construct } from "constructs";
 import path = require("path");
@@ -23,6 +24,7 @@ export interface TextControlWebConstructProps {
   readonly robotGatewayConstruct: AgentCoreGatewayAccess;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
+  readonly roboticBucket: s3.IBucket;
 }
 
 export class TextControlWebConstruct extends Construct {
@@ -74,6 +76,7 @@ export class TextControlWebConstruct extends Construct {
         XiaoiceChatSecretKey: chatSecretKey,
         XiaoiceChatAccessKey: chatAccessKey,
         SpeechTable: props.mcpServerConstruct.speechTable.tableName,
+        RobotDataBucketName: props.roboticBucket.bucketName,
       },
       bundling: {
         ...SHARED_PYTHON_BUNDLING,
@@ -107,6 +110,9 @@ export class TextControlWebConstruct extends Construct {
 
     // Grant read/write access to the speech table for xiaoice welcome flow
     props.mcpServerConstruct.speechTable.grantReadWriteData(flaskLambda);
+
+    // Grant read/write access to robotic bucket
+    props.roboticBucket.grantReadWrite(flaskLambda);
 
     flaskLambda.addToRolePolicy(
       new iam.PolicyStatement({
