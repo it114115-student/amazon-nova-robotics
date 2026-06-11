@@ -2,6 +2,7 @@ import { Duration, CfnOutput } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as bedrockagentcore from "aws-cdk-lib/aws-bedrockagentcore";
+import { TableV2 } from "aws-cdk-lib/aws-dynamodb";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Construct } from "constructs";
 import * as fs from "fs";
@@ -24,6 +25,7 @@ type RobotToolSchemaDefinition = {
 export interface RobotToolGatewayConstructProps {
   readonly simulatorEndpoint?: string;
   readonly imageBucket: s3.IBucket;
+  readonly speechTable: TableV2;
 }
 
 const SUPPORTED_ROBOT_TOOL_NAMES = new Set([
@@ -60,6 +62,10 @@ const SUPPORTED_ROBOT_TOOL_NAMES = new Set([
   "get_image",
 ]);
 
+const SUPPORTED_DIGITAL_HUMAN_TOOL_NAMES = new Set([
+  "digital_human_speech",
+]);
+
 function loadRobotToolSchema(): RobotToolSchemaDefinition[] {
   const schemaPath = path.join(
     __dirname,
@@ -72,6 +78,18 @@ function loadRobotToolSchema(): RobotToolSchemaDefinition[] {
   return rawSchema.filter((tool) => SUPPORTED_ROBOT_TOOL_NAMES.has(tool.name));
 }
 
+function loadDigitalHumanToolSchema(): RobotToolSchemaDefinition[] {
+  const schemaPath = path.join(
+    __dirname,
+    "../../../mcp_server/agentcore-tool-schema.json"
+  );
+  const rawSchema = JSON.parse(
+    fs.readFileSync(schemaPath, "utf8")
+  ) as RobotToolSchemaDefinition[];
+
+  return rawSchema.filter((tool) => SUPPORTED_DIGITAL_HUMAN_TOOL_NAMES.has(tool.name));
+}
+
 function materializeRobotToolSchemaAsset(): string {
   const assetPath = path.join(
     os.tmpdir(),
@@ -81,10 +99,21 @@ function materializeRobotToolSchemaAsset(): string {
   return assetPath;
 }
 
+function materializeDigitalHumanToolSchemaAsset(): string {
+  const assetPath = path.join(
+    os.tmpdir(),
+    "amazon-nova-robotics-digital-human-tool-schema.json"
+  );
+  fs.writeFileSync(assetPath, JSON.stringify(loadDigitalHumanToolSchema(), null, 2));
+  return assetPath;
+}
+
 export class RobotToolGatewayConstruct extends Construct {
   public readonly robotToolFunction: PythonFunction;
+  public readonly digitalHumanToolFunction: PythonFunction;
   public readonly gateway: bedrockagentcore.Gateway;
   public readonly gatewayTarget: bedrockagentcore.GatewayTarget;
+  public readonly digitalHumanGatewayTarget: bedrockagentcore.GatewayTarget;
   public readonly gatewayUrl: string;
 
   constructor(
@@ -125,8 +154,34 @@ export class RobotToolGatewayConstruct extends Construct {
       })
     );
 
+    // Create the Digital Human Tool Function
+    this.digitalHumanToolFunction = new PythonFunction(this, "DigitalHumanToolFunction", {
+      entry: path.join(__dirname, "../../../mcp_server"),
+      runtime: SHARED_PYTHON_RUNTIME,
+      index: "digital_human_tool_lambda.py",
+      handler: "lambda_handler",
+      timeout: Duration.seconds(30),
+      bundling: SHARED_PYTHON_BUNDLING,
+      environment: {
+        SIMULATOR_ENDPOINT: props.simulatorEndpoint || "",
+        IMAGE_BUCKET_NAME: props.imageBucket.bucketName,
+        SpeechTable: props.speechTable.tableName,
+      },
+    });
+
+    props.imageBucket.grantReadWrite(this.digitalHumanToolFunction);
+    props.speechTable.grantReadWriteData(this.digitalHumanToolFunction);
+
+    this.digitalHumanToolFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["iot:Publish", "iot-data:Publish"],
+        resources: ["arn:aws:iot:*:*:topic/xiaoice_*/topic"],
+      })
+    );
+
     this.gateway = new bedrockagentcore.Gateway(this, "RobotToolGateway", {
-      description: "AgentCore gateway fronting the robot-only Lambda tools",
+      description: "AgentCore gateway fronting the robot and digital human Lambda tools",
       authorizerConfiguration: bedrockagentcore.GatewayAuthorizer.usingAwsIam(),
     });
     applyAgentCoreGatewayObservability(this, "RobotOnlyTools", this.gateway);
@@ -139,11 +194,21 @@ export class RobotToolGatewayConstruct extends Construct {
         materializeRobotToolSchemaAsset()
       ),
     });
+
+    this.digitalHumanGatewayTarget = this.gateway.addLambdaTarget("DigitalHumanToolLambdaTarget", {
+      description: "Lambda target exposing only the digital human tools through AgentCore",
+      gatewayTargetName: "digital-human-mcp-lambda",
+      lambdaFunction: this.digitalHumanToolFunction,
+      toolSchema: bedrockagentcore.ToolSchema.fromLocalAsset(
+        materializeDigitalHumanToolSchemaAsset()
+      ),
+    });
+
     this.gatewayUrl = this.gateway.gatewayUrl ?? "";
 
     new CfnOutput(this, "RobotToolGatewayUrl", {
       value: this.gatewayUrl,
-      description: "Robot-only AgentCore Gateway URL for speech runtime MCP access",
+      description: "Robot and Digital Human AgentCore Gateway URL for speech runtime MCP access",
     });
   }
 

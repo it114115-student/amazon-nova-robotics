@@ -15,6 +15,7 @@ from tools.dance_tools import register_dance_tools
 from tools.image_tools import register_image_tools
 from tools.xiaoice_tools import register_xiaoice_tools
 from tools.speech_tools import register_speech_tools
+from tools.digital_human_tools import register_digital_human_tools
 
 # Initialize MCP handler
 mcp = MCPLambdaHandler(name="robotics-mcp-server", version="1.0.0")
@@ -27,6 +28,7 @@ register_dance_tools(mcp)
 register_image_tools(mcp)
 register_xiaoice_tools(mcp)
 register_speech_tools(mcp)
+register_digital_human_tools(mcp)
 
 
 def handler(event, context):

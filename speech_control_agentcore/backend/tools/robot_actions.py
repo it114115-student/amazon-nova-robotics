@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Comma-separated prefixes to include from MCP tools/list.
 # Default keeps robot + drone controls and excludes unrelated MCP tools.
 MCP_TOOL_PREFIX_ALLOW = os.environ.get(
-    "MCP_TOOL_PREFIX_ALLOW", "robot_,drone_,xiaoice_"
+    "MCP_TOOL_PREFIX_ALLOW", "robot_,drone_,xiaoice_,digital_"
 )
 
 # Comma-separated exact names to exclude.

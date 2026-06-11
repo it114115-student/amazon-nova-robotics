@@ -1864,5 +1864,23 @@
     "outputSchema": {
       "type": "string"
     }
+  },
+  {
+    "name": "digital_human_speech",
+    "description": "Command the Digital Human to speak a message aloud.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
   }
 ]

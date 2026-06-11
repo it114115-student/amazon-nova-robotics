@@ -35,6 +35,8 @@ ACTION INTERPRETATION:
   - "take off" -> drone takeoff tool
   - "land" -> drone landing tool
   - "wave your hand" -> waving tool
+  - "say hello", "speak hello", "say something", "talk to me" -> robot_speak tool (make sure to specify the 'text' to say)
+  - "what do you see", "describe what is in front of you", "take a picture" -> robot_see tool
 - Prefer the closest safe matching action instead of asking the user to memorize an exact action name.
 
 SPEECH RECOGNITION TOLERANCE:

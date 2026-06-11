@@ -154,9 +154,6 @@ export class TextControlWebConstruct extends Construct {
       })
     );
 
-    // Grant permission to invoke the MCP server Function URL
-    props.mcpServerConstruct.grantInvokeFunctionUrl(flaskLambda.role!);
-
     // Grant permission to invoke the AgentCore Gateway
     props.robotGatewayConstruct.grantInvokeGateway(flaskLambda.role!);
 

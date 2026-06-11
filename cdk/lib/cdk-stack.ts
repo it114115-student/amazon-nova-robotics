@@ -60,6 +60,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       {
         simulatorEndpoint: humanoidRobotSimulatorServerlessConstruct.serviceUrl,
         imageBucket: mcpServerConstruct.imageBucket,
+        speechTable: mcpServerConstruct.speechTable,
       }
     );
 
@@ -141,24 +142,11 @@ const textControlWebConstruct = new TextControlWebConstruct(
       userName: "AmazonNovaRoboticsSsmUser",
     });
 
-    // Create IAM user for robot skills to invoke MCP server
+    // Create IAM user for robot skills to invoke Bedrock AgentCore Gateway
     const skillUser = new iam.User(this, "SkillMcpUser", {
       userName: "AmazonNovaRoboticsSkillUser",
     });
-    mcpServerConstruct.grantInvokeFunctionUrl(skillUser);
-    // Identity-based policy so the IAM user can invoke the function URL with SigV4
-    skillUser.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["lambda:InvokeFunctionUrl", "lambda:InvokeFunction"],
-        resources: [mcpServerConstruct.mcpFunction.functionArn],
-        conditions: {
-          StringEquals: {
-            "lambda:FunctionUrlAuthType": "AWS_IAM",
-          },
-        },
-      })
-    );
+    robotToolGatewayConstruct.grantInvokeGateway(skillUser);
 
     const explicitOpenClawCallerAccountIds = normalizeContextList(
       this.node.tryGetContext("openclawCallerAccountIds")
@@ -169,7 +157,7 @@ const textControlWebConstruct = new TextControlWebConstruct(
         : [cdk.Stack.of(this).account];
 
     for (const accountId of [...new Set(openClawCallerAccountIds)]) {
-      mcpServerConstruct.grantInvokeFunctionUrl(new iam.AccountPrincipal(accountId));
+      robotToolGatewayConstruct.grantInvokeGateway(new iam.AccountPrincipal(accountId));
     }
 
     const skillAccessKey = new iam.CfnAccessKey(this, "SkillMcpUserAccessKey", {

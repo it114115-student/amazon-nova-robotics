@@ -56,6 +56,8 @@ const SUPPORTED_ROBOT_TOOL_NAMES = [
   "robot_twist",
   "robot_wave",
   "robot_stop",
+  "robot_speak",
+  "robot_see",
 ];
 
 const ROBOT_GATEWAY_TARGET_NAME = "robot-only-mcp-lambda";
