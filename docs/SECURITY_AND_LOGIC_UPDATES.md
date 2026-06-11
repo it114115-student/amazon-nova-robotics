@@ -10,9 +10,14 @@ To protect against unauthorized resource consumption (AWS Bedrock & AWS Polly), 
 - **Reference**: [domain-expansion-serverless.ts](../cdk/lib/construct/domain-expansion-serverless.ts)
 
 ### WebSocket Security
-- **Mechanism**: Custom Lambda Authorizer.
+- **Mechanism**: Custom Lambda Authorizer for connection establishment.
 - **Validation**: Manually verifies the JWT signature, issuer, and expiry using the Cognito Public JWKS (JSON Web Key Set).
 - **Reference**: [auth.py](../domain-expansion-ar-game-serverless/backend/auth.py)
+
+### Cost-Saving Session Guards
+- **Mechanism**: Client-side `setInterval` polling (every 30 seconds).
+- **Implementation**: The frontend (`auth.js`, `auth-check.js`, `index.html`) locally decodes the Cognito JWT to inspect the `exp` claim. If expired, it triggers an immediate local logout sequence which specifically forces `.close()` on all active WebSockets.
+- **Benefit**: Ensures dormant browsers do not hold expensive serverless WebSocket connections (like AgentCore runtimes) open infinitely after authentication expires, resulting in zero compute cost for the idle guard checks.
 
 ---
 

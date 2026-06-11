@@ -46,16 +46,18 @@
         }
     }
 
-    // Check auth when page loads
+    // Check auth when page loads and periodically
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
             if (checkAuth()) {
                 addLogoutButton();
+                setInterval(checkAuth, 30000);
             }
         });
     } else {
         if (checkAuth()) {
             addLogoutButton();
+            setInterval(checkAuth, 30000);
         }
     }
 })();
