@@ -59,10 +59,10 @@ def execute_speech(mcp_url, auth, message):
         "message": message,
     }
 
-    text = call_mcp_tool(mcp_url, auth, "xiaoice_speech", arguments)
+    text = call_mcp_tool(mcp_url, auth, "digital_human_speech", arguments)
     if text is not None:
-        logger.info("speech -> %s", text)
-        return True, text
+         logger.info("speech -> %s", text)
+         return True, text
     return False, "Failed to send speech to xiaoice"
 
 
@@ -77,7 +77,7 @@ def main():
 """,
     )
     parser.add_argument(
-        "--profile", default="skill-profile", help="AWS CLI profile name"
+        "--profile", default=None, help="AWS CLI profile name"
     )
     parser.add_argument(
         "--message", required=True, help="Text message for the Digital Human to speak"
