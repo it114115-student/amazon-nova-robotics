@@ -271,8 +271,8 @@ def main():
         logger.error("--mcp-url or MCP_SERVER_URL env var is required")
         sys.exit(1)
 
-    session = boto3.Session(region_name=args.region)
-    auth = AWSSigV4("lambda", session=session)
+    service = "bedrock-agentcore" if "bedrock-agentcore" in args.mcp_url else "lambda"
+    auth = AWSSigV4(service, session=session)
 
     robot_id = args.robot_id
 

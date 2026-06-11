@@ -103,8 +103,8 @@ def main():
         logger.error("--message cannot be empty")
         sys.exit(1)
 
-    session = boto3.Session(profile_name=args.profile, region_name=args.region)
-    auth = AWSSigV4("lambda", session=session)
+    service = "bedrock-agentcore" if "bedrock-agentcore" in args.mcp_url else "lambda"
+    auth = AWSSigV4(service, session=session)
 
     success, response_text = execute_speech(
         mcp_url=args.mcp_url,
