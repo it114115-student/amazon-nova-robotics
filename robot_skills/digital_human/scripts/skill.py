@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 def call_mcp_tool(mcp_url, auth, tool_name, arguments, timeout=30):
     """Call an MCP tool on the Lambda server via JSON-RPC. Returns the text result or None."""
+    if "bedrock-agentcore" in mcp_url and not tool_name.startswith("digital-human-mcp-lambda___"):
+        tool_name = f"digital-human-mcp-lambda___{tool_name}"
+
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
