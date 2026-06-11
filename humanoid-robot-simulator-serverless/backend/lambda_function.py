@@ -490,6 +490,30 @@ def handle_rest_request(event):
         })
         return make_rest_response(200, {"success": True, "robot_id": robot_id, "message": "Speech audio broadcast"})
 
+    # 9b. POST /api/digital-human/speak
+    if path == "/api/digital-human/speak" and method == "POST":
+        body = {}
+        if event.get('body'):
+            try:
+                body = json.loads(event['body'])
+            except:
+                pass
+                
+        message = body.get("message", "")
+        audio_url = body.get("audio_url", "")
+        if not message:
+            return make_rest_response(400, {"success": False, "error": "message is required"})
+            
+        post_to_connections(event, session_key or "mcpserver", {
+            "type": "digital_human_speech",
+            "data": {
+                "message": message,
+                "audio_url": audio_url,
+                "session_key": session_key or "mcpserver"
+            }
+        })
+        return make_rest_response(200, {"success": True, "message": "Digital human speech broadcasted"})
+
     # 10. POST /api/video/change_source
     if path == "/api/video/change_source" and method == "POST":
         body = {}

@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>✨ Digital Human Speaking Simulator - Nova Robotics</title>
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
+  <!-- Premium Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <!-- Live2D Core Dependencies -->
+  <!-- 1. High-Performance 2D WebGL Renderer (PixiJS v6) -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+  <!-- 2. Official Live2D Cubism 2 Core SDK -->
+  <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+  <!-- 3. Pixi-Live2D-Display Adapter -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism2.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --accent-cyan: #00f0ff;
+      --accent-gold: #ffb700;
+      --panel-bg: rgba(15, 22, 36, 0.7);
+      --panel-border: rgba(0, 240, 255, 0.2);
+      --glass-glow: 0 8px 32px 0 rgba(0, 240, 255, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: #f0f4f8;
+      font-family: 'Outfit', sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Animated Tech Grid Background */
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 200%;
+      height: 200%;
+      background-image: 
+        linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      transform: translate(-25%, -25%) rotate(15deg);
+      z-index: 0;
+      pointer-events: none;
+      animation: gridMove 120s linear infinite;
+    }
+
+    @keyframes gridMove {
+      from { transform: translate(-25%, -25%) rotate(15deg); }
+      to { transform: translate(-25%, -15%) rotate(15deg); }
+    }
+
+    /* Vignette and Scanlines Overlay */
+    .vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, transparent 30%, rgba(5, 7, 12, 0.8) 100%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .scanlines {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 255, 0, 0.06));
+      background-size: 100% 4px, 6px 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* App Container */
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      z-index: 2;
+      padding: 24px;
+      justify-content: space-between;
+    }
+
+    /* Glassmorphic Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px 24px;
+      box-shadow: var(--glass-glow);
+      transition: all 0.3s ease;
+    }
+
+    .header-left h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: linear-gradient(45deg, #fff, var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-left p {
+      font-size: 12px;
+      color: rgba(240, 244, 258, 0.6);
+      font-family: 'Share Tech Mono', monospace;
+      margin-top: 4px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 6px 16px;
+      border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #ef4444;
+      box-shadow: 0 0 10px #ef4444;
+    }
+
+    .status-dot.connected {
+      background-color: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulseGreen 2s infinite;
+    }
+
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Main Virtual Stage */
+    .stage-area {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      margin: 20px 0;
+    }
+
+    /* Centered Glowing Halo behind Avatar */
+    .avatar-halo {
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 240, 255, 0.08) 0%, transparent 70%);
+      filter: blur(20px);
+      z-index: 1;
+      animation: rotateHalo 30s linear infinite;
+      transition: all 0.5s ease;
+    }
+
+    .avatar-halo.speaking {
+      background: radial-gradient(circle, rgba(255, 183, 0, 0.18) 0%, transparent 70%);
+      animation: rotateHalo 10s linear infinite, bounceHalo 1.5s infinite alternate;
+    }
+
+    @keyframes rotateHalo {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes bounceHalo {
+      from { transform: scale(0.95); filter: blur(20px); }
+      to { transform: scale(1.1); filter: blur(35px); }
+    }
+
+    /* Canvas Wrapper */
+    .canvas-container {
+      width: 100%;
+      max-width: 600px;
+      height: 100%;
+      max-height: 520px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2;
+      position: relative;
+    }
+
+    #live2d-canvas {
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      filter: drop-shadow(0 0 20px rgba(0, 240, 255, 0.15));
+      transition: filter 0.5s ease;
+    }
+
+    #live2d-canvas.speaking {
+      filter: drop-shadow(0 0 35px rgba(255, 183, 0, 0.25));
+    }
+
+    /* RPG Cinematic Dialogue Box at Bottom */
+    .dialogue-wrapper {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      z-index: 2;
+    }
+
+    .dialogue-box {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 24px 32px;
+      box-shadow: var(--glass-glow);
+      position: relative;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      transition: border-color 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .dialogue-box.speaking {
+      border-color: rgba(255, 183, 0, 0.4);
+      box-shadow: 0 8px 32px 0 rgba(255, 183, 0, 0.15);
+    }
+
+    .speaker-tag {
+      position: absolute;
+      top: -14px;
+      left: 32px;
+      background: linear-gradient(135deg, var(--accent-cyan), #00a8ff);
+      color: #05070c;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 4px 16px;
+      border-radius: 30px;
+      letter-spacing: 2px;
+      font-family: 'Share Tech Mono', monospace;
+      box-shadow: 0 4px 15px rgba(0, 240, 255, 0.4);
+      transition: all 0.4s ease;
+    }
+
+    .dialogue-box.speaking .speaker-tag {
+      background: linear-gradient(135deg, var(--accent-gold), #ff8c00);
+      box-shadow: 0 4px 15px rgba(255, 183, 0, 0.4);
+    }
+
+    .dialogue-text {
+      font-size: 18px;
+      line-height: 1.6;
+      font-weight: 400;
+      color: rgba(240, 244, 258, 0.85);
+      min-height: 56px;
+    }
+
+    .dialogue-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 12px;
+    }
+
+    .system-log {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: rgba(240, 244, 258, 0.4);
+      max-width: 70%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .session-badge {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      color: var(--accent-cyan);
+      background: rgba(0, 240, 255, 0.07);
+      padding: 2px 10px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 240, 255, 0.15);
+    }
+
+    /* Diagnostics Sidebar panel */
+    .diag-panel {
+      position: absolute;
+      top: 120px;
+      right: 24px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px;
+      width: 240px;
+      box-shadow: var(--glass-glow);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      z-index: 10;
+    }
+
+    .diag-title {
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 6px;
+      color: var(--accent-cyan);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .diag-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .diag-label {
+      color: rgba(240, 244, 258, 0.5);
+    }
+
+    .diag-value {
+      color: rgba(240, 244, 258, 0.9);
+    }
+
+    .wave-container {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 18px;
+      margin-top: 12px;
+    }
+
+    .wave-bar {
+      width: 3px;
+      height: 3px;
+      background: var(--accent-cyan);
+      border-radius: 10px;
+      transition: height 0.1s ease;
+    }
+
+    .wave-container.active .wave-bar {
+      background: var(--accent-gold);
+      animation: soundWave 0.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes soundWave {
+      0% { height: 3px; }
+      100% { height: 18px; }
+    }
+
+    /* Interactive Speak Test Control */
+    .test-trigger {
+      position: absolute;
+      top: 120px;
+      left: 24px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px;
+      width: 220px;
+      box-shadow: var(--glass-glow);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .test-input {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      color: white;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+
+    .test-input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--accent-cyan), #00a8ff);
+      color: #05070c;
+      border: none;
+      padding: 10px;
+      font-weight: 700;
+      font-size: 13px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-transform: uppercase;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 15px rgba(0, 240, 255, 0.3);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="vignette"></div>
+  <div class="scanlines"></div>
+
+  <div id="app-container">
+    <!-- Header -->
+    <header>
+      <div class="header-left">
+        <h1><span>🤖</span> Digital Human Speech Core</h1>
+        <p>Live2D Model Renderer & Synthesis Bridge</p>
+      </div>
+      <div class="status-badge">
+        <div id="ws-dot" class="status-dot"></div>
+        <span id="ws-status-text">DISCONNECTED</span>
+      </div>
+    </header>
+
+    <!-- Interactive Test Control -->
+    <div class="test-trigger">
+      <div style="font-size: 12px; font-weight: 600; color: var(--accent-cyan); margin-bottom: 4px; text-transform: uppercase; font-family: 'Share Tech Mono';">🎙️ Manual Override Test</div>
+      <input type="text" id="manual-text" class="test-input" placeholder="Type message..." value="Hello, I am Shizuku. Ready to assist.">
+      <button class="btn" onclick="testManualSpeech()">Speak Now</button>
+    </div>
+
+    <!-- Diagnostics Panel -->
+    <div class="diag-panel">
+      <div class="diag-title">
+        <span>System Diagnostics</span>
+        <span style="color: var(--accent-gold);">v2.0</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-label">Engine:</span>
+        <span class="diag-value">Cubism 2.1</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-label">Model:</span>
+        <span class="diag-value">Shizuku</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-label">WebSocket:</span>
+        <span id="diag-ws" class="diag-value" style="color: #ef4444;">Offline</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-label">TTS Engine:</span>
+        <span class="diag-value">SpeechSynthesis</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-label">Mouth Sync:</span>
+        <span id="diag-mouth" class="diag-value">Idle</span>
+      </div>
+      <div class="wave-container" id="sound-wave">
+        <div class="wave-bar" style="animation-delay: 0.1s"></div>
+        <div class="wave-bar" style="animation-delay: 0.3s"></div>
+        <div class="wave-bar" style="animation-delay: 0.5s"></div>
+        <div class="wave-bar" style="animation-delay: 0.2s"></div>
+        <div class="wave-bar" style="animation-delay: 0.4s"></div>
+        <div class="wave-bar" style="animation-delay: 0.6s"></div>
+        <div class="wave-bar" style="animation-delay: 0.1s"></div>
+        <div class="wave-bar" style="animation-delay: 0.3s"></div>
+      </div>
+    </div>
+
+    <!-- Stage Area -->
+    <div class="stage-area">
+      <div id="halo" class="avatar-halo"></div>
+      <div class="canvas-container">
+        <canvas id="live2d-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Dialogue Box -->
+    <div class="dialogue-wrapper">
+      <div id="dialogue-box" class="dialogue-box">
+        <div class="speaker-tag" id="speaker-tag">System</div>
+        <div class="dialogue-text" id="dialogue-text">Initializing AI Core Speech services... Please verify WebSocket connection.</div>
+        <div class="dialogue-footer">
+          <span class="system-log" id="system-log">System running in standby mode.</span>
+          <span class="session-badge" id="session-badge">Session: mcpserver</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Bind PIXI globally for the Live2D adapter
+    window.PIXI = PIXI;
+
+    let modelInstance = null;
+    let isSpeaking = false;
+    let speakTimer = null;
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    
+    // Config details
+    const sessionKey = getSessionKey();
+    document.getElementById('session-badge').textContent = `Session: ${sessionKey}`;
+
+    function getSessionKey() {
+      const urlParams = new URLSearchParams(window.location.search);
+      let key = urlParams.get('session_key');
+      if (key) {
+        return decodeURIComponent(key).trim().replace(/ /g, "+");
+      }
+      return 'mcpserver'; // Default fallback
+    }
+
+    // Initialize WebGL Application for Live2D Rendering
+    async function initLive2DAvatar() {
+      const canvas = document.getElementById("live2d-canvas");
+      
+      try {
+        const app = new PIXI.Application({
+          view: canvas,
+          transparent: true,
+          backgroundAlpha: 0,
+          autoStart: true,
+          antialias: true,
+          width: 600,
+          height: 520,
+        });
+
+        console.log("🎬 Loading Shizuku Live2D Model...");
+        logSystem("Loading Shizuku Live2D model assets...");
+        
+        const modelUrl = "https://cdn.jsdelivr.net/npm/live2d-widget-model-shizuku@latest/assets/shizuku.model.json";
+        const model = await PIXI.live2d.Live2DModel.from(modelUrl);
+        app.stage.addChild(model);
+        modelInstance = model;
+
+        // Perfect sizing bounds
+        fitModelToCanvas(model, 600, 520, 0.9, 30);
+
+        // Customize the update loop for Lip-Sync
+        let smoothedVolume = 0;
+        const originalUpdate = model.internalModel.update;
+        model.internalModel.update = function() {
+          originalUpdate.apply(this, arguments);
+          
+          let targetMouthOpen = 0;
+          if (isSpeaking) {
+            // Generate dynamic speaking mouth animation on the fly (randomized organic sine wave)
+            targetMouthOpen = Math.min((Math.sin(Date.now() * 0.015) * 0.4 + 0.4) + (Math.random() * 0.2), 1.0);
+          }
+          
+          smoothedVolume += (targetMouthOpen - smoothedVolume) * 0.35;
+          applyMouthValue(model, smoothedVolume);
+        };
+
+        console.log("🟢 Shizuku Model loaded successfully!");
+        logSystem("Shizuku Live2D model active.");
+        document.getElementById('speaker-tag').textContent = "SHIZUKU";
+        document.getElementById('dialogue-text').textContent = "System active and listening. Trigger digital human speech from the MCP Server tools.";
+
+        // Mouse focus tracking
+        window.addEventListener("mousemove", (event) => {
+          if (model && typeof model.focus === "function") {
+            model.focus(event.clientX, event.clientY);
+          }
+        });
+
+      } catch (err) {
+        console.error("⚠️ Shizuku load failed:", err);
+        logSystem("Error loading Shizuku model. Check network.");
+      }
+    }
+
+    function fitModelToCanvas(model, canvasWidth, canvasHeight, scaleMultiplier, offsetY) {
+      const bounds = typeof model.getLocalBounds === "function" ? model.getLocalBounds() : { x: 0, y: 0, width: model.width, height: model.height };
+      const safeWidth = Math.max(bounds.width || 0, 1);
+      const safeHeight = Math.max(bounds.height || 0, 1);
+      const scale = Math.min(canvasWidth / safeWidth, canvasHeight / safeHeight) * scaleMultiplier;
+
+      model.scale.set(scale);
+      if (model.anchor && typeof model.anchor.set === "function") {
+        model.anchor.set(0.5, 1);
+        model.x = canvasWidth / 2;
+        model.y = canvasHeight + offsetY;
+        return;
+      }
+      model.x = canvasWidth / 2 - (bounds.x + bounds.width / 2) * scale;
+      model.y = canvasHeight - (bounds.y + bounds.height) * scale + offsetY;
+    }
+
+    const MOUTH_PARAMETER_IDS = ["ParamMouthOpenY", "PARAM_MOUTH_OPEN_Y", "ParamMouthOpen", "PARAM_MOUTH_OPEN", "ParamA"];
+    
+    function applyMouthValue(model, value) {
+      const core = model?.internalModel?.coreModel || model?.internalModel?.live2DModel;
+      if (!core) return;
+      
+      for (const parameterId of MOUTH_PARAMETER_IDS) {
+        try {
+          if (typeof core.setParameterValueById === "function") {
+            core.setParameterValueById(parameterId, value);
+          } else if (typeof core.setParameterValue === "function") {
+            core.setParameterValue(parameterId, value);
+          } else if (typeof core.setParamFloat === "function") {
+            core.setParamFloat(parameterId, value);
+          }
+        } catch (_) {}
+      }
+    }
+
+    let currentAudio = null;
+
+    function stopAllSpeech() {
+      // Cancel Web Speech API
+      window.speechSynthesis.cancel();
+      
+      // Stop and clean up Polly HTML5 Audio
+      if (currentAudio) {
+        try {
+          currentAudio.pause();
+          currentAudio.src = '';
+          currentAudio.load();
+        } catch (e) {
+          console.warn("Error pausing audio:", e);
+        }
+        currentAudio = null;
+      }
+      
+      clearInterval(speakTimer);
+      setSpeakingState(false);
+    }
+
+    // Web Speech API Synthesis Integration (Fallback)
+    function speakTextFallback(text) {
+      if (!text || !text.trim()) return;
+
+      stopAllSpeech();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Auto-configure optimal voice (prefer premium female/girl voices)
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        // High priority list of well-known female/girl voice indicators
+        const femaleKeywords = ['zira', 'samantha', 'google us english', 'female', 'girl', 'woman', 'microsoft sabina', 'karen', 'victoria', 'hazel', 'susan', 'heera', 'natural'];
+        
+        let foundVoice = null;
+        
+        // 1. Try to find an English female voice with high priority names
+        for (const keyword of femaleKeywords) {
+          const v = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes(keyword));
+          if (v) {
+            foundVoice = v;
+            break;
+          }
+        }
+        
+        // 2. Fallback to any voice containing female keywords
+        if (!foundVoice) {
+          for (const keyword of femaleKeywords) {
+            const v = voices.find(v => v.name.toLowerCase().includes(keyword));
+            if (v) {
+              foundVoice = v;
+              break;
+            }
+          }
+        }
+        
+        // 3. Fallback to any English voice
+        if (!foundVoice) {
+          foundVoice = voices.find(v => v.lang.startsWith('en'));
+        }
+        
+        // 4. Fallback to any available voice
+        if (!foundVoice) {
+          foundVoice = voices[0];
+        }
+        
+        if (foundVoice) {
+          utterance.voice = foundVoice;
+          console.log("🗣️ Selected browser fallback female voice:", foundVoice.name, foundVoice.lang);
+        }
+      }
+
+      utterance.rate = 1.05;
+      utterance.pitch = 1.1;
+
+      utterance.onstart = () => {
+        setSpeakingState(true);
+        typewriterEffect(text);
+      };
+
+      utterance.onend = () => {
+        setSpeakingState(false);
+      };
+
+      utterance.onerror = (err) => {
+        console.error("TTS error:", err);
+        setSpeakingState(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // Amazon Polly HTML5 Audio Playback
+    function playPollyAudio(url, text) {
+      if (!url) {
+        speakTextFallback(text);
+        return;
+      }
+
+      stopAllSpeech();
+
+      console.log("🔊 Playing Polly Audio:", url);
+      currentAudio = new Audio(url);
+      currentAudio.crossOrigin = 'anonymous';
+      
+      currentAudio.onplay = () => {
+        setSpeakingState(true);
+        typewriterEffect(text);
+      };
+
+      currentAudio.onended = () => {
+        setSpeakingState(false);
+        currentAudio = null;
+      };
+
+      currentAudio.onerror = (err) => {
+        console.error("Polly audio playback error, falling back to Web Speech API:", err);
+        speakTextFallback(text);
+      };
+
+      currentAudio.play().catch(err => {
+        console.warn("Autoplay blocked or failed, falling back to Web Speech API:", err);
+        speakTextFallback(text);
+      });
+    }
+
+    // Unified speak entry point
+    function speakText(text, audioUrl = null) {
+      if (audioUrl) {
+        playPollyAudio(audioUrl, text);
+      } else {
+        speakTextFallback(text);
+      }
+    }
+
+    function setSpeakingState(speaking) {
+      isSpeaking = speaking;
+      const diagMouth = document.getElementById('diag-mouth');
+      const soundWave = document.getElementById('sound-wave');
+      const dialogBox = document.getElementById('dialogue-box');
+      const canvas = document.getElementById('live2d-canvas');
+      const halo = document.getElementById('halo');
+
+      if (speaking) {
+        diagMouth.textContent = "Speaking";
+        diagMouth.style.color = "var(--accent-gold)";
+        soundWave.classList.add('active');
+        dialogBox.classList.add('speaking');
+        canvas.classList.add('speaking');
+        halo.classList.add('speaking');
+      } else {
+        diagMouth.textContent = "Idle";
+        diagMouth.style.color = "inherit";
+        soundWave.classList.remove('active');
+        dialogBox.classList.remove('speaking');
+        canvas.classList.remove('speaking');
+        halo.classList.remove('speaking');
+      }
+    }
+
+    function typewriterEffect(text) {
+      const element = document.getElementById('dialogue-text');
+      element.innerHTML = '';
+      
+      let index = 0;
+      clearInterval(speakTimer);
+      
+      speakTimer = setInterval(() => {
+        if (index < text.length) {
+          element.innerHTML += text.charAt(index);
+          index++;
+        } else {
+          clearInterval(speakTimer);
+        }
+      }, 25); // Speed multiplier
+    }
+
+    // Manual Local Speech Test
+    function testManualSpeech() {
+      const text = document.getElementById('manual-text').value;
+      if (text) {
+        speakText(text);
+        logSystem("Triggered manual override speaking.");
+      }
+    }
+
+    // WebSocket Client Setup
+    async function initWebSocket() {
+      const wsDot = document.getElementById('ws-dot');
+      const wsText = document.getElementById('ws-status-text');
+      const diagWs = document.getElementById('diag-ws');
+      
+      wsDot.className = 'status-dot';
+      wsText.textContent = 'CONNECTING...';
+      wsText.style.color = 'var(--accent-gold)';
+
+      try {
+        let webSocketUrl = '';
+        
+        // Fetch AWS API Gateway websocket URL configuration if present
+        try {
+          const configResp = await fetch('/config.json');
+          if (configResp.ok) {
+            const config = await configResp.json();
+            if (config.webSocketUrl) {
+              webSocketUrl = `${config.webSocketUrl}?session_key=${sessionKey}`;
+              console.log(`📡 Fetched serverless API Gateway WebSocket URL: ${webSocketUrl}`);
+            }
+          }
+        } catch (err) {
+          console.warn('Could not read config.json, using relative websocket routing.');
+        }
+
+        // Relative route fallback (Local Testing)
+        if (!webSocketUrl) {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          webSocketUrl = `${protocol}//${window.location.host}/ws?session_key=${sessionKey}`;
+          console.log(`Relative WebSocket connection resolved: ${webSocketUrl}`);
+        }
+
+        logSystem("Connecting to serverless event broker...");
+        ws = new WebSocket(webSocketUrl);
+
+        ws.onopen = () => {
+          console.log("✅ Joined Real-time speech control network!");
+          logSystem("Online and connected to API Gateway WebSocket.");
+          
+          wsDot.className = 'status-dot connected';
+          wsText.textContent = 'ONLINE / LISTENING';
+          wsText.style.color = '#10b981';
+          diagWs.textContent = 'Online';
+          diagWs.style.color = '#10b981';
+          reconnectAttempts = 0;
+
+          // Join session explicitly (required by API Gateway websocket $default router)
+          ws.send(JSON.stringify({
+            action: 'join_session',
+            session_key: sessionKey
+          }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            const type = payload.type;
+            const data = payload.data;
+            
+            console.log(`📥 Received WS message: ${type}`, data);
+
+            // Handle speak notifications
+            if (type === 'digital_human_speech') {
+              const msg = data.message;
+              const audioUrl = data.audio_url;
+              logSystem(`Digital Human speech received.`);
+              speakText(msg, audioUrl);
+            } else if (type === 'speech' && (data.robot_id === 'xiaoice_1' || data.robot_id === 'all')) {
+              const msg = data.text;
+              const audioUrl = data.audio_url;
+              logSystem(`Broadcasting general speech message.`);
+              speakText(msg, audioUrl);
+            }
+          } catch (e) {
+            console.error("Failed to parse websocket frame:", e);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log("🔌 Disconnected from speech control network.");
+          logSystem("Disconnected from server.");
+          handleWSDisconnect();
+        };
+
+        ws.onerror = (error) => {
+          console.error("❌ WebSocket error:", error);
+          handleWSDisconnect();
+        };
+
+      } catch (err) {
+        console.error("WebSocket init failed:", err);
+        handleWSDisconnect();
+      }
+    }
+
+    function handleWSDisconnect() {
+      const wsDot = document.getElementById('ws-dot');
+      const wsText = document.getElementById('ws-status-text');
+      const diagWs = document.getElementById('diag-ws');
+      
+      wsDot.className = 'status-dot';
+      wsText.textContent = 'OFFLINE';
+      wsText.style.color = '#ef4444';
+      diagWs.textContent = 'Offline';
+      diagWs.style.color = '#ef4444';
+
+      if (reconnectAttempts < maxReconnectAttempts) {
+        reconnectAttempts++;
+        const delay = Math.min(2000 * reconnectAttempts, 15000);
+        logSystem(`Server offline. Reconnecting in ${delay/1000}s (Attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
+        setTimeout(initWebSocket, delay);
+      } else {
+        logSystem("Maximum reconnect attempts reached. Standing by offline.");
+      }
+    }
+
+    function logSystem(msg) {
+      const element = document.getElementById('system-log');
+      const timeStr = new Date().toLocaleTimeString();
+      element.textContent = `[${timeStr}] ${msg}`;
+    }
+
+    // Run Everything on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      initLive2DAvatar();
+      initWebSocket();
+    });
+
+    // Speak voices async initialization in some browsers
+    window.speechSynthesis.onvoiceschanged = () => {
+      console.log("SpeechSynthesis voices loaded.");
+    };
+  </script>
+</body>
+
+</html>

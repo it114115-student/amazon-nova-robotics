@@ -141,6 +141,67 @@ class TestLambdaHandler(unittest.TestCase):
             "data": mock_robots_state
         })
 
+    @patch('lambda_function.post_to_connections')
+    def test_api_digital_human_speak_success(self, mock_post_connections):
+        """Tests the POST /api/digital-human/speak REST API endpoint with a valid message"""
+        event = {
+            "rawPath": "/api/digital-human/speak",
+            "requestContext": {
+                "http": {
+                    "method": "POST"
+                }
+            },
+            "queryStringParameters": {
+                "session_key": "test_dh_session"
+            },
+            "body": json.dumps({
+                "message": "Hello, this is a test of the digital human speaking!",
+                "audio_url": "https://s3.amazonaws.com/test-bucket/audio.mp3"
+            })
+        }
+        response = lambda_function.lambda_handler(event, None)
+        
+        self.assertEqual(response["statusCode"], 200)
+        body = json.loads(response["body"])
+        self.assertEqual(body["success"], True)
+        self.assertEqual(body["message"], "Digital human speech broadcasted")
+        
+        mock_post_connections.assert_called_once_with(
+            event,
+            "test_dh_session",
+            {
+                "type": "digital_human_speech",
+                "data": {
+                    "message": "Hello, this is a test of the digital human speaking!",
+                    "audio_url": "https://s3.amazonaws.com/test-bucket/audio.mp3",
+                    "session_key": "test_dh_session"
+                }
+            }
+        )
+
+    @patch('lambda_function.post_to_connections')
+    def test_api_digital_human_speak_missing_message(self, mock_post_connections):
+        """Tests the POST /api/digital-human/speak route when no message is provided"""
+        event = {
+            "rawPath": "/api/digital-human/speak",
+            "requestContext": {
+                "http": {
+                    "method": "POST"
+                }
+            },
+            "queryStringParameters": {
+                "session_key": "test_dh_session"
+            },
+            "body": json.dumps({})
+        }
+        response = lambda_function.lambda_handler(event, None)
+        
+        self.assertEqual(response["statusCode"], 400)
+        body = json.loads(response["body"])
+        self.assertEqual(body["success"], False)
+        self.assertEqual(body["error"], "message is required")
+        mock_post_connections.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

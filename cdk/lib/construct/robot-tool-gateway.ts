@@ -180,6 +180,14 @@ export class RobotToolGatewayConstruct extends Construct {
       })
     );
 
+    this.digitalHumanToolFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["polly:SynthesizeSpeech"],
+        resources: ["*"],
+      })
+    );
+
     this.gateway = new bedrockagentcore.Gateway(this, "RobotToolGateway", {
       description: "AgentCore gateway fronting the robot and digital human Lambda tools",
       authorizerConfiguration: bedrockagentcore.GatewayAuthorizer.usingAwsIam(),

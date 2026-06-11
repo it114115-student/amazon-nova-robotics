@@ -147,6 +147,13 @@ const textControlWebConstruct = new TextControlWebConstruct(
       userName: "AmazonNovaRoboticsSkillUser",
     });
     robotToolGatewayConstruct.grantInvokeGateway(skillUser);
+    skillUser.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["bedrock-agentcore:InvokeGateway"],
+        resources: [robotToolGatewayConstruct.gateway.gatewayArn],
+      })
+    );
 
     const explicitOpenClawCallerAccountIds = normalizeContextList(
       this.node.tryGetContext("openclawCallerAccountIds")
@@ -259,18 +266,18 @@ const textControlWebConstruct = new TextControlWebConstruct(
     });
 
     new cdk.CfnOutput(this, "McpServerUrl", {
-      value: mcpServerConstruct.functionUrl.url,
-      description: "The URL of the MCP Server Lambda Function",
+      value: robotToolGatewayConstruct.gatewayUrl,
+      description: "The URL of the Bedrock AgentCore Secure Gateway",
     });
 
     new cdk.CfnOutput(this, "SkillMcpUserAccessKeyId", {
       value: skillAccessKey.ref,
-      description: "Access Key ID for the skill user to invoke MCP server",
+      description: "Access Key ID for the skill user to invoke Bedrock AgentCore Secure Gateway",
     });
 
     new cdk.CfnOutput(this, "SkillMcpUserSecretAccessKey", {
       value: skillAccessKey.attrSecretAccessKey,
-      description: "Secret Access Key for the skill user to invoke MCP server",
+      description: "Secret Access Key for the skill user to invoke Bedrock AgentCore Secure Gateway",
     });
 
     new cdk.CfnOutput(this, "RobotImageBucketName", {

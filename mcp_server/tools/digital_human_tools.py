@@ -1,5 +1,7 @@
 """Digital Human speech tools for the MCP server."""
 
+import os
+import requests
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
 from services.iot_service import execute_xiaoice_speech
 from services.speech_service import save_speech_message
@@ -31,6 +33,36 @@ def execute_digital_human_speech(message: str) -> str:
         presenter_id=CURRENT_PRESENTER,
         metadata={"speech_record_id": saved_item.get("id", "")},
     )
+
+    # Synthesize with Amazon Polly
+    polly_result = None
+    try:
+        from services.polly_service import synthesize_and_upload
+        polly_result = synthesize_and_upload(text=message.strip(), language="en")
+    except Exception as e:
+        print(f"Warning: Polly synthesis failed for digital human: {e}")
+
+    # Broadcast to simulator endpoint via REST API to trigger WebSocket speaking animation
+    simulator_endpoint = os.environ.get("SIMULATOR_ENDPOINT", "").strip()
+    if simulator_endpoint:
+        clean_endpoint = simulator_endpoint
+        if "://" in clean_endpoint:
+            clean_endpoint = clean_endpoint.split("://", 1)[1]
+        clean_endpoint = clean_endpoint.rstrip("/")
+        
+        url = f"https://{clean_endpoint}/api/digital-human/speak?session_key=mcpserver"
+        try:
+            payload = {
+                "message": message.strip()
+            }
+            if polly_result and polly_result.get("url"):
+                payload["audio_url"] = polly_result["url"]
+                
+            response = requests.post(url, json=payload, timeout=3.0)
+            if response.status_code != 200:
+                print(f"Warning: Failed to broadcast to simulator endpoint. Status: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            print(f"Warning: Exception while calling simulator endpoint speech broadcast: {e}")
 
     if success:
         return f'Digital Human is now speaking: "{message.strip()}"'
