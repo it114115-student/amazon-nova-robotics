@@ -6,6 +6,8 @@ from typing import Any
 
 from models import RobotID
 from executors import robot_executor
+from tools.speech_tools import execute_robot_speak
+from tools.image_tools import execute_get_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -165,6 +167,9 @@ def _candidate_tool_names(context: Any, event: Any) -> list[tuple[str, str]]:
     return candidates
 
 
+_SPECIAL_TOOLS = {"robot_speak", "robot_see", "get_image"}
+
+
 def _extract_tool_name(context: Any, event: Any) -> str:
     candidates = _candidate_tool_names(context, event)
     first_candidate: tuple[str, str] | None = None
@@ -172,7 +177,7 @@ def _extract_tool_name(context: Any, event: Any) -> str:
         normalized_tool_name = _normalize_tool_name(tool_name)
         if first_candidate is None:
             first_candidate = (source, normalized_tool_name)
-        if normalized_tool_name in _ROBOT_TOOL_CONFIG:
+        if normalized_tool_name in _ROBOT_TOOL_CONFIG or normalized_tool_name in _SPECIAL_TOOLS:
             logger.info(
                 "Resolved robot tool name from %s. raw_tool_name=%s normalized_tool_name=%s",
                 source,
@@ -252,6 +257,22 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             tool_name,
             _summarize_event(event),
         )
+
+        payload = _extract_payload(event)
+        robot_id = _extract_robot_id(payload)
+
+        if tool_name == "robot_speak":
+            text = payload.get("text", "")
+            language = payload.get("language", "yue")
+            logger.info("Dispatching robot_speak tool. robot_id=%s text=%s language=%s", robot_id, text, language)
+            result_str = execute_robot_speak(robot_id, text, language)
+            return _response(200, result_str)
+
+        elif tool_name in ("robot_see", "get_image"):
+            logger.info("Dispatching get_image/robot_see tool. robot_id=%s", robot_id)
+            result_str = execute_get_image(robot_id)
+            return _response(200, result_str)
+
         tool_config = _ROBOT_TOOL_CONFIG.get(tool_name)
         if tool_config is None:
             logger.error(
@@ -261,8 +282,6 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             )
             return _response(400, {"error": f"Unknown robot tool: {tool_name}"})
 
-        payload = _extract_payload(event)
-        robot_id = _extract_robot_id(payload)
         logger.info(
             "Dispatching robot tool. tool_name=%s action=%s robot_id=%s payload_keys=%s",
             tool_name,

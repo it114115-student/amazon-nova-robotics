@@ -1,5 +1,6 @@
 import { Duration, CfnOutput } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as s3 from "aws-cdk-lib/aws-s3";
 import * as bedrockagentcore from "aws-cdk-lib/aws-bedrockagentcore";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { Construct } from "constructs";
@@ -22,6 +23,7 @@ type RobotToolSchemaDefinition = {
 
 export interface RobotToolGatewayConstructProps {
   readonly simulatorEndpoint?: string;
+  readonly imageBucket: s3.IBucket;
 }
 
 const SUPPORTED_ROBOT_TOOL_NAMES = new Set([
@@ -53,6 +55,9 @@ const SUPPORTED_ROBOT_TOOL_NAMES = new Set([
   "robot_twist",
   "robot_wave",
   "robot_stop",
+  "robot_speak",
+  "robot_see",
+  "get_image",
 ]);
 
 function loadRobotToolSchema(): RobotToolSchemaDefinition[] {
@@ -98,14 +103,25 @@ export class RobotToolGatewayConstruct extends Construct {
       bundling: SHARED_PYTHON_BUNDLING,
       environment: {
         SIMULATOR_ENDPOINT: props.simulatorEndpoint || "",
+        IMAGE_BUCKET_NAME: props.imageBucket.bucketName,
       },
     });
+
+    props.imageBucket.grantReadWrite(this.robotToolFunction);
 
     this.robotToolFunction.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["iot:Publish", "iot-data:Publish"],
         resources: ["arn:aws:iot:*:*:topic/robot_*/topic"],
+      })
+    );
+
+    this.robotToolFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["polly:SynthesizeSpeech"],
+        resources: ["*"],
       })
     );
 

@@ -59,6 +59,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       "RobotToolGatewayConstruct",
       {
         simulatorEndpoint: humanoidRobotSimulatorServerlessConstruct.serviceUrl,
+        imageBucket: mcpServerConstruct.imageBucket,
       }
     );
 

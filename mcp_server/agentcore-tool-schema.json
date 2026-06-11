@@ -1081,6 +1081,25 @@
     }
   },
   {
+    "name": "robot_see",
+    "description": "Capture an image from the robot's camera. The robot will take a photo and upload it to S3. Returns a presigned URL to view the image, or an error message if the robot did not upload in time.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "robot_id": {
+          "type": "string",
+          "description": "Allowed values: all, robot_1, robot_2, robot_3, robot_4, robot_5, robot_6."
+        }
+      },
+      "required": [
+        "robot_id"
+      ]
+    },
+    "outputSchema": {
+      "type": "string"
+    }
+  },
+  {
     "name": "robot_back_fast",
     "description": "Command the robot to move backward quickly.",
     "inputSchema": {
