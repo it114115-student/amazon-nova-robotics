@@ -2,7 +2,10 @@
 """
 Test script to verify that empty or blank askText values are properly rejected
 """
+import hashlib
 import json
+import os
+import time
 import requests
 
 # Test configuration
@@ -13,11 +16,47 @@ ENDPOINTS = [
     "/api/xiaoice-chat-api-strands-stream"
 ]
 
+
+def calculate_signature_legacy(body_string: str, secret_key: str, timestamp: str) -> str:
+    """Calculate signature for legacy authentication (used by xiaoice endpoints)"""
+    string_to_checksum = body_string + secret_key + timestamp
+    sha512 = hashlib.sha512()
+    sha512.update(string_to_checksum.encode("utf-8"))
+    hex_digest = sha512.hexdigest()
+    return hex_digest.replace("-", "")
+
+
+def calculate_signature_v2(secret_key: str, timestamp: str, body_string: str) -> str:
+    """Calculate signature for authentication following the vendor specification (v2)"""
+    # Create parameter map
+    params = {
+        "bodyString": body_string,
+        "secretKey": secret_key,
+        "timestamp": timestamp,
+    }
+
+    # Sort by key name in ascending order and create signature string
+    sorted_params = sorted(params.items())
+    signature_string = "&".join([f"{k}={v}" for k, v in sorted_params])
+
+    # Calculate SHA-512 hash
+    sha512 = hashlib.sha512()
+    sha512.update(signature_string.encode("utf-8"))
+    hex_digest = sha512.hexdigest()
+
+    # Convert to uppercase
+    return hex_digest.replace("-", "").upper()
+
+
 def test_empty_asktext(endpoint):
     """Test that endpoint rejects empty askText"""
     print(f"\n{'='*80}")
     print(f"Testing endpoint: {endpoint}")
     print(f"{'='*80}")
+    
+    # Get credentials from environment
+    secret_key = os.getenv("XiaoiceChatSecretKey", "test_secret_key")
+    access_key = os.getenv("XiaoiceChatAccessKey", "test_access_key")
     
     # Test cases for empty/blank askText
     test_cases = [
@@ -36,9 +75,26 @@ def test_empty_asktext(endpoint):
             "sessionId": "test_session",
             "traceId": "test_trace"
         }
+        if endpoint == "/api/talk":
+            payload["userParams"] = "Summer"
+            
+        body_string = json.dumps(payload, separators=(',', ':'))
+        timestamp = str(int(time.time() * 1000))
+        
+        if endpoint == "/api/talk":
+            signature = calculate_signature_v2(secret_key, timestamp, body_string)
+        else:
+            signature = calculate_signature_legacy(body_string, secret_key, timestamp)
+            
+        headers = {
+            "Content-Type": "application/json",
+            "X-Timestamp": timestamp,
+            "X-Sign": signature,
+            "X-Key": access_key
+        }
         
         try:
-            response = requests.post(f"{BASE_URL}{endpoint}", json=payload, timeout=10)
+            response = requests.post(f"{BASE_URL}{endpoint}", data=body_string, headers=headers, timeout=10)
             
             if response.status_code == 400:
                 print(f"✅ PASS: Correctly rejected with status 400")
@@ -68,6 +124,8 @@ def test_chat_endpoint():
         ("  \t\n  ", "mixed whitespace")
     ]
     
+    internal_secret = os.getenv("INTERNAL_ROBOT_SECRET", "hktiit_robot_internal_bypass_2026")
+    
     for message, description in test_cases:
         print(f"\nTesting {description}: '{repr(message)}'")
         
@@ -76,8 +134,13 @@ def test_chat_endpoint():
             "session_id": "test_session"
         }
         
+        headers = {
+            "Content-Type": "application/json",
+            "X-Internal-Secret": internal_secret
+        }
+        
         try:
-            response = requests.post(f"{BASE_URL}/api/chat", json=payload, timeout=10)
+            response = requests.post(f"{BASE_URL}/api/chat", json=payload, headers=headers, timeout=10)
             
             if response.status_code == 400:
                 print(f"✅ PASS: Correctly rejected with status 400")

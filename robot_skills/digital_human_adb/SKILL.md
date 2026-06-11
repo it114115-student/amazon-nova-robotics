@@ -12,7 +12,7 @@ This version is optimized for scenarios where the Android device is in the same 
 ## Prerequisites
 
 - AWS CLI profile configured: `aws configure --profile <name>`
-- MCP server deployed with `xiaoice_speech` tool
+- MCP server deployed and exposed via AWS Bedrock AgentCore Secure Gateway with the `digital_human_speech` tool
 - Android device accessible via ADB on the local network
 - `adb` installed on the host machine
 - `settings.yaml` configured with the correct `adb_ip`
@@ -46,7 +46,7 @@ wait_duration: 2
    - Tap "Close chat" (1650, 2275)
    - Wait `wait_duration` seconds
    - Tap "Open chat" again (1900, 775)
-4. Simultaneously (sequentially in this script), it calls the `xiaoice_speech` MCP tool:
+4. Simultaneously (sequentially in this script), it calls the `digital_human_speech` MCP tool via the AWS Bedrock AgentCore Secure Gateway:
    - Saves message to DynamoDB
    - Publishes to `xiaoice_1/topic` IoT topic
 

@@ -48,10 +48,10 @@ python test_streaming.py continuity # Conversation continuity
    python app.py
    ```
 
-2. **Set environment variables:**
+2. **Set environment variables (strictly required; no fallback):**
    ```bash
-   export ChatSecretKey="your_secret_key"
-   export ChatAccessKey="your_access_key"
+   export XiaoiceChatSecretKey="your_secret_key"
+   export XiaoiceChatAccessKey="your_access_key"
    ```
 
 ### Test Execution

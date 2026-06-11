@@ -5,7 +5,7 @@ description: Control a single humanoid robot via MCP server. Supports action seq
 
 # Humanoid Skill
 
-Controls a single humanoid robot through the MCP server (Lambda function URL with SigV4 auth). Designed for 1 agent = 1 robot.
+Controls a single humanoid robot through the MCP server (AWS Bedrock AgentCore Secure Gateway with SigV4 auth). Designed for 1 agent = 1 robot.
 
 ## Usage
 

@@ -5,7 +5,7 @@ description: Control xiaoice Digital Human speech via MCP server. Send text mess
 
 # Digital Human Skill
 
-Controls the xiaoice Digital Human through the MCP server (Lambda function URL with SigV4 auth). Sends speech messages that are saved to DynamoDB and published to the xiaoice IoT topic.
+Controls the xiaoice Digital Human through the MCP server (AWS Bedrock AgentCore Secure Gateway with SigV4 auth). Sends speech messages that are saved to DynamoDB and published to the xiaoice IoT topic.
 
 There is only one xiaoice device (`xiaoice_1`), so no device ID is needed. The presenter context is handled automatically — all messages are saved and queried under a fixed key (`current_presenter`).
 
@@ -30,7 +30,7 @@ There is only one xiaoice device (`xiaoice_1`), so no device ID is needed. The p
 
 ## How It Works
 
-1. The skill calls the `xiaoice_speech` MCP tool via the Lambda function URL
+1. The skill calls the `digital_human_speech` MCP tool via the AWS Bedrock AgentCore Secure Gateway
 2. The MCP server saves the message to the SpeechTable (DynamoDB) under `current_presenter`
 3. The MCP server publishes the message to the `xiaoice_1/topic` IoT topic
 4. The xiaoice client device receives the message and triggers the speech UI

@@ -3,6 +3,10 @@ import os
 import time
 import logging
 import boto3
+import base64
+import hmac
+import hashlib
+from decimal import Decimal
 from boto3.dynamodb.conditions import Key
 from constants import HumanoidAction, DEFAULT_ROBOTS, ACTION_DURATIONS
 from session_utils import decrypt, send_request
@@ -103,7 +107,6 @@ def clean_floats_for_dynamodb(data):
     # To keep it standard, let's cast float numbers to python float or Decimal. 
     # Boto3 DynamoDB resource accepts floats if they are exact, but floats can cause precision errors.
     # Let's convert floats in list/dicts to python floats or Decimals.
-    from decimal import Decimal
     if isinstance(data, float):
         # Round or convert to Decimal
         return Decimal(str(round(data, 4)))
@@ -116,7 +119,6 @@ def clean_floats_for_dynamodb(data):
 
 def convert_decimals_to_floats(data):
     """Recursively converts Decimal objects back to float for JSON responses"""
-    from decimal import Decimal
     if isinstance(data, Decimal):
         return float(data)
     elif isinstance(data, dict):
@@ -226,6 +228,29 @@ def post_to_single_connection(event, connection_id, payload):
 
 # --- Helper Router Routing ---
 
+def get_body_from_event(event):
+    """Extracts and parses the JSON body from the API Gateway event, handling Base64 encoding if present."""
+    body_data = event.get('body')
+    if not body_data:
+        return {}
+        
+    if isinstance(body_data, dict):
+        return body_data
+        
+    if event.get('isBase64Encoded', False):
+        try:
+            body_data = base64.b64decode(body_data).decode('utf-8')
+        except Exception as e:
+            logger.error(f"Failed to decode base64 body: {e}")
+            return {}
+            
+    try:
+        return json.loads(body_data)
+    except Exception as e:
+        logger.error(f"Failed to parse body JSON: {e}")
+        return {}
+
+
 def get_session_key_from_event(event):
     """Extracts session_key dynamically from query strings, headers, or JSON body"""
     query_params = event.get('queryStringParameters') or {}
@@ -239,14 +264,9 @@ def get_session_key_from_event(event):
         if k.lower() in ('x-session-key', 'session_key', 'session-key'):
             return v
             
-    body_str = event.get('body')
-    if body_str:
-        try:
-            body = json.loads(body_str)
-            if isinstance(body, dict):
-                return body.get('session_key') or body.get('session-key')
-        except:
-            pass
+    body = get_body_from_event(event)
+    if body:
+        return body.get('session_key') or body.get('session-key')
             
     return None
 
@@ -318,15 +338,90 @@ def handle_rest_request(event):
             "robots": robots
         })
         
+    # 4b. GET /api/xiaoice_token
+    if path == "/api/xiaoice_token" and method == "GET":
+        import urllib.request
+        import urllib.error
+        
+        # 1. Retrieve the strict, required subscription key from environment variables
+        xiaoice_subscription_key = os.environ.get('XIAOICE_SUBSCRIPTION_KEY', '')
+        if not xiaoice_subscription_key:
+            logger.error("Configuration Error: XIAOICE_SUBSCRIPTION_KEY environment variable is not configured.")
+            return make_rest_response(500, {
+                "success": False,
+                "error": "Configuration Error: XIAOICE_SUBSCRIPTION_KEY environment variable is not configured on the backend server."
+            })
+            
+        # 2. Retrieve the required project_id from client query parameters (strict, no fallbacks)
+        query_params = event.get('queryStringParameters') or {}
+        req_project_id = query_params.get('project_id') or query_params.get('projectId') or query_params.get('project-id')
+        
+        if not req_project_id:
+            logger.error("Bad Request: 'project_id' query parameter was not provided by the client.")
+            return make_rest_response(400, {
+                "success": False,
+                "error": "Bad Request: 'project_id' query parameter is required but was not provided by the client."
+            })
+            
+        avatar_project_id = req_project_id.strip()
+        if len(avatar_project_id) != 32:
+            logger.error(f"Bad Request: 'project_id' must be exactly 32 hex characters. Got '{avatar_project_id}' of length {len(avatar_project_id)}.")
+            return make_rest_response(400, {
+                "success": False,
+                "error": f"Bad Request: 'project_id' query parameter must be a 32-character hexadecimal string, got length {len(avatar_project_id)}."
+            })
+            
+        # 3. Query the official Xiaoice Signature generation API
+        try:
+            gen_url = "https://interactive-virtualhuman.xiaoice.com/openapi/signature/gen"
+            logger.info(f"Querying Xiaoice signature generator API for project '{avatar_project_id[:6]}...' with subscription key: '{xiaoice_subscription_key[:6]}...'")
+            
+            req = urllib.request.Request(gen_url, method="GET")
+            req.add_header("subscription-key", xiaoice_subscription_key)
+            
+            with urllib.request.urlopen(req, timeout=10) as response:
+                status = response.status
+                body = response.read().decode('utf-8', errors='ignore')
+                
+                if status == 200:
+                    data = json.loads(body)
+                    if data.get("code") == 200 and data.get("data"):
+                        sign_token = data.get("data")
+                        # The Xiaoice WebRTC player page expects the 'sign' parameter to be double-base64 encoded (a base64-encoded JWT).
+                        # Let's base64-encode the raw JWT string so that 'atob' can parse it properly without InvalidCharacterError.
+                        base64_sign = base64.b64encode(sign_token.encode('utf-8')).decode('utf-8')
+                        
+                        logger.info("Successfully fetched fresh dynamic signature from Xiaoice OpenAPI.")
+                        return make_rest_response(200, {
+                            "success": True,
+                            "project_id": avatar_project_id,
+                            "sign": base64_sign,
+                            "mode": "official_openapi"
+                        })
+                    else:
+                        logger.error(f"Xiaoice OpenAPI returned non-200 code inside response body: {body}")
+                        return make_rest_response(502, {
+                            "success": False,
+                            "error": f"Xiaoice OpenAPI returned error inside response body: {body}"
+                        })
+                else:
+                    logger.error(f"Xiaoice OpenAPI returned HTTP status {status}")
+                    return make_rest_response(502, {
+                        "success": False,
+                        "error": f"Xiaoice OpenAPI returned HTTP status {status}"
+                    })
+                    
+        except Exception as openapi_err:
+            logger.error(f"Xiaoice OpenAPI token fetch failed: {str(openapi_err)}")
+            return make_rest_response(502, {
+                "success": False,
+                "error": f"Failed to fetch signature token from Xiaoice OpenAPI: {str(openapi_err)}"
+            })
+        
     # 5. POST /api/add_robot/<robot_id>
     if path.startswith("/api/add_robot/") and method == "POST":
         robot_id = path.split("/")[-1]
-        body = {}
-        if event.get('body'):
-            try:
-                body = json.loads(event['body'])
-            except:
-                pass
+        body = get_body_from_event(event)
                 
         robots = get_session_robots(session_key)
         if robot_id in robots:
@@ -406,12 +501,7 @@ def handle_rest_request(event):
     # 8. POST /run_action/<robot_id>
     if path.startswith("/run_action/") and method == "POST":
         robot_id = path.split("/")[-1]
-        body = {}
-        if event.get('body'):
-            try:
-                body = json.loads(event['body'])
-            except:
-                pass
+        body = get_body_from_event(event)
                 
         action = body.get("action")
         if not action:
@@ -466,12 +556,7 @@ def handle_rest_request(event):
     # 9. POST /speech/<robot_id>
     if path.startswith("/speech/") and method == "POST":
         robot_id = path.split("/")[-1]
-        body = {}
-        if event.get('body'):
-            try:
-                body = json.loads(event['body'])
-            except:
-                pass
+        body = get_body_from_event(event)
                 
         audio_url = body.get("audio_url")
         text = body.get("text", "")
@@ -492,12 +577,7 @@ def handle_rest_request(event):
 
     # 9b. POST /api/digital-human/speak
     if path == "/api/digital-human/speak" and method == "POST":
-        body = {}
-        if event.get('body'):
-            try:
-                body = json.loads(event['body'])
-            except:
-                pass
+        body = get_body_from_event(event)
                 
         message = body.get("message", "")
         audio_url = body.get("audio_url", "")
@@ -516,12 +596,7 @@ def handle_rest_request(event):
 
     # 10. POST /api/video/change_source
     if path == "/api/video/change_source" and method == "POST":
-        body = {}
-        if event.get('body'):
-            try:
-                body = json.loads(event['body'])
-            except:
-                pass
+        body = get_body_from_event(event)
         video_src = body.get("video_src")
         if not video_src:
             return make_rest_response(400, {"success": False, "error": "video_src is required"})
@@ -534,12 +609,7 @@ def handle_rest_request(event):
 
     # 11. POST /api/video/control
     if path == "/api/video/control" and method == "POST":
-        body = {}
-        if event.get('body'):
-            try:
-                body = json.loads(event['body'])
-            except:
-                pass
+        body = get_body_from_event(event)
         action = body.get("action")
         if action not in ["play", "pause", "toggle"]:
             return make_rest_response(400, {"success": False, "error": "Invalid action. Must be play, pause, or toggle"})

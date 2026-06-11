@@ -87,8 +87,8 @@ def main():
     )
     parser.add_argument(
         "--mcp-url",
-        default=os.environ.get("MCP_SERVER_URL", ""),
-        help="MCP server Lambda function URL (or set MCP_SERVER_URL env var)",
+        default=os.environ.get("MCP_SERVER_URL") or os.environ.get("McpServerUrl") or "",
+        help="MCP server Lambda function URL (or set MCP_SERVER_URL or McpServerUrl env var)",
     )
     parser.add_argument(
         "--json",

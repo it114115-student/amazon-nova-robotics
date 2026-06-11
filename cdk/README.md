@@ -56,3 +56,58 @@ The MCP Lambda URL is granted to the current AWS account by default. That makes 
 You can override the allowed caller accounts with CDK context:
 
 - `openclawCallerAccountIds`: comma-separated string or array of AWS account IDs that should be allowed to invoke the MCP Lambda URL
+
+## 👩 Xiaoice Digital Human Credentials & Dynamic Avatar Switching
+
+The Xiaoice Digital Human Bridge Console (`xiaoice_human.html`) supports secure, serverless dynamic signature token generation using an integrated client-safe API endpoint on the AWS Lambda backend. 
+
+### 🛡️ Secret Hygiene & Security Architecture
+To ensure complete protection against **secret leaks**:
+- The partner developer credentials (`XIAOICE_SUBSCRIPTION_KEY` and `XIAOICE_APP_SECRET`) reside **exclusively on the AWS Lambda backend** as environment variables.
+- They are **never** exposed in frontend HTML, CSS, JavaScript, or client logs.
+- They are stored locally in the gitignored `cdk/.env` file. **Never commit `.env` or hardcode credentials into Git.**
+
+---
+
+### 🎨 How to Handle and Switch Multiple Avatar Project IDs (Dynamic Switcher)
+If you have multiple projects or different digital human avatars, you can switch between them on the fly **without redeploying any backend code or changing server configurations**. 
+
+Simply append the target project ID as a query parameter in your browser URL when opening the console:
+
+```markdown
+https://djt9g9bto90gy.cloudfront.net/xiaoice_human.html?project_id=<TARGET_PROJECT_ID>
+```
+
+#### Supported Query Parameter Formats:
+- `project_id` (e.g., `?project_id=3779193f0f9b4f74afd2121617ab4252`)
+- `projectId` (e.g., `?projectId=3779193f0f9b4f74afd2121617ab4252`)
+- `project-id` (e.g., `?project-id=3779193f0f9b4f74afd2121617ab4252`)
+
+#### How it works under the hood:
+1. **Client URL Parse**: `xiaoice_human.html` extracts the `project_id` from the browser address bar search query.
+2. **Backend Query Forwarding**: The frontend requests a token from `/api/xiaoice_token?project_id=<TARGET_PROJECT_ID>`.
+3. **Dynamic Signature Generation**: The AWS Lambda retrieves the request, extracts the specified `project_id`, calls the official Xiaoice signature generator API with your secret `XIAOICE_SUBSCRIPTION_KEY`, base64-encodes the resulting JWT signature token (preventing browser decoding exceptions), and returns both the safe token and target `project_id` back to the frontend.
+4. **Resilient Auto-Refresh**: The background refresh loop in the frontend is fully aware of the chosen project ID and refreshes the token for that specific active avatar every 45 minutes automatically, preventing stream termination.
+
+---
+
+### 🚀 Setup & Deployment Instructions
+
+1. **Create your `.env` file** (if it doesn't already exist) by copying the template:
+   ```bash
+   cp .env.template .env
+   ```
+2. **Open the `cdk/.env` file** and configure your Xiaoice credentials:
+   ```ini
+   XIAOICE_APP_SECRET=your_app_secret_here
+   XIAOICE_COMPANY_ID=your_company_id_here
+   XIAOICE_SUBSCRIPTION_KEY=your_partner_subscription_key_here
+   XIAOICE_PROJECT_ID=f989c84f7bc7439aa238356ebe5045f1
+   ```
+3. **Deploy the Stack**:
+   Run the deployment script:
+   ```bash
+   ./deploy.sh
+   ```
+   The CDK application automatically maps these values securely into the Lambda function's environment variables. If no `XIAOICE_SUBSCRIPTION_KEY` is supplied, the Lambda backend will recognize this and gracefully fallback to generating local signature handshakes using the app secret, keeping the console operational.
+

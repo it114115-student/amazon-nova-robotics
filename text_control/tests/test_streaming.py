@@ -24,11 +24,24 @@ def calculate_signature_legacy(body_string: str, secret_key: str, timestamp: str
 
 def calculate_signature_v2(secret_key: str, timestamp: str, body_string: str) -> str:
     """Calculate signature for authentication following the vendor specification (v2)"""
-    string_to_checksum = body_string + secret_key + timestamp
+    # Create parameter map
+    params = {
+        "bodyString": body_string,
+        "secretKey": secret_key,
+        "timestamp": timestamp,
+    }
+
+    # Sort by key name in ascending order and create signature string
+    sorted_params = sorted(params.items())
+    signature_string = "&".join([f"{k}={v}" for k, v in sorted_params])
+
+    # Calculate SHA-512 hash
     sha512 = hashlib.sha512()
-    sha512.update(string_to_checksum.encode("utf-8"))
+    sha512.update(signature_string.encode("utf-8"))
     hex_digest = sha512.hexdigest()
-    return hex_digest.replace("-", "")
+
+    # Convert to uppercase
+    return hex_digest.replace("-", "").upper()
 
 
 def test_xiaoice_stream():
@@ -40,8 +53,8 @@ def test_xiaoice_stream():
     endpoint = "/api/xiaoice-chat-api-strands-stream"
     
     # Get credentials from environment
-    secret_key = os.getenv("ChatSecretKey", "test_secret_key")
-    access_key = os.getenv("ChatAccessKey", "test_access_key")
+    secret_key = os.getenv("XiaoiceChatSecretKey", "test_secret_key")
+    access_key = os.getenv("XiaoiceChatAccessKey", "test_access_key")
     
     # Prepare request
     timestamp = str(int(time.time() * 1000))
@@ -69,7 +82,7 @@ def test_xiaoice_stream():
     try:
         response = requests.post(
             f"{base_url}{endpoint}",
-            json=payload,
+            data=body_string,
             headers=headers,
             stream=True,
             timeout=30
@@ -100,8 +113,8 @@ def test_talk_stream():
     endpoint = "/api/talk"
     
     # Get credentials from environment
-    secret_key = os.getenv("ChatSecretKey", "test_secret_key")
-    access_key = os.getenv("ChatAccessKey", "test_access_key")
+    secret_key = os.getenv("XiaoiceChatSecretKey", "test_secret_key")
+    access_key = os.getenv("XiaoiceChatAccessKey", "test_access_key")
     
     # Prepare request
     timestamp = str(int(time.time() * 1000))
@@ -113,7 +126,8 @@ def test_talk_stream():
         "sessionId": session_id,
         "traceId": trace_id,
         "languageCode": "en",
-        "deviceId": "test_device"
+        "deviceId": "test_device",
+        "userParams": "robot_1"
     }
     
     body_string = json.dumps(payload, separators=(',', ':'))
@@ -129,7 +143,7 @@ def test_talk_stream():
     try:
         response = requests.post(
             f"{base_url}{endpoint}",
-            json=payload,
+            data=body_string,
             headers=headers,
             stream=True,
             timeout=30
@@ -160,8 +174,8 @@ def test_conversation_continuity():
     endpoint = "/api/xiaoice-chat-api-strands-stream"
     
     # Get credentials from environment
-    secret_key = os.getenv("ChatSecretKey", "test_secret_key")
-    access_key = os.getenv("ChatAccessKey", "test_access_key")
+    secret_key = os.getenv("XiaoiceChatSecretKey", "test_secret_key")
+    access_key = os.getenv("XiaoiceChatAccessKey", "test_access_key")
     
     session_id = str(uuid.uuid4())
     
@@ -199,7 +213,7 @@ def test_conversation_continuity():
         try:
             response = requests.post(
                 f"{base_url}{endpoint}",
-                json=payload,
+                data=body_string,
                 headers=headers,
                 stream=True,
                 timeout=30

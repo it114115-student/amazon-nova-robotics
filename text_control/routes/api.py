@@ -49,7 +49,7 @@ def chat():
     return asyncio.run(_chat(data))
 
 
-@api_bp.route("talk", methods=["POST"])
+@api_bp.route("/talk", methods=["POST"])
 def talk_stream():
     """
     SSE streaming endpoint using Strands Agents
@@ -133,7 +133,7 @@ background: {background}
         return error_response(500, f"Error processing request: {e}")
 
 
-@api_bp.route("welcome", methods=["POST"])
+@api_bp.route("/welcome", methods=["POST"])
 def welcome():
     """
     Welcome message endpoint
@@ -185,7 +185,7 @@ def welcome():
         return error_response(500, f"Error generating welcome: {e}")
 
 
-@api_bp.route("goodbye", methods=["POST"])
+@api_bp.route("/goodbye", methods=["POST"])
 def goodbye():
     """
     Goodbye message endpoint
@@ -216,7 +216,7 @@ def goodbye():
         return error_response(500, f"Error generating goodbye: {e}")
 
 
-@api_bp.route("recquestions", methods=["POST"])
+@api_bp.route("/recquestions", methods=["POST"])
 def recquestions():
     """
     Recommended questions endpoint

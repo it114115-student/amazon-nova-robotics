@@ -14,7 +14,10 @@ import { Duration, Stack, RemovalPolicy, DockerImage } from "aws-cdk-lib";
 import * as logs from "aws-cdk-lib/aws-logs";
 import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
 
-export interface RobotSimulatorServerlessConstructProps { }
+export interface RobotSimulatorServerlessConstructProps {
+  userPoolId?: string;
+  userPoolClientId?: string;
+}
 
 export class RobotSimulatorServerlessConstruct extends Construct {
   public readonly serviceUrl: string;
@@ -89,6 +92,10 @@ export class RobotSimulatorServerlessConstruct extends Construct {
         AWS_BEDROCK_REGION: "us-east-1",
         CONNECTIONS_TABLE: connectionsTable.tableName,
         SESSIONS_TABLE: sessionsTable.tableName,
+        XIAOICE_APP_SECRET: process.env.XIAOICE_APP_SECRET || "",
+        XIAOICE_COMPANY_ID: process.env.XIAOICE_COMPANY_ID || "",
+        XIAOICE_PROJECT_ID: process.env.XIAOICE_PROJECT_ID || "",
+        XIAOICE_SUBSCRIPTION_KEY: process.env.XIAOICE_SUBSCRIPTION_KEY || "",
       },
     });
 
@@ -247,6 +254,9 @@ export class RobotSimulatorServerlessConstruct extends Construct {
         }),
         s3deploy.Source.jsonData("config.json", {
           webSocketUrl: `wss://${webSocketApi.ref}.execute-api.${Stack.of(this).region}.amazonaws.com/${stage.stageName}`,
+          region: Stack.of(this).region,
+          userPoolId: props.userPoolId,
+          clientId: props.userPoolClientId,
         }),
       ],
       destinationBucket: this.websiteBucket,

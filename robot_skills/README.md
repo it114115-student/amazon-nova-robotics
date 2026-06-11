@@ -27,4 +27,17 @@ cd <skill_folder>
 ./run.sh --robot-id robot_1 --action wave
 ```
 
+### CDK Environment Variables Integration (Recommended)
+
+Each python skill script automatically detects either `MCP_SERVER_URL` or `McpServerUrl` environment variables. If you have deployed your CDK stacks, you can load the environment variables directly from the CDK output before running any skill:
+
+```bash
+# From the project root directory
+source load_cdkstack_env.sh
+
+# Now run the skill directly, it will seamlessly route requests through the AWS Bedrock AgentCore Secure Gateway
+cd robot_skills/humanoid
+./run.sh --robot-id robot_1 --action wave
+```
+
 Each skill is fully independent — its own venv, its own deps, no shared imports.

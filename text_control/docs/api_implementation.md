@@ -120,8 +120,8 @@ def calculate_signature(secret_key, timestamp, body_string):
 ```
 
 **Environment Variables:**
-- `ChatSecretKey`: Secret key for signature
-- `ChatAccessKey`: Valid access key
+- `XiaoiceChatSecretKey`: Official secret key for signature (Strictly required; no fallback)
+- `XiaoiceChatAccessKey`: Official access key (Strictly required; no fallback)
 
 ### 2. Session-Based Authentication
 
@@ -361,6 +361,25 @@ Comprehensive logging for:
 - **v0.2.0**: Command optimization system
 - **v0.3.0**: Multi-robot parallel execution
 - **v0.4.0**: Enhanced authentication and validation
+
+## Configuration and API URLs
+
+When configuring the Xiaoice/AIBEINGS console, configure the API URLs as follows to match the registered routes on the deployed AWS API Gateway/Lambda backend:
+
+### 1. Modern Streaming API URL (流式接口 — Recommended)
+- **Path**: `/api/talk`
+- **Full Deployed URL Example**: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod/api/talk`
+- **Details**: Uses Server-Sent Events (SSE) following the V2 signature specification (SHA-512 calculated on alphabetically ordered parameter map, converted to UPPERCASE).
+
+### 2. Legacy Streaming API URL (流式接口 — v1 protocol)
+- **Path**: `/api/xiaoice-chat-api-strands-stream`
+- **Full Deployed URL Example**: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod/api/xiaoice-chat-api-strands-stream`
+- **Details**: Uses SSE streaming with legacy v1 SHA-512 signature calculation (concatenated text).
+
+### 3. Legacy Non-Streaming API URL (非流式接口)
+- **Path**: `/api/xiaoice-chat-api-strands`
+- **Full Deployed URL Example**: `https://<api-id>.execute-api.us-east-1.amazonaws.com/prod/api/xiaoice-chat-api-strands`
+- **Details**: Plain HTTP POST endpoint with legacy v1 SHA-512 signature calculation.
 
 ## Compliance
 

@@ -17,6 +17,10 @@
   <!-- 3. Pixi-Live2D-Display Adapter -->
   <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism2.min.js"></script>
 
+  <!-- MediaPipe Face Mesh Dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
   <style>
     :root {
       --bg-color: #0b0f19;
@@ -437,6 +441,182 @@
     .btn:active {
       transform: translateY(0);
     }
+
+    /* Face Tracking Panel */
+    .tracking-panel {
+      position: absolute;
+      top: 270px;
+      left: 24px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px;
+      width: 220px;
+      box-shadow: var(--glass-glow);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .tracking-panel-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tracking-switch-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
+    /* Beautiful Cyber Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      transition: .3s;
+      border-radius: 22px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: rgba(255, 255, 255, 0.7);
+      transition: .3s;
+      border-radius: 50%;
+      box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+    }
+
+    input:checked + .slider {
+      background-color: rgba(0, 240, 255, 0.2);
+      border-color: var(--accent-cyan);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+      background-color: var(--accent-cyan);
+      box-shadow: 0 0 8px var(--accent-cyan);
+    }
+
+    .tracking-select {
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      color: white;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-family: inherit;
+      font-size: 11px;
+      outline: none;
+      width: 100%;
+      transition: border-color 0.3s;
+      cursor: pointer;
+    }
+
+    .tracking-select:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .preview-container {
+      position: relative;
+      width: 100%;
+      height: 120px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      background: #000;
+      display: none;
+    }
+
+    .preview-container.visible {
+      display: block;
+    }
+
+    #webcam-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* mirror */
+    }
+
+    .preview-overlay {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      background: rgba(5, 7, 12, 0.7);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 9px;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      z-index: 3;
+    }
+
+    #webcam-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+      transform: scaleX(-1); /* mirror matching video */
+    }
+
+    .tracking-status-overlay {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      background: rgba(5, 7, 12, 0.7);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 9px;
+      color: #ef4444;
+      text-transform: uppercase;
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 0.5px;
+      z-index: 3;
+    }
+
+    .tracking-status-overlay.locked {
+      border-color: rgba(16, 185, 129, 0.5);
+      color: #10b981;
+    }
   </style>
 </head>
 
@@ -451,9 +631,15 @@
         <h1><span>🤖</span> Digital Human Speech Core</h1>
         <p>Live2D Model Renderer & Synthesis Bridge</p>
       </div>
-      <div class="status-badge">
-        <div id="ws-dot" class="status-dot"></div>
-        <span id="ws-status-text">DISCONNECTED</span>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="header-logos" style="display: flex; align-items: center; gap: 12px;">
+          <img src="./img/hkiit-logo.png" alt="HKIIT Logo" style="height: 36px; object-fit: contain; filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.1));">
+          <img src="./img/it114115-logo.png" alt="IT114115 Logo" style="height: 36px; object-fit: contain; filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.1));">
+        </div>
+        <div class="status-badge">
+          <div id="ws-dot" class="status-dot"></div>
+          <span id="ws-status-text">DISCONNECTED</span>
+        </div>
       </div>
     </header>
 
@@ -462,6 +648,38 @@
       <div style="font-size: 12px; font-weight: 600; color: var(--accent-cyan); margin-bottom: 4px; text-transform: uppercase; font-family: 'Share Tech Mono';">🎙️ Manual Override Test</div>
       <input type="text" id="manual-text" class="test-input" placeholder="Type message..." value="Hello, I am Shizuku. Ready to assist.">
       <button class="btn" onclick="testManualSpeech()">Speak Now</button>
+    </div>
+
+    <!-- Face Tracking Control -->
+    <div class="tracking-panel">
+      <div class="tracking-panel-title">
+        <span>👁️ Face Tracking</span>
+      </div>
+      
+      <div class="tracking-switch-container">
+        <span>Enable Tracking</span>
+        <label class="switch">
+          <input type="checkbox" id="tracking-toggle" onchange="toggleFaceTracking(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div id="camera-select-container" style="display: none; flex-direction: column; gap: 8px;">
+        <div style="margin-top: 4px; color: rgba(240, 244, 258, 0.6);">Camera Device</div>
+        <select id="camera-select" class="tracking-select" onchange="onCameraChange(this.value)"></select>
+        
+        <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
+          <input type="checkbox" id="show-preview-check" onchange="togglePreviewVisibility(this.checked)" checked style="cursor: pointer;">
+          <label for="show-preview-check" style="cursor: pointer; color: rgba(240, 244, 258, 0.6); font-size: 10px;">Show Camera Preview</label>
+        </div>
+      </div>
+
+      <div id="preview-container" class="preview-container">
+        <video id="webcam-video" autoplay playsinline muted></video>
+        <canvas id="webcam-canvas"></canvas>
+        <div class="preview-overlay">Webcam Feed</div>
+        <div id="tracking-status-overlay" class="tracking-status-overlay">NO FACE</div>
+      </div>
     </div>
 
     <!-- Diagnostics Panel -->
@@ -489,6 +707,10 @@
       <div class="diag-row">
         <span class="diag-label">Mouth Sync:</span>
         <span id="diag-mouth" class="diag-value">Idle</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-label">Face Track:</span>
+        <span id="diag-face-track" class="diag-value" style="color: rgba(240, 244, 258, 0.4);">Disabled</span>
       </div>
       <div class="wave-container" id="sound-wave">
         <div class="wave-bar" style="animation-delay: 0.1s"></div>
@@ -594,12 +816,15 @@
         document.getElementById('speaker-tag').textContent = "SHIZUKU";
         document.getElementById('dialogue-text').textContent = "System active and listening. Trigger digital human speech from the MCP Server tools.";
 
-        // Mouse focus tracking
-        window.addEventListener("mousemove", (event) => {
-          if (model && typeof model.focus === "function") {
-            model.focus(event.clientX, event.clientY);
-          }
-        });
+         // Mouse focus tracking
+         window.addEventListener("mousemove", (event) => {
+           if (trackingActive && faceDetected) {
+             return; // Skip mouse focus if face tracking is active and face is detected
+           }
+           if (model && typeof model.focus === "function") {
+             model.focus(event.clientX, event.clientY);
+           }
+         });
 
       } catch (err) {
         console.error("⚠️ Shizuku load failed:", err);
@@ -949,6 +1174,379 @@
       }
     }
 
+    // --- Face Tracking & Capture Services (Google MediaPipe integration) ---
+    let faceMesh = null;
+    let trackingActive = false;
+    let faceDetected = false;
+    let lastFaceDetectionTime = 0;
+    let cameraDevices = [];
+    let activeStream = null;
+    let trackingLoopId = null;
+
+    // Smoothed/filtered focus coordinates to prevent jitter
+    let currentFocusX = window.innerWidth / 2;
+    let currentFocusY = window.innerHeight / 2;
+    const lerpFactor = 0.15; // lower is smoother, higher is faster
+
+    function initFaceMesh() {
+      if (faceMesh) return;
+      
+      console.log("🧬 Initializing MediaPipe FaceMesh...");
+      faceMesh = new FaceMesh({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+      });
+
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      faceMesh.onResults(onFaceMeshResults);
+    }
+
+    function updateCanvasSize() {
+      const canvas = document.getElementById('webcam-canvas');
+      const container = document.getElementById('preview-container');
+      if (canvas && container) {
+        if (canvas.width !== container.clientWidth || canvas.height !== container.clientHeight) {
+          canvas.width = container.clientWidth;
+          canvas.height = container.clientHeight;
+        }
+      }
+    }
+
+    function drawTrackingOverlay(results) {
+      const canvas = document.getElementById('webcam-canvas');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      updateCanvasSize();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const statusOverlay = document.getElementById('tracking-status-overlay');
+      
+      if (results && results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        const landmarks = results.multiFaceLandmarks[0];
+        
+        // Update overlay text
+        if (statusOverlay) {
+          statusOverlay.textContent = "LOCK ACTIVE";
+          statusOverlay.classList.add('locked');
+        }
+        
+        // Find bounding box for tech brackets
+        let minX = 1, maxX = 0, minY = 1, maxY = 0;
+        landmarks.forEach(lm => {
+          if (lm.x < minX) minX = lm.x;
+          if (lm.x > maxX) maxX = lm.x;
+          if (lm.y < minY) minY = lm.y;
+          if (lm.y > maxY) maxY = lm.y;
+        });
+        
+        const x0 = minX * canvas.width;
+        const x1 = maxX * canvas.width;
+        const y0 = minY * canvas.height;
+        const y1 = maxY * canvas.height;
+        
+        // 1. Draw point cloud / sparse mesh
+        ctx.fillStyle = "rgba(0, 240, 255, 0.45)";
+        landmarks.forEach((lm, idx) => {
+          // Draw every 3rd point for a beautiful sparse matrix look
+          if (idx % 3 === 0) {
+            const px = lm.x * canvas.width;
+            const py = lm.y * canvas.height;
+            ctx.fillRect(px, py, 1.2, 1.2);
+          }
+        });
+        
+        // 2. Draw outer face bounding tech corners
+        const pad = 6;
+        const bx0 = x0 - pad;
+        const bx1 = x1 + pad;
+        const by0 = y0 - pad;
+        const by1 = y1 + pad;
+        const len = Math.min(12, (bx1 - bx0) * 0.15);
+        
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.65)";
+        ctx.lineWidth = 1.2;
+        ctx.shadowColor = "rgba(0, 240, 255, 0.8)";
+        ctx.shadowBlur = 3;
+        
+        // Top-Left corner
+        ctx.beginPath();
+        ctx.moveTo(bx0 + len, by0);
+        ctx.lineTo(bx0, by0);
+        ctx.lineTo(bx0, by0 + len);
+        ctx.stroke();
+        
+        // Top-Right corner
+        ctx.beginPath();
+        ctx.moveTo(bx1 - len, by0);
+        ctx.lineTo(bx1, by0);
+        ctx.lineTo(bx1, by0 + len);
+        ctx.stroke();
+        
+        // Bottom-Left corner
+        ctx.beginPath();
+        ctx.moveTo(bx0 + len, by1);
+        ctx.lineTo(bx0, by1);
+        ctx.lineTo(bx0, by1 - len);
+        ctx.stroke();
+        
+        // Bottom-Right corner
+        ctx.beginPath();
+        ctx.moveTo(bx1 - len, by1);
+        ctx.lineTo(bx1, by1);
+        ctx.lineTo(bx1, by1 - len);
+        ctx.stroke();
+        
+        // 3. Draw high-tech target reticle at glabella
+        const noseBridge = landmarks[168] || landmarks[4];
+        if (noseBridge) {
+          const cx = noseBridge.x * canvas.width;
+          const cy = noseBridge.y * canvas.height;
+          
+          ctx.strokeStyle = "rgba(0, 240, 255, 0.8)";
+          ctx.lineWidth = 1;
+          
+          // Center dot
+          ctx.fillStyle = "rgba(0, 240, 255, 0.9)";
+          ctx.beginPath();
+          ctx.arc(cx, cy, 1.5, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Outer circle
+          ctx.beginPath();
+          ctx.arc(cx, cy, 10, 0, 2 * Math.PI);
+          ctx.stroke();
+          
+          // Crosshairs
+          ctx.beginPath();
+          // Top line
+          ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy - 10);
+          // Bottom line
+          ctx.moveTo(cx, cy + 10); ctx.lineTo(cx, cy + 14);
+          // Left line
+          ctx.moveTo(cx - 14, cy); ctx.lineTo(cx - 10, cy);
+          // Right line
+          ctx.moveTo(cx + 10, cy); ctx.lineTo(cx + 14, cy);
+          ctx.stroke();
+        }
+        
+        // Reset shadow
+        ctx.shadowBlur = 0;
+        
+      } else {
+        // No face detected
+        if (statusOverlay) {
+          statusOverlay.textContent = "SEARCHING...";
+          statusOverlay.classList.remove('locked');
+        }
+      }
+    }
+
+    function onFaceMeshResults(results) {
+      const diagStatus = document.getElementById('diag-face-track');
+      
+      // Update visual high-tech overlay elements
+      drawTrackingOverlay(results);
+      
+      if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        const landmarks = results.multiFaceLandmarks[0];
+        // Landmark 168 (glabella / center between eyes) is ideal for look-at tracking
+        const noseBridge = landmarks[168] || landmarks[4];
+        if (noseBridge) {
+          faceDetected = true;
+          lastFaceDetectionTime = Date.now();
+          updateFaceFocus(noseBridge.x, noseBridge.y);
+          
+          diagStatus.textContent = "Active (Face detected)";
+          diagStatus.style.color = "#10b981";
+        }
+      } else {
+        // Fallback to idle state or mouse tracking if face is lost for >1.5s
+        if (Date.now() - lastFaceDetectionTime > 1500) {
+          faceDetected = false;
+          diagStatus.textContent = "Searching...";
+          diagStatus.style.color = "var(--accent-gold)";
+        }
+      }
+    }
+
+    function updateFaceFocus(faceX, faceY) {
+      // Map normalized 0-1 camera coordinates to absolute window pixel values.
+      // We subtract faceX from 1 to mirror horizontal motion naturally.
+      const targetX = (1 - faceX) * window.innerWidth;
+      const targetY = faceY * window.innerHeight;
+
+      // Exponential moving average filter (LERP)
+      currentFocusX += (targetX - currentFocusX) * lerpFactor;
+      currentFocusY += (targetY - currentFocusY) * lerpFactor;
+
+      if (modelInstance && typeof modelInstance.focus === "function") {
+        modelInstance.focus(currentFocusX, currentFocusY);
+      }
+    }
+
+    async function getCameraDevices() {
+      try {
+        // Enforce user permission check to access devices and labels
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        cameraDevices = devices.filter(d => d.kind === 'videoinput');
+        
+        const select = document.getElementById('camera-select');
+        select.innerHTML = '';
+        
+        if (cameraDevices.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No cameras found';
+          select.appendChild(opt);
+          return;
+        }
+
+        cameraDevices.forEach((device, index) => {
+          const opt = document.createElement('option');
+          opt.value = device.deviceId;
+          opt.textContent = device.label || `Camera ${index + 1}`;
+          select.appendChild(opt);
+        });
+
+        const savedDevice = localStorage.getItem('face_tracking_device_id');
+        if (savedDevice && cameraDevices.some(d => d.deviceId === savedDevice)) {
+          select.value = savedDevice;
+        }
+      } catch (err) {
+        console.error("Failed to enumerate camera devices:", err);
+        logSystem("Failed to load camera devices.");
+      }
+    }
+
+    async function startCamera(deviceId = null) {
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+
+      const constraints = {
+        video: deviceId ? { deviceId: { exact: deviceId }, width: 320, height: 240 } : { width: 320, height: 240 },
+        audio: false
+      };
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        activeStream = stream;
+        const video = document.getElementById('webcam-video');
+        video.srcObject = stream;
+        video.play();
+
+        trackingActive = true;
+        runTrackingLoop();
+      } catch (err) {
+        console.error("Camera access failed:", err);
+        logSystem("Camera access failed: " + err.message);
+        document.getElementById('diag-face-track').textContent = "Camera Error";
+        document.getElementById('diag-face-track').style.color = "#ef4444";
+      }
+    }
+
+    function stopCamera() {
+      trackingActive = false;
+      faceDetected = false;
+      if (trackingLoopId) {
+        cancelAnimationFrame(trackingLoopId);
+      }
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+        activeStream = null;
+      }
+      const video = document.getElementById('webcam-video');
+      if (video) {
+        video.srcObject = null;
+      }
+      
+      // Clear canvas overlay & reset lock text on stop
+      const canvas = document.getElementById('webcam-canvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      const statusOverlay = document.getElementById('tracking-status-overlay');
+      if (statusOverlay) {
+        statusOverlay.textContent = "NO FACE";
+        statusOverlay.classList.remove('locked');
+      }
+    }
+
+    async function runTrackingLoop() {
+      if (!trackingActive) return;
+      
+      const video = document.getElementById('webcam-video');
+      if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+        try {
+          await faceMesh.send({ image: video });
+        } catch (e) {
+          console.error("MediaPipe FaceMesh error during send:", e);
+        }
+      }
+      trackingLoopId = requestAnimationFrame(runTrackingLoop);
+    }
+
+    async function toggleFaceTracking(enabled) {
+      localStorage.setItem('face_tracking_enabled', enabled ? 'true' : 'false');
+      
+      const selectContainer = document.getElementById('camera-select-container');
+      const previewContainer = document.getElementById('preview-container');
+      const diagStatus = document.getElementById('diag-face-track');
+
+      if (enabled) {
+        logSystem("Activating Face Tracking system...");
+        diagStatus.textContent = "Initializing...";
+        diagStatus.style.color = "var(--accent-gold)";
+        
+        selectContainer.style.display = 'flex';
+        const showPreview = document.getElementById('show-preview-check').checked;
+        if (showPreview) {
+          previewContainer.classList.add('visible');
+        }
+        
+        initFaceMesh();
+        await getCameraDevices();
+        
+        const select = document.getElementById('camera-select');
+        await startCamera(select.value || null);
+      } else {
+        logSystem("Deactivating Face Tracking...");
+        diagStatus.textContent = "Disabled";
+        diagStatus.style.color = "rgba(240, 244, 258, 0.4)";
+        
+        selectContainer.style.display = 'none';
+        previewContainer.classList.remove('visible');
+        
+        stopCamera();
+      }
+    }
+
+    async function onCameraChange(deviceId) {
+      if (deviceId) {
+        localStorage.setItem('face_tracking_device_id', deviceId);
+        if (trackingActive) {
+          await startCamera(deviceId);
+        }
+      }
+    }
+
+    function togglePreviewVisibility(visible) {
+      const previewContainer = document.getElementById('preview-container');
+      if (visible && trackingActive) {
+        previewContainer.classList.add('visible');
+      } else {
+        previewContainer.classList.remove('visible');
+      }
+    }
+
     function logSystem(msg) {
       const element = document.getElementById('system-log');
       const timeStr = new Date().toLocaleTimeString();
@@ -959,6 +1557,16 @@
     window.addEventListener('DOMContentLoaded', () => {
       initLive2DAvatar();
       initWebSocket();
+
+      // Auto-restore saved face tracking configuration
+      const savedEnabled = localStorage.getItem('face_tracking_enabled') === 'true';
+      if (savedEnabled) {
+        document.getElementById('tracking-toggle').checked = true;
+        // Small delay to ensure WebGL and modelInstance are fully loaded
+        setTimeout(() => {
+          toggleFaceTracking(true);
+        }, 1500);
+      }
     });
 
     // Speak voices async initialization in some browsers

@@ -12,6 +12,7 @@ import configparser
 import json
 import logging
 import os
+import signal
 import threading
 from concurrent.futures import Future
 from typing import Any, Dict, Optional
@@ -23,10 +24,31 @@ from speech_executor import SpeechExecutor
 
 TIMEOUT = 5
 
+from logging.handlers import TimedRotatingFileHandler
+
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, "speech.log")
+
+# Create root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+
+# Formatter
+formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+
+# Console handler (for systemd journal)
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+root_logger.addHandler(console_handler)
+
+# Rotating file handler (daily rotate, keep 7 days)
+file_handler = TimedRotatingFileHandler(
+    log_file, when="midnight", interval=1, backupCount=7, encoding="utf-8"
 )
+file_handler.setFormatter(formatter)
+root_logger.addHandler(file_handler)
 
 
 def load_settings(settings_path: str) -> dict:
@@ -210,19 +232,35 @@ class SpeechPubSubClient:
         logging.info("Client Stopped!")
 
     def run(self) -> None:
+        def handle_sigterm(signum, frame):
+            logging.info("SIGTERM received, shutting down gracefully...")
+            self.received_all_event.set()
+
+        # Register SIGTERM handler
+        old_handler = signal.signal(signal.SIGTERM, handle_sigterm)
+
         self.connect()
         self.subscribe()
         logging.info("Listening for speech commands. Type 's' and press Enter to stop.")
         try:
-            while True:
-                user_input = input("Type 's' and press Enter to stop the program: ")
-                if user_input.strip().lower() == "s":
-                    logging.info("'s' received, shutting down gracefully...")
-                    self.received_all_event.set()
+            while not self.received_all_event.is_set():
+                try:
+                    user_input = input("Type 's' and press Enter to stop the program: ")
+                    if user_input.strip().lower() == "s":
+                        logging.info("'s' received, shutting down gracefully...")
+                        self.received_all_event.set()
+                        break
+                except EOFError:
+                    logging.info("No TTY or input stream closed. Running in background mode.")
+                    # Wait on received_all_event instead of input loop
+                    while not self.received_all_event.is_set():
+                        self.received_all_event.wait(timeout=1.0)
                     break
         except KeyboardInterrupt:
             logging.info("KeyboardInterrupt received, shutting down...")
         finally:
+            # Restore original signal handler
+            signal.signal(signal.SIGTERM, old_handler)
             self.unsubscribe()
             self.stop()
 

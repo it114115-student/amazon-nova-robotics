@@ -42,7 +42,10 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
     const humanoidRobotSimulatorServerlessConstruct = new RobotSimulatorServerlessConstruct(
       this,
       "RobotSimulatorServerlessConstruct",
-      {}
+      {
+        userPoolId: authenticator.userPool.userPoolId,
+        userPoolClientId: authenticator.userPoolClient.userPoolClientId,
+      }
     );
 
     const mcpServerConstruct = new LambdaMcpServerConstruct(

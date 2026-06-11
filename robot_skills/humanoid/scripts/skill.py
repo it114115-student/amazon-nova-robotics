@@ -252,8 +252,8 @@ def main():
                         help="Wait for action duration between sequence steps. "
                              "Use --wait for auto-duration or --wait 5 for fixed seconds.")
     parser.add_argument("--region", default="us-east-1", help="AWS region")
-    parser.add_argument("--mcp-url", default=os.environ.get("MCP_SERVER_URL", ""),
-                        help="MCP server Lambda function URL (or set MCP_SERVER_URL env var)")
+    parser.add_argument("--mcp-url", default=os.environ.get("MCP_SERVER_URL") or os.environ.get("McpServerUrl") or "",
+                        help="MCP server Lambda function URL (or set MCP_SERVER_URL or McpServerUrl env var)")
     parser.add_argument("--list-actions", action="store_true", help="List all available actions and exit")
     parser.add_argument("--json", action="store_true", dest="json_output",
                         help="Output results as JSON (useful for agent consumption)")

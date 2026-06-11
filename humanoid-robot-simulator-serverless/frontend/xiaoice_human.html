@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>👁️ 雲端系統及數據中心管理高級文憑</title>
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-dark: #05060a;
+      --bg-card: rgba(10, 12, 22, 0.6);
+      --accent-cyan: #00f0ff;
+      --accent-purple: #bd00ff;
+      --accent-pink: #ff007a;
+      --text-main: #f0f4fe;
+      --text-muted: rgba(240, 244, 258, 0.6);
+      --border-glow: rgba(0, 240, 255, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      position: relative;
+    }
+
+    #app-container {
+      display: none;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Cyberpunk Cognito Login Overlay Styles */
+    .login-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      backdrop-filter: blur(20px);
+      padding: 40px 30px;
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(0, 240, 255, 0.03);
+      width: 100%;
+      max-width: 420px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 3px;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple), var(--accent-pink));
+    }
+
+    .login-title-logos {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .login-title-logos img {
+      height: 40px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.15));
+    }
+
+    .login-header-text {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .login-header-text h2 {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--accent-cyan), #ffffff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.4;
+    }
+
+    .login-header-text p {
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .login-form-group {
+      margin-bottom: 20px;
+    }
+
+    .login-form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent-cyan);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .login-form-group input {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(5, 6, 10, 0.8);
+      border: 1px solid rgba(0, 240, 255, 0.15);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .login-form-group input:focus {
+      outline: none;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.25), inset 0 0 10px rgba(0, 0, 0, 0.5);
+      background: rgba(0, 240, 255, 0.02);
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-purple) 100%);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Outfit', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 15px rgba(0, 240, 255, 0.2);
+      margin-top: 10px;
+    }
+
+    .login-btn:hover {
+      background: linear-gradient(135deg, #ffffff 0%, var(--accent-cyan) 100%);
+      transform: translateY(-1.5px);
+      box-shadow: 0 6px 20px rgba(0, 240, 255, 0.35);
+    }
+
+    .login-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none;
+    }
+
+    .login-error {
+      background: rgba(255, 0, 122, 0.1);
+      color: #ff3b9a;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+      font-size: 13px;
+      border: 1px solid rgba(255, 0, 122, 0.25);
+      line-height: 1.4;
+      text-align: center;
+      font-weight: 500;
+    }
+
+    /* Cyber background ambient animations */
+    .grid-bg {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background-image: 
+        linear-gradient(rgba(0, 240, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.015) 1px, transparent 1px);
+      background-size: 50px 50px;
+      pointer-events: none;
+      z-index: -2;
+    }
+
+    .glow-sphere {
+      position: absolute;
+      top: -200px;
+      right: -200px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(189, 0, 255, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .glow-sphere-left {
+      position: absolute;
+      bottom: -200px;
+      left: -200px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(0, 240, 255, 0.05) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    header {
+      padding: 16px 40px;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.1);
+      background: rgba(5, 6, 10, 0.8);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-logo h1 {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-logo span {
+      font-size: 24px;
+      animation: pulse-avatar 2s infinite ease-in-out;
+    }
+
+    @keyframes pulse-avatar {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px var(--accent-cyan)); }
+      50% { transform: scale(1.1); filter: drop-shadow(0 0 8px var(--accent-cyan)); }
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+
+    .avatar-select-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .avatar-select {
+      background: rgba(5, 6, 10, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.22);
+      color: var(--accent-cyan);
+      padding: 8px 30px 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      font-family: 'Share Tech Mono', monospace;
+      outline: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.05);
+    }
+
+    .avatar-select:hover, .avatar-select:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+      background: rgba(0, 240, 255, 0.05);
+    }
+
+    /* Chevron indicator for custom select */
+    .avatar-select-wrapper::after {
+      content: '▼';
+      font-size: 8px;
+      color: var(--accent-cyan);
+      position: absolute;
+      right: 12px;
+      pointer-events: none;
+    }
+
+    .nav-btn {
+      background: rgba(0, 240, 255, 0.03);
+      border: 1px solid rgba(0, 240, 255, 0.15);
+      color: var(--text-main);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-btn:hover {
+      background: var(--accent-cyan);
+      color: var(--bg-dark);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+      border-color: var(--accent-cyan);
+      transform: translateY(-1px);
+    }
+
+    /* Full-Screen Core Viewport Layout */
+    .projection-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 30px;
+      overflow: hidden;
+      height: 100%;
+      width: 100%;
+    }
+
+    /* Massive holographic card viewport */
+    .viewport-panel {
+      background: var(--bg-card);
+      border: 1px solid rgba(0, 240, 255, 0.15);
+      border-radius: 20px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), inset 0 0 40px rgba(0, 240, 255, 0.03);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      max-width: 1500px;
+    }
+
+    .viewport-header {
+      padding: 16px 30px;
+      border-bottom: 1px solid rgba(240, 244, 258, 0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .viewport-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-family: 'Share Tech Mono', monospace;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .viewport-status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      background: rgba(16, 185, 129, 0.06);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      padding: 5px 12px;
+      border-radius: 4px;
+    }
+
+    .status-pulse {
+      width: 6px;
+      height: 6px;
+      background-color: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10b981;
+      animation: status-ping 1.5s infinite ease-in-out;
+    }
+
+    @keyframes status-ping {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; transform: scale(1.1); }
+      100% { opacity: 0.5; }
+    }
+
+    /* Target Reticles / Cyberpunk Overlay elements */
+    .viewport-body {
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      background: radial-gradient(circle at center, rgba(14, 16, 27, 0.2) 0%, rgba(5, 6, 10, 0.9) 100%);
+      padding: 24px;
+      overflow: hidden;
+    }
+
+    .hud-reticle-circle {
+      position: absolute;
+      width: 80%;
+      height: 80%;
+      border: 1px dashed rgba(0, 240, 255, 0.03);
+      border-radius: 50%;
+      pointer-events: none;
+      animation: rotate-hud 80s linear infinite;
+    }
+
+    @keyframes rotate-hud {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .hud-corner {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-color: rgba(0, 240, 255, 0.25);
+      border-style: solid;
+      pointer-events: none;
+    }
+    .hud-top-left { top: 24px; left: 24px; border-width: 2px 0 0 2px; }
+    .hud-top-right { top: 24px; right: 24px; border-width: 2px 2px 0 0; }
+    .hud-bottom-left { bottom: 24px; left: 24px; border-width: 0 0 2px 2px; }
+    .hud-bottom-right { bottom: 24px; right: 24px; border-width: 0 2px 2px 0; }
+
+    /* Centered big character container sizing rules */
+    #xiaoice-streaming-embed {
+      position: relative !important;
+      left: auto !important;
+      right: auto !important;
+      top: auto !important;
+      bottom: auto !important;
+      width: 100% !important;
+      height: 100% !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: transparent !important;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2 !important;
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    #xiaoice-streaming-embed.vertical {
+      height: 100% !important;
+      width: auto !important;
+      aspect-ratio: 9 / 16 !important;
+      max-height: 82vh !important;
+      border-radius: 16px !important;
+      box-shadow: 0 15px 50px rgba(0, 240, 255, 0.2) !important;
+      border: 1px solid var(--accent-cyan) !important;
+      background: rgba(0,0,0,0.6) !important;
+    }
+
+    #xiaoice-streaming-embed.horizontal {
+      width: 100% !important;
+      height: auto !important;
+      aspect-ratio: 16 / 9 !important;
+      max-width: 90% !important;
+      border-radius: 16px !important;
+      box-shadow: 0 15px 50px rgba(0, 240, 255, 0.2) !important;
+      border: 1px solid var(--accent-cyan) !important;
+      background: rgba(0,0,0,0.6) !important;
+    }
+
+    /* Futuristic HUD Telemetry bar at the bottom */
+    .telemetry-overlay {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      right: 24px;
+      background: rgba(5, 6, 10, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.12);
+      border-radius: 12px;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 5;
+      backdrop-filter: blur(10px);
+    }
+
+    .telemetry-left {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .telemetry-tag {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--accent-cyan);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .telemetry-tag span {
+      color: var(--text-main);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* pulsing sound waves indicators */
+    .sound-wave-container {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 26px;
+    }
+
+    .sound-wave-bar {
+      width: 3.5px;
+      height: 3px;
+      background-color: var(--accent-cyan);
+      border-radius: 2px;
+      transition: height 0.15s ease;
+    }
+
+    .sound-wave-container.active .sound-wave-bar {
+      animation: sound-bounce 0.8s infinite ease-in-out alternate;
+    }
+
+    .sound-wave-container.active .sound-wave-bar:nth-child(2) { animation-delay: 0.1s; }
+    .sound-wave-container.active .sound-wave-bar:nth-child(3) { animation-delay: 0.25s; }
+    .sound-wave-container.active .sound-wave-bar:nth-child(4) { animation-delay: 0.05s; }
+    .sound-wave-container.active .sound-wave-bar:nth-child(5) { animation-delay: 0.15s; }
+    .sound-wave-container.active .sound-wave-bar:nth-child(6) { animation-delay: 0.3s; }
+    .sound-wave-container.active .sound-wave-bar:nth-child(7) { animation-delay: 0.2s; }
+    .sound-wave-container.active .sound-wave-bar:nth-child(8) { animation-delay: 0.35s; }
+
+    @keyframes sound-bounce {
+      0% { height: 3px; background-color: var(--accent-cyan); }
+      50% { height: 24px; background-color: var(--accent-purple); }
+      100% { height: 7px; background-color: var(--accent-pink); }
+    }
+
+    /* Maximize avatar & hide telemetry/headers */
+    .viewport-header,
+    .telemetry-overlay {
+      display: none !important;
+    }
+    
+    .projection-container {
+      padding: 0px !important;
+    }
+    
+    .viewport-panel {
+      border: none !important;
+      border-radius: 0px !important;
+      box-shadow: none !important;
+      max-width: 100% !important;
+    }
+    
+    .viewport-body {
+      padding: 0px !important;
+    }
+    
+    /* Ensure the iframe/embed matches maximum space */
+    #xiaoice-streaming-embed {
+      border-radius: 0px !important;
+      box-shadow: none !important;
+      border: none !important;
+      max-height: 100% !important;
+      max-width: 100% !important;
+    }
+    
+    #xiaoice-streaming-embed.vertical {
+      max-height: 100% !important;
+      height: 100% !important;
+      width: auto !important;
+      aspect-ratio: 9 / 16 !important;
+      border-radius: 0px !important;
+      box-shadow: none !important;
+      border: none !important;
+    }
+    
+    #xiaoice-streaming-embed.horizontal {
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      aspect-ratio: 16 / 9 !important;
+      border-radius: 0px !important;
+      box-shadow: none !important;
+      border: none !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="grid-bg"></div>
+  <div class="glow-sphere"></div>
+  <div class="glow-sphere-left"></div>
+
+  <!-- Login Screen Overlay -->
+  <div id="login-wrapper" class="login-wrapper">
+    <div class="login-card">
+      <div class="login-title-logos">
+        <img src="./img/hkiit-logo.png" alt="HKIIT Logo">
+        <img src="./img/it114115-logo.png" alt="IT114115 Logo">
+      </div>
+      <div class="login-header-text">
+        <h2>雲端系統及數據中心管理高級文憑</h2>
+        <p>Xiaoice Avatar Control Portal</p>
+      </div>
+
+      <div id="login-error" class="login-error"></div>
+
+      <form id="login-form" onsubmit="handleLoginSubmit(event)">
+        <div class="login-form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" placeholder="Enter Cognito username" required autocomplete="username">
+        </div>
+        <div class="login-form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Enter Cognito password" required autocomplete="current-password">
+        </div>
+        <button type="submit" id="login-submit-btn" class="login-btn">Secure Login</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app-container">
+    <!-- Header -->
+    <header>
+      <div class="header-logo" style="display: flex; align-items: center; gap: 16px;">
+        <div class="header-logos" style="display: flex; align-items: center; gap: 12px;">
+          <img src="./img/hkiit-logo.png" alt="HKIIT Logo" style="height: 36px; object-fit: contain; filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.1));">
+          <img src="./img/it114115-logo.png" alt="IT114115 Logo" style="height: 36px; object-fit: contain; filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.1));">
+        </div>
+        <h1 style="font-size: 18px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">雲端系統及數據中心管理高級文憑</h1>
+      </div>
+      <div class="nav-links">
+        <div class="avatar-select-wrapper">
+          <select class="avatar-select" id="avatar-selector" onchange="handleAvatarChange(this.value)">
+            <option value="f989c84f7bc7439aa238356ebe5045f1">👩 Default Avatar</option>
+            <option value="3779193f0f9b4f74afd2121617ab4252">🥋 Zen'in Maki</option>
+            <option value="0187a3c44dab4e60b858a0c1bb244bc5">🦊 Fox Spirit</option>
+            <option value="8834a19db4b74f86ad56eee8b1924b29">⚡ Cyber Warrior</option>
+            <option value="aa6e5175d1674f9db421975d37adf98e">🔮 Hologram AI</option>
+            <option value="custom">⚙️ Custom Avatar ID...</option>
+          </select>
+        </div>
+        <a href="index.html" class="nav-btn">🤖 3D Robot Simulator</a>
+        <a href="digital_human.html" class="nav-btn">👩 Shizuku Avatar Page</a>
+        <button class="nav-btn" onclick="handleLogout()" style="background: rgba(255, 0, 122, 0.05); border-color: rgba(255, 0, 122, 0.2); color: #ff007a;">🚪 Log Out</button>
+      </div>
+    </header>
+
+    <!-- Centered full screen viewport -->
+    <div class="projection-container">
+      <div class="viewport-panel">
+        
+        <div class="viewport-header">
+          <div class="viewport-title">📡 HOLOGRAPHIC AVATAR PROJECTION</div>
+          <div class="viewport-status-badge">
+            <div class="status-pulse"></div>
+            <span id="video-stream-status">LOADING STREAM</span>
+          </div>
+        </div>
+        
+        <div class="viewport-body">
+          <div class="hud-corner hud-top-left"></div>
+          <div class="hud-corner hud-top-right"></div>
+          <div class="hud-corner hud-bottom-left"></div>
+          <div class="hud-corner hud-bottom-right"></div>
+          <div class="hud-reticle-circle"></div>
+          
+          <!-- Embedded Xiaoice Streaming container will render inside here -->
+        </div>
+        
+        <!-- Integrated Audio Telemetry HUD -->
+        <div class="telemetry-overlay">
+          <div class="telemetry-left">
+            <div class="telemetry-tag">
+              COGNITIVE STATE
+              <span style="color: var(--accent-cyan); font-weight: 700; letter-spacing: 0.5px;">SYNCHRONIZED</span>
+            </div>
+            <div class="telemetry-tag">
+              SPEECH SYSTEM
+              <span id="mouth-state">IDLE</span>
+            </div>
+            <div class="telemetry-tag">
+              DECIBELS
+              <span id="voice-db">-90 dB</span>
+            </div>
+          </div>
+          
+          <div class="sound-wave-container" id="sound-wave">
+            <div class="sound-wave-bar"></div>
+            <div class="sound-wave-bar"></div>
+            <div class="sound-wave-bar"></div>
+            <div class="sound-wave-bar"></div>
+            <div class="sound-wave-bar"></div>
+            <div class="sound-wave-bar"></div>
+            <div class="sound-wave-bar"></div>
+            <div class="sound-wave-bar"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- WebSocket speech stream connection ---
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    let speakTimer = null;
+    let currentAudio = null;
+    let isSpeaking = false;
+
+    function getSessionKey() {
+      const urlParams = new URLSearchParams(window.location.search);
+      let key = urlParams.get('session_key');
+      if (key) {
+        return decodeURIComponent(key).trim().replace(/ /g, "+");
+      }
+      return 'mcpserver';
+    }
+    const sessionKey = getSessionKey();
+
+    // Start fetching the dynamic Xiaoice authentication token after authentication
+    let tokenFetchPromise = null;
+
+    async function fetchXiaoiceToken() {
+      const urlParams = new URLSearchParams(window.location.search);
+      let apiUrl = urlParams.get('api_url') || '';
+      if (apiUrl && !apiUrl.endsWith('/')) {
+        apiUrl += '/';
+      } else if (!apiUrl) {
+        apiUrl = '/'; // Guaranteed root-relative resolution
+      }
+      
+      // Resolve project_id explicitly (no fallback on backend)
+      let activeProjectId = urlParams.get('project_id') || urlParams.get('projectId') || urlParams.get('project-id') || '';
+      activeProjectId = activeProjectId.trim();
+      
+      if (!activeProjectId) {
+        const selector = document.getElementById('avatar-selector');
+        activeProjectId = (selector && selector.value) ? selector.value : 'f989c84f7bc7439aa238356ebe5045f1';
+      }
+      
+      // Always explicitly forward the project_id to avoid any guessing or missing parameters on the server
+      const fetchUrl = `${apiUrl}api/xiaoice_token?session_key=${encodeURIComponent(sessionKey)}&project_id=${encodeURIComponent(activeProjectId)}`;
+      
+      console.log(`🚀 Fetching Xiaoice token from: ${fetchUrl}`);
+      try {
+        const response = await fetch(fetchUrl);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.sign && data.project_id) {
+            console.log("✅ Xiaoice token fetched successfully!");
+            return data;
+          } else {
+            console.error("Backend dynamic token fetch was unsuccessful or incomplete:", data.error || "Missing sign token or project ID");
+          }
+        } else {
+          try {
+            const errData = await response.json();
+            console.error(`Backend dynamic token fetch failed with status ${response.status}:`, errData.error || errData);
+          } catch (_) {
+            console.error("Backend dynamic token fetch failed with status:", response.status);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching backend dynamic token:", err);
+      }
+      return null;
+    }
+
+    async function initWebSocket() {
+      try {
+        let webSocketUrl = '';
+        try {
+          const configResp = await fetch('/config.json');
+          if (configResp.ok) {
+            const config = await configResp.json();
+            if (config.webSocketUrl) {
+              webSocketUrl = `${config.webSocketUrl}?session_key=${sessionKey}`;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not read config.json, using relative websocket routing.');
+        }
+
+        if (!webSocketUrl) {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          webSocketUrl = `${protocol}//${window.location.host}/ws?session_key=${sessionKey}`;
+        }
+
+        console.log("Connecting to serverless event broker WebSocket...");
+        ws = new WebSocket(webSocketUrl);
+
+        ws.onopen = () => {
+          console.log("Connected to WebSocket API Gateway broker.");
+          reconnectAttempts = 0;
+          ws.send(JSON.stringify({
+            action: 'join_session',
+            session_key: sessionKey
+          }));
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            const type = payload.type;
+            const data = payload.data;
+            
+            console.log(`📥 Received WS message: ${type}`, data);
+
+            if (type === 'digital_human_speech') {
+              const msg = data.message;
+              const audioUrl = data.audio_url;
+              speakText(msg, audioUrl);
+            } else if (type === 'speech' && (data.robot_id === 'xiaoice_1' || data.robot_id === 'all')) {
+              const msg = data.text;
+              const audioUrl = data.audio_url;
+              speakText(msg, audioUrl);
+            }
+          } catch (e) {
+            console.error("Failed to parse websocket frame:", e);
+          }
+        };
+
+        ws.onclose = () => {
+          handleWSDisconnect();
+        };
+
+        ws.onerror = (error) => {
+          handleWSDisconnect();
+        };
+
+      } catch (err) {
+        console.error("WebSocket init failed:", err);
+        handleWSDisconnect();
+      }
+    }
+
+    function handleWSDisconnect() {
+      if (reconnectAttempts < maxReconnectAttempts) {
+        reconnectAttempts++;
+        const delay = Math.min(2000 * reconnectAttempts, 15000);
+        setTimeout(initWebSocket, delay);
+      }
+    }
+
+    function stopAllSpeech() {
+      window.speechSynthesis.cancel();
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+      }
+      clearInterval(speakTimer);
+      setSpeakingState(false);
+    }
+
+    function setSpeakingState(speaking) {
+      isSpeaking = speaking;
+      const diagMouth = document.getElementById('mouth-state');
+      const voiceDb = document.getElementById('voice-db');
+      const soundWave = document.getElementById('sound-wave');
+      
+      if (speaking) {
+        diagMouth.textContent = "SPEAKING";
+        diagMouth.style.color = "var(--accent-pink)";
+        voiceDb.textContent = "-12.5 dB";
+        soundWave.classList.add('active');
+      } else {
+        diagMouth.textContent = "IDLE";
+        diagMouth.style.color = "inherit";
+        voiceDb.textContent = "-90 dB";
+        soundWave.classList.remove('active');
+      }
+    }
+
+    function speakTextFallback(text) {
+      if (!text || !text.trim()) return;
+      stopAllSpeech();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = window.speechSynthesis.getVoices();
+      
+      if (voices.length > 0) {
+        const femaleKeywords = ['zira', 'samantha', 'google us english', 'female', 'girl', 'woman', 'microsoft sabina', 'karen', 'victoria', 'hazel', 'susan', 'heera', 'natural'];
+        let foundVoice = null;
+        
+        for (const keyword of femaleKeywords) {
+          const v = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes(keyword));
+          if (v) { foundVoice = v; break; }
+        }
+        if (!foundVoice) {
+          foundVoice = voices.find(v => v.lang.startsWith('en'));
+        }
+        if (!foundVoice) {
+          foundVoice = voices[0];
+        }
+        if (foundVoice) {
+          utterance.voice = foundVoice;
+        }
+      }
+
+      utterance.rate = 1.05;
+      utterance.pitch = 1.1;
+
+      utterance.onstart = () => {
+        setSpeakingState(true);
+      };
+
+      utterance.onend = () => {
+        setSpeakingState(false);
+      };
+
+      utterance.onerror = (err) => {
+        setSpeakingState(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function playPollyAudio(url, text) {
+      if (!url) {
+        speakTextFallback(text);
+        return;
+      }
+      stopAllSpeech();
+
+      currentAudio = new Audio(url);
+      currentAudio.crossOrigin = 'anonymous';
+      
+      currentAudio.onplay = () => {
+        setSpeakingState(true);
+      };
+
+      currentAudio.onended = () => {
+        setSpeakingState(false);
+        currentAudio = null;
+      };
+
+      currentAudio.onerror = (err) => {
+        speakTextFallback(text);
+      };
+
+      currentAudio.play().catch(err => {
+        speakTextFallback(text);
+      });
+    }
+
+    function speakText(text, audioUrl = null) {
+      if (audioUrl) {
+        playPollyAudio(audioUrl, text);
+      } else {
+        speakTextFallback(text);
+      }
+    }
+
+    // --- Dynamic Resilient Xiaoice IFrame Integration ---
+    async function loadXiaoiceIframe() {
+      const host = "https://aibeings-vip.xiaoice.com";
+      let projectId = "";
+      let signToken = "";
+      
+      // Retrieve immediately pre-fetched serverless signature and credentials
+      try {
+        const tokenData = await tokenFetchPromise;
+        if (tokenData) {
+          signToken = tokenData.sign;
+          
+          // Prioritize the user-selected project ID from URL query parameters (or fallback to backend returned ID)
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlProjectId = urlParams.get('project_id') || urlParams.get('projectId') || urlParams.get('project-id') || '';
+          projectId = urlProjectId || tokenData.project_id;
+        } else {
+          console.error("Backend dynamic token fetch returned empty or failed");
+        }
+      } catch (err) {
+        console.error("Error retrieving pre-fetched backend dynamic token:", err);
+      }
+      
+      if (!projectId || !signToken) {
+        console.error("Aborting Xiaoice iframe load: missing projectId or signToken");
+        return;
+      }
+      
+      const iframeUrl = `${host}/CRTCPreview/${projectId}?sign=${signToken}&isIFrame=1`;
+      
+      const wrapDiv = document.createElement("div");
+      wrapDiv.id = "xiaoice-streaming-embed";
+      
+      const container = document.createElement("div");
+      container.id = "xiaoice-streaming-container";
+      
+      const stylesheet = document.createElement("style");
+      stylesheet.innerHTML = `
+        #xiaoice-streaming-container {
+          width: 100%;
+          height: 100%;
+        }
+        #xiaoice-streaming-container iframe {
+          width: 100%;
+          height: 100%;
+          border: 0;
+        }
+      `;
+      
+      const iframe = document.createElement("iframe");
+      iframe.allowFullscreen = false;
+      iframe.title = "Streaming Embed";
+      iframe.role = "dialog";
+      iframe.allow = "microphone";
+      iframe.src = iframeUrl;
+      
+      iframe.onload = () => {
+        document.getElementById("video-stream-status").textContent = "STREAM ACTIVE";
+        document.getElementById("video-stream-status").style.color = "#34d399";
+        
+        const watchDiv = document.getElementById('xiaoice-streaming-embed');
+        const resizeObserver = new ResizeObserver(() => {
+          iframe.contentWindow.postMessage({action: "resize"}, '*');
+        });
+        resizeObserver.observe(watchDiv);
+      };
+      
+      window.addEventListener("message", (e) => {
+        if (e.origin !== host) return;
+        if (e.data.action === 'start') {
+          if (e.data.ratio === 'horizontal') {
+            wrapDiv.classList.add("horizontal");
+            wrapDiv.classList.remove("vertical");
+          } else if (e.data.ratio === 'vertical') {
+            wrapDiv.classList.add("vertical");
+            wrapDiv.classList.remove("horizontal");
+          }
+        } else if (e.data.action === 'close') {
+          wrapDiv.classList.remove("horizontal", "vertical");
+        }
+      });
+      
+      container.appendChild(iframe);
+      wrapDiv.appendChild(stylesheet);
+      wrapDiv.appendChild(container);
+      
+      const viewport = document.querySelector(".viewport-body");
+      if (viewport) {
+        viewport.appendChild(wrapDiv);
+      } else {
+        document.body.appendChild(wrapDiv);
+      }
+      
+      // Start background token auto-refresh loop to prevent the 1-hour expiration
+      startTokenRefreshInterval(iframe, host, projectId);
+    }
+
+    let tokenRefreshTimer = null;
+
+    function startTokenRefreshInterval(iframe, host, initialProjectId) {
+      if (tokenRefreshTimer) clearInterval(tokenRefreshTimer);
+      
+      // Check and refresh token every 45 minutes (2,700,000 milliseconds)
+      tokenRefreshTimer = setInterval(async () => {
+        console.log("⏱️ Periodic trigger: Fetching fresh Xiaoice signature token...");
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          let apiUrl = urlParams.get('api_url') || '';
+          if (apiUrl && !apiUrl.endsWith('/')) {
+            apiUrl += '/';
+          } else if (!apiUrl) {
+            apiUrl = '/'; // Ensure root-relative path resolution
+          }
+          
+          // Ensure we always explicitly forward the project_id to avoid missing parameters on the server
+          const activeProjectId = (initialProjectId || 'f989c84f7bc7439aa238356ebe5045f1').trim();
+          const fetchUrl = `${apiUrl}api/xiaoice_token?session_key=${encodeURIComponent(sessionKey)}&project_id=${encodeURIComponent(activeProjectId)}`;
+          
+          const response = await fetch(fetchUrl);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.sign && data.project_id) {
+              console.log("🔄 Success: Retrieved fresh token. Re-pointing Xiaoice iframe source...");
+              iframe.src = `${host}/CRTCPreview/${data.project_id}?sign=${data.sign}&isIFrame=1`;
+            } else {
+              console.error("Auto-refresh fetch was unsuccessful:", data.error || "No sign token returned");
+            }
+          } else {
+            try {
+              const errData = await response.json();
+              console.error(`Auto-refresh fetch failed with status ${response.status}:`, errData.error || errData);
+            } catch (_) {
+              console.error("Auto-refresh fetch failed with status:", response.status);
+            }
+          }
+        } catch (err) {
+          console.error("Error in background auto-refresh loop:", err);
+        }
+      }, 2700000);
+    }
+
+    // Handle switching avatars dynamically via the dropdown selector
+    function handleAvatarChange(value) {
+      if (value === 'custom') {
+        const customId = prompt("Enter the 32-character Xiaoice Project ID:");
+        if (customId) {
+          const cleanedId = customId.trim();
+          if (cleanedId.length === 32) {
+            updateProjectUrl(cleanedId);
+          } else {
+            alert("Invalid Project ID. It must be exactly 32 hex characters.");
+            // Reset dropdown selection to the current project ID
+            setSelectedDropdownValue();
+          }
+        } else {
+          // Cancelled, reset dropdown
+          setSelectedDropdownValue();
+        }
+      } else {
+        updateProjectUrl(value);
+      }
+    }
+
+    function updateProjectUrl(projectId) {
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.set('project_id', projectId);
+      window.location.search = urlParams.toString();
+    }
+
+    function setSelectedDropdownValue() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const activeProjId = urlParams.get('project_id') || urlParams.get('projectId') || urlParams.get('project-id') || 'f989c84f7bc7439aa238356ebe5045f1';
+      
+      const selector = document.getElementById('avatar-selector');
+      if (selector) {
+        // If it's a known value, select it. Otherwise, add custom option.
+        const options = Array.from(selector.options).map(o => o.value);
+        if (options.includes(activeProjId)) {
+          selector.value = activeProjId;
+        } else {
+          // Create a dynamic option for this custom active ID
+          const customOpt = document.createElement('option');
+          customOpt.value = activeProjId;
+          customOpt.textContent = `⚙️ Custom: ${activeProjId.slice(0, 6)}...${activeProjId.slice(-4)}`;
+          selector.insertBefore(customOpt, selector.querySelector('option[value="custom"]'));
+          selector.value = activeProjId;
+        }
+      }
+    }
+
+    // --- On Window Initialization ---
+    function initialize() {
+      setSelectedDropdownValue();
+      tokenFetchPromise = fetchXiaoiceToken();
+      loadXiaoiceIframe();
+      initWebSocket();
+      startSessionGuard();
+    }
+
+    // --- Cognito REST API Authentication Integration ---
+    let cognitoConfig = {
+      region: "us-east-1",
+      clientId: "51l3dtt6e6o3e7s6pu1i4bre0m",
+      userPoolId: "us-east-1_TCeygz7nY"
+    };
+
+    let sessionGuardTimer = null;
+
+    async function loadCognitoConfig() {
+      try {
+        const response = await fetch('/config.json');
+        if (response.ok) {
+          const config = await response.json();
+          if (config.region) cognitoConfig.region = config.region;
+          if (config.clientId) cognitoConfig.clientId = config.clientId;
+          if (config.userPoolId) cognitoConfig.userPoolId = config.userPoolId;
+        }
+      } catch (err) {
+        console.warn('Could not read config.json for Cognito configuration, using default region & client IDs.', err);
+      }
+    }
+
+    function checkExistingAuth() {
+      const accessToken = localStorage.getItem('accessToken');
+      if (accessToken) {
+        try {
+          const payload = JSON.parse(atob(accessToken.split('.')[1]));
+          const currentTime = Math.floor(Date.now() / 1000);
+          if (payload.exp > currentTime) {
+            return true;
+          } else {
+            localStorage.clear();
+          }
+        } catch (error) {
+          localStorage.clear();
+        }
+      }
+      return false;
+    }
+
+    function startSessionGuard() {
+      if (sessionGuardTimer) clearInterval(sessionGuardTimer);
+      sessionGuardTimer = setInterval(() => {
+        if (!checkExistingAuth()) {
+          console.warn("🔒 Secure Cognito token expired. Tearing down connection to prevent unnecessary charges...");
+          forceSessionLogout();
+        }
+      }, 30000); // Verify session validity every 30 seconds
+    }
+
+    function forceSessionLogout() {
+      // Clear guard timer
+      if (sessionGuardTimer) {
+        clearInterval(sessionGuardTimer);
+        sessionGuardTimer = null;
+      }
+      // Clear token refresh timer
+      if (tokenRefreshTimer) {
+        clearInterval(tokenRefreshTimer);
+        tokenRefreshTimer = null;
+      }
+      // Close WebSocket safely
+      if (ws) {
+        reconnectAttempts = maxReconnectAttempts + 1; // Prevent reconnect attempts
+        ws.close();
+        ws = null;
+      }
+      // Halt all active and scheduled audio
+      stopAllSpeech();
+
+      // Remove the video streaming player iframe
+      const embed = document.getElementById('xiaoice-streaming-embed');
+      if (embed) {
+        embed.remove();
+      }
+
+      // Flush local session variables
+      localStorage.clear();
+
+      // Lock down application views
+      document.getElementById('app-container').style.display = 'none';
+      document.getElementById('login-wrapper').style.display = 'flex';
+
+      showLoginError("Your secure session has expired. Please sign in again.");
+    }
+
+    async function authenticateUser(username, password) {
+      const response = await fetch(`https://cognito-idp.${cognitoConfig.region}.amazonaws.com/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-amz-json-1.1',
+          'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth'
+        },
+        body: JSON.stringify({
+          AuthFlow: "USER_PASSWORD_AUTH",
+          ClientId: cognitoConfig.clientId,
+          AuthParameters: {
+            USERNAME: username,
+            PASSWORD: password
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Authentication failed');
+      }
+
+      const result = await response.json();
+      const authResult = result.AuthenticationResult;
+
+      localStorage.setItem('accessToken', authResult.AccessToken);
+      localStorage.setItem('idToken', authResult.IdToken);
+      localStorage.setItem('refreshToken', authResult.RefreshToken);
+
+      return authResult;
+    }
+
+    function showLoginError(msg) {
+      const errDiv = document.getElementById('login-error');
+      if (errDiv) {
+        errDiv.textContent = msg;
+        errDiv.style.display = 'block';
+      }
+    }
+
+    function hideLoginError() {
+      const errDiv = document.getElementById('login-error');
+      if (errDiv) {
+        errDiv.style.display = 'none';
+      }
+    }
+
+    async function handleLoginSubmit(event) {
+      event.preventDefault();
+      hideLoginError();
+
+      const btn = document.getElementById('login-submit-btn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Authenticating...";
+
+      const userVal = document.getElementById('username').value.trim();
+      const passVal = document.getElementById('password').value;
+
+      try {
+        await authenticateUser(userVal, passVal);
+        
+        // Unveil main application interface & initialize streaming
+        document.getElementById('login-wrapper').style.display = 'none';
+        document.getElementById('app-container').style.display = 'grid';
+        initialize();
+      } catch (err) {
+        console.error("Cognito login process failure:", err);
+        let errorMsg = err.message || "Authentication failed. Please verify credentials.";
+        if (errorMsg.includes("NotAuthorizedException")) {
+          errorMsg = "Incorrect username or password.";
+        }
+        showLoginError(errorMsg);
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    function handleLogout() {
+      forceSessionLogout();
+    }
+
+    async function initializePage() {
+      await loadCognitoConfig();
+      if (checkExistingAuth()) {
+        document.getElementById('login-wrapper').style.display = 'none';
+        document.getElementById('app-container').style.display = 'grid';
+        initialize();
+      } else {
+        document.getElementById('login-wrapper').style.display = 'flex';
+        document.getElementById('app-container').style.display = 'none';
+      }
+    }
+
+    if (document.readyState === "loading") {
+      window.addEventListener("DOMContentLoaded", initializePage);
+    } else {
+      initializePage();
+    }
+  </script>
+</body>
+</html>
