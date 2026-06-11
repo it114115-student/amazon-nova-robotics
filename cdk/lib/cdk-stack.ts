@@ -128,6 +128,7 @@ const textControlWebConstruct = new TextControlWebConstruct(
   {
     database: databaseConstruct,
     mcpServerConstruct: mcpServerConstruct,
+    robotGatewayConstruct: robotToolGatewayConstruct,
     userPool: authenticator.userPool,
     userPoolClient: authenticator.userPoolClient,
   }
@@ -143,7 +144,6 @@ const textControlWebConstruct = new TextControlWebConstruct(
       userName: "AmazonNovaRoboticsSkillUser",
     });
     mcpServerConstruct.grantInvokeFunctionUrl(skillUser);
-    mcpServerConstruct.grantInvokeGateway(skillUser);
     // Identity-based policy so the IAM user can invoke the function URL with SigV4
     skillUser.addToPolicy(
       new iam.PolicyStatement({
@@ -271,16 +271,6 @@ const textControlWebConstruct = new TextControlWebConstruct(
     new cdk.CfnOutput(this, "McpServerUrl", {
       value: mcpServerConstruct.functionUrl.url,
       description: "The URL of the MCP Server Lambda Function",
-    });
-
-    new cdk.CfnOutput(this, "McpServerAgentCoreGatewayUrl", {
-      value: mcpServerConstruct.gatewayUrl,
-      description: "The URL of the MCP Server Bedrock AgentCore Gateway",
-    });
-
-    new cdk.CfnOutput(this, "McpServerAgentCoreGatewayArn", {
-      value: mcpServerConstruct.gateway.gatewayArn,
-      description: "The ARN of the MCP Server Bedrock AgentCore Gateway",
     });
 
     new cdk.CfnOutput(this, "SkillMcpUserAccessKeyId", {

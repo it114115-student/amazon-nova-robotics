@@ -10,7 +10,7 @@ NOVA_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
 
 # Application settings
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-MCP_SERVER_URL = os.getenv("McpServerUrl", None)
+MCP_SERVER_URL = os.getenv("McpServerGatewayUrl", os.getenv("McpServerUrl", None))
 ROBOT_TABLE = os.getenv("RobotTable", "")
 SPEECH_TABLE = os.getenv("SpeechTable", "")
 COGNITO_USER_POOL_ID = os.getenv("CognitoUserPoolId")

@@ -8,19 +8,20 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as path from "path";
 import { Platform } from "aws-cdk-lib/aws-ecr-assets";
 import { DatabaseConstruct } from "./datebase";
-import { LambdaMcpServerConstruct } from "./mcp-server";
 import { Stack, RemovalPolicy } from "aws-cdk-lib";
 import {
   applyAgentCoreRuntimeLogRetention,
   createAgentCoreRuntimeObservability,
 } from "./agentcore-observability";
 
+interface AgentCoreGatewayAccess {
+  readonly gatewayUrl: string;
+  grantInvokeGateway(grantee: iam.IGrantable): void;
+}
+
 export interface SpeechControlAgentcoreConstructProps {
   readonly database: DatabaseConstruct;
-  readonly robotGatewayConstruct: Pick<
-    LambdaMcpServerConstruct,
-    "gatewayUrl" | "grantInvokeGateway"
-  >;
+  readonly robotGatewayConstruct: AgentCoreGatewayAccess;
   readonly userPoolId: string;
   readonly userPoolClientId: string;
   readonly identityPoolId: string;

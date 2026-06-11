@@ -12,9 +12,15 @@ import * as crypto from "crypto";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { SHARED_PYTHON_RUNTIME, SHARED_PYTHON_BUNDLING } from "./lambda-config";
+interface AgentCoreGatewayAccess {
+  readonly gatewayUrl: string;
+  grantInvokeGateway(grantee: iam.IGrantable): void;
+}
+
 export interface TextControlWebConstructProps {
   readonly database: DatabaseConstruct;
   readonly mcpServerConstruct: LambdaMcpServerConstruct;
+  readonly robotGatewayConstruct: AgentCoreGatewayAccess;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
 }
@@ -61,8 +67,7 @@ export class TextControlWebConstruct extends Construct {
       environment: {
         AWS_BEDROCK_REGION: "us-east-1",
         RobotTable: props.database.robotTable.tableName,
-        McpServerUrl: props.mcpServerConstruct.functionUrl.url,
-        McpServerGatewayUrl: props.mcpServerConstruct.gatewayUrl,
+        McpServerGatewayUrl: props.robotGatewayConstruct.gatewayUrl,
         CognitoUserPoolId: props.userPool.userPoolId,
         CognitoUserPoolClientId: props.userPoolClient.userPoolClientId,
         FlaskSecretKey: hash,
@@ -143,9 +148,11 @@ export class TextControlWebConstruct extends Construct {
       })
     );
 
-    // Grant permission to invoke the MCP server Lambda function URL
+    // Grant permission to invoke the MCP server Function URL
     props.mcpServerConstruct.grantInvokeFunctionUrl(flaskLambda.role!);
-    props.mcpServerConstruct.grantInvokeGateway(flaskLambda.role!);
+
+    // Grant permission to invoke the AgentCore Gateway
+    props.robotGatewayConstruct.grantInvokeGateway(flaskLambda.role!);
 
     const rootResource = restApi.root;
 

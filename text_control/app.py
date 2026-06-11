@@ -76,6 +76,12 @@ atexit.register(cleanup_mcp_client)
 
 def handler(event, context):
     """AWS Lambda handler for the Flask application"""
+    try:
+        from mcp_client import notify_new_invocation
+        if hasattr(context, "aws_request_id"):
+            notify_new_invocation(context.aws_request_id)
+    except Exception as e:
+        print(f"Error notifying new invocation to MCP client: {e}")
     return awsgi2.response(app, event, context)
 
 

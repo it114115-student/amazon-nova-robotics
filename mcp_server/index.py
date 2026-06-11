@@ -30,7 +30,15 @@ register_speech_tools(mcp)
 
 
 def handler(event, context):
-    """AWS Lambda handler function."""
+    """AWS Lambda handler function with prefix stripping for AgentCore Gateway support."""
+    # Strip AgentCore target prefix if present (e.g., target_name___tool_name -> tool_name)
+    if isinstance(event, dict) and event.get("method") == "tools/call":
+        params = event.get("params", {})
+        if isinstance(params, dict) and "name" in params:
+            tool_name = params["name"]
+            if "___" in tool_name:
+                params["name"] = tool_name.split("___", 1)[1]
+
     return mcp.handle_request(event, context)
 
 
