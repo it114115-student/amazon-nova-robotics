@@ -1,0 +1,17 @@
+graph LR
+    RobotTable["DynamoDB: RobotTable <br> (Stores Robot Metadata & State)"]
+    McpLambda["MCP Server Lambda"]
+    DH_Lambda["Digital Human Lambda"]
+    SpeechWeb["Speech Control Web Portal"]
+
+    McpLambda -->|grantReadData| RobotTable
+    DH_Lambda -->|grantReadWriteData| RobotTable
+    SpeechWeb -->|Read-Only via Cognito Auth Role| RobotTable
+
+    class RobotTable Storage;
+    class McpLambda,DH_Lambda Compute;
+    class SpeechWeb Client;
+
+    classDef Compute fill:#FF9900,stroke:#D68100,stroke-width:2px,color:#FFFFFF;
+    classDef Storage fill:#1A5F7A,stroke:#103F54,stroke-width:2px,color:#FFFFFF;
+    classDef Client fill:#4A4E69,stroke:#22223B,stroke-width:2px,color:#FFFFFF;

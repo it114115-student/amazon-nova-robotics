@@ -1,0 +1,28 @@
+graph TD
+    Caller["Caller / Operator <br> (SkillUser / Web Session)"]
+    Gateway["AWS Bedrock AgentCore Gateway <br> (RobotToolGateway)"]
+    
+    subgraph Targets ["L2 Sandbox Targets"]
+        TargetRobot["Target A: robot-only-mcp-lambda <br> (Bounded Schema)"]
+        TargetDH["Target B: digital-human-mcp-lambda <br> (Bounded Schema)"]
+    end
+
+    LambdaRobot["RobotToolFunction <br> (robot_tool_lambda.py)"]
+    LambdaDH["DigitalHumanToolFunction <br> (digital_human_tool_lambda.py)"]
+
+    Caller -->|1. SigV4 Signed Invoke| Gateway
+    Gateway -->|Inspect & Route| TargetRobot
+    Gateway -->|Inspect & Route| TargetDH
+    
+    TargetRobot -->|2a. Invoke| LambdaRobot
+    TargetDH -->|2b. Invoke| LambdaDH
+
+    class LambdaRobot,LambdaDH Compute;
+    class TargetRobot,TargetDH Storage;
+    class Gateway Gateway;
+    class Caller Client;
+
+    classDef Compute fill:#FF9900,stroke:#D68100,stroke-width:2px,color:#FFFFFF;
+    classDef Storage fill:#1A5F7A,stroke:#103F54,stroke-width:2px,color:#FFFFFF;
+    classDef Gateway fill:#008B8B,stroke:#006666,stroke-width:2px,color:#FFFFFF;
+    classDef Client fill:#4A4E69,stroke:#22223B,stroke-width:2px,color:#FFFFFF;

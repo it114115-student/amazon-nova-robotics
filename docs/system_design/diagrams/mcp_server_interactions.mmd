@@ -1,0 +1,25 @@
+graph TD
+    Web["Web UI / LLM Client"]
+    McpLambda["MCP Server Lambda <br> (McpFunction - Python)"]
+    S3Image["S3: Robot Image Bucket <br> (RobotImageBucket)"]
+    DynamoSpeech["DynamoDB: Speech Table <br> (SpeechTable)"]
+    DynamoRobot["DynamoDB: Robot Table <br> (RobotTable)"]
+    Polly["Amazon Polly Speech Synthesis"]
+    IoTCore["AWS IoT Core (MQTT)"]
+
+    Web -->|Function URL - IAM Authorized| McpLambda
+    McpLambda -->|1. Store/Retrieve Captured Images| S3Image
+    McpLambda -->|2. Cache synthesized speech| DynamoSpeech
+    McpLambda -->|3. Read telemetry state| DynamoRobot
+    McpLambda -->|4. Request Speech Synthesis| Polly
+    McpLambda -->|5. Publish MQTT control schema| IoTCore
+
+    class McpLambda Compute;
+    class S3Image,DynamoSpeech,DynamoRobot Storage;
+    class Polly,IoTCore Gateway;
+    class Web Client;
+
+    classDef Compute fill:#FF9900,stroke:#D68100,stroke-width:2px,color:#FFFFFF;
+    classDef Storage fill:#1A5F7A,stroke:#103F54,stroke-width:2px,color:#FFFFFF;
+    classDef Gateway fill:#008B8B,stroke:#006666,stroke-width:2px,color:#FFFFFF;
+    classDef Client fill:#4A4E69,stroke:#22223B,stroke-width:2px,color:#FFFFFF;

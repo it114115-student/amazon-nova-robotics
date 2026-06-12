@@ -1,0 +1,18 @@
+graph TD
+    UserPool["Cognito User Pool <br> (amazon-nona-robotics-app-user-pool)"]
+    UserPoolClient["Cognito User Pool Client <br> (No Client Secret, SRP Enabled)"]
+    IdentityPool["Cognito Identity Pool <br> (AmazonNovaRoboticsIdentityPool)"]
+    AuthRole["Authenticated IAM Role <br> (CognitoDefaultAuthenticatedRole)"]
+    RolePolicy["CfnRolePolicy <br> (CognitoIdentityPoolPolicy)"]
+    RoleAttachment["CfnIdentityPoolRoleAttachment"]
+
+    UserPoolClient -->|binds to| UserPool
+    IdentityPool -->|binds UserPool & Client| UserPoolClient
+    IdentityPool -->|federates| UserPool
+    RoleAttachment -->|attaches to| IdentityPool
+    RoleAttachment -->|assigns active role| AuthRole
+    AuthRole -->|attaches permission policies| RolePolicy
+
+    class UserPool,UserPoolClient,IdentityPool,AuthRole,RolePolicy,RoleAttachment Security;
+
+    classDef Security fill:#7B2CBF,stroke:#5A189A,stroke-width:2px,color:#FFFFFF;

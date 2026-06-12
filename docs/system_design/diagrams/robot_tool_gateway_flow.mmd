@@ -1,0 +1,23 @@
+sequenceDiagram
+    autonumber
+    participant Skill as Robot Python Skill Client
+    participant IAM as AWS IAM Service
+    participant Gateway as Bedrock AgentCore Secure Gateway
+    participant Lambda as RobotToolFunction (Lambda)
+    participant IoT as AWS IoT Core
+
+    Note over Skill, Gateway: Skill uses SkillMcpUser AccessKey/SecretKey <br> to sign the payload with SigV4
+    Skill->>Gateway: POST /gateway (InvokeGateway with 'robot_wave')
+    Gateway->>IAM: Verify Signature & Evaluate IAM Policies
+    
+    alt Verification Failed (Tampered or Missing Permission)
+        IAM-->>Gateway: Access Denied
+        Gateway-->>Skill: 403 Forbidden
+    else Verification Successful
+        IAM-->>Gateway: Signature Valid
+        Gateway->>Lambda: Route execution to robot_tool_lambda.py
+        Lambda->>IoT: Publish execution parameters to robot_1/topic
+        IoT-->>Lambda: Message Ack
+        Lambda-->>Gateway: Return Success JSON payload
+        Gateway-->>Skill: Return 200 OK
+    end

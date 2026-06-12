@@ -1,0 +1,24 @@
+graph TD
+    %% Legacy Mode %%
+    subgraph Legacy ["Legacy One-to-One Mode (Inefficient)"]
+        direction LR
+        Thing1["Thing 1"] --- Lambda1["Lambda 1"] --- Role1["IAM Role 1"]
+        Thing2["Thing 2"] --- Lambda2["Lambda 2"] --- Role2["IAM Role 2"]
+        ThingN["Thing N"] --- LambdaN["Lambda N"] --- RoleN["IAM Role N"]
+    end
+
+    %% Batch Mode %%
+    subgraph BatchMode ["Batch Provisioning Mode (Highly Efficient)"]
+        direction LR
+        BatchThings["Thing [1...N] <br> (Names Array)"] -->|Single Resource| BatchLambda["Single Custom Resource <br> (BatchIoTFunction)"] -->|Single IAM Role| BatchRole["Single IAM Role <br> (BatchIoTLambdaRole)"]
+    end
+
+    %% Style Application %%
+    class Lambda1,Lambda2,LambdaN,BatchLambda Compute;
+    class Thing1,Thing2,ThingN,BatchThings Storage;
+    class Role1,Role2,RoleN,BatchRole Security;
+
+    %% Style Class Definitions %%
+    classDef Compute fill:#FF9900,stroke:#D68100,stroke-width:2px,color:#FFFFFF;
+    classDef Storage fill:#1A5F7A,stroke:#103F54,stroke-width:2px,color:#FFFFFF;
+    classDef Security fill:#7B2CBF,stroke:#5A189A,stroke-width:2px,color:#FFFFFF;

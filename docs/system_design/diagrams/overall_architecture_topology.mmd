@@ -1,0 +1,73 @@
+graph TD
+    %% Node Definitions %%
+    subgraph Clients ["Clients & External Systems"]
+        WebCtrl["Speech/Text Control Portal"]
+        Simulator["Robot Simulator Portal"]
+        RobotDevice["Robots / Drones / Dogs / Digital Humans (Devices)"]
+    end
+
+    subgraph Boundaries ["API & Security Gateways"]
+        CognitoId["Cognito Identity Pool"]
+        AgentCoreGW["Bedrock AgentCore Secure Gateway"]
+        IoTCore["AWS IoT Core"]
+    end
+
+    subgraph ComputeZone ["Compute Services"]
+        McpLambda["MCP Server Lambda (Python)"]
+        RobotToolLambda["Robot Tool Lambda (Python)"]
+        DH_ToolLambda["Digital Human Tool Lambda (Python)"]
+        BatchIoTLambda["Batch IoT Lambda (Nodejs)"]
+    end
+
+    subgraph StorageZone ["Data Storage"]
+        DynamoRobot["DynamoDB: Robot Table"]
+        DynamoSpeech["DynamoDB: Speech Table"]
+        S3Image["S3: Robot Image Bucket"]
+        S3Cert["S3: IoT Cert Bucket"]
+    end
+
+    subgraph SecurityShared ["Security & Shared Services"]
+        CognitoUP["Cognito User Pool"]
+        SSM["AWS Systems Manager (SSM)"]
+        IAMRole["Cognito Auth IAM Role"]
+    end
+
+    %% Connections %%
+    WebCtrl -->|1. Authenticate| CognitoUP
+    WebCtrl -->|2. Get STS Credentials| CognitoId
+    WebCtrl -->|3. Signed SigV4 Invoke| AgentCoreGW
+    
+    AgentCoreGW -->|Route Target A| RobotToolLambda
+    AgentCoreGW -->|Route Target B| DH_ToolLambda
+    
+    McpLambda -->|Read Robot State| DynamoRobot
+    McpLambda -->|Write/Read Speech Cache| DynamoSpeech
+    McpLambda -->|Read/Write Images| S3Image
+    McpLambda -->|Publish MQTT Control| IoTCore
+    
+    RobotToolLambda -->|Publish Action MQTT| IoTCore
+    RobotToolLambda -->|Store Captured Frames| S3Image
+    DH_ToolLambda -->|Store Speech Cache| DynamoSpeech
+    DH_ToolLambda -->|Synthesize Speech| McpLambda
+    
+    BatchIoTLambda -->|Batch Register Devices| IoTCore
+    BatchIoTLambda -->|Store IoT Credentials| S3Cert
+    
+    IoTCore -->|MQTT Bi-directional Channel| RobotDevice
+    SSM -->|Remote Command Control Channel| RobotDevice
+    
+    %% Style Application %%
+    class McpLambda,RobotToolLambda,DH_ToolLambda,BatchIoTLambda Compute;
+    class DynamoRobot,DynamoSpeech,S3Image,S3Cert Storage;
+    class CognitoUP,CognitoId,IAMRole Security;
+    class AgentCoreGW,IoTCore Gateway;
+    class WebCtrl,Simulator,RobotDevice Client;
+    class SSM Shared;
+
+    %% Style Class Definitions %%
+    classDef Compute fill:#FF9900,stroke:#D68100,stroke-width:2px,color:#FFFFFF;
+    classDef Storage fill:#1A5F7A,stroke:#103F54,stroke-width:2px,color:#FFFFFF;
+    classDef Security fill:#7B2CBF,stroke:#5A189A,stroke-width:2px,color:#FFFFFF;
+    classDef Gateway fill:#008B8B,stroke:#006666,stroke-width:2px,color:#FFFFFF;
+    classDef Client fill:#4A4E69,stroke:#22223B,stroke-width:2px,color:#FFFFFF;
+    classDef Shared fill:#2E8B57,stroke:#1E5631,stroke-width:2px,color:#FFFFFF;

@@ -1,0 +1,23 @@
+sequenceDiagram
+    autonumber
+    participant Developer as Developer (cdk deploy)
+    participant CFN as AWS CloudFormation
+    participant Provider as Custom Resource Provider
+    participant Lambda as BatchIoTFunction (Node.js 20.x)
+    participant IoT as AWS IoT Core
+    participant S3 as S3 Bucket (RoboticBucket)
+
+    Developer->>CFN: Trigger Stack Deployment (Pass thingNames array)
+    CFN->>Provider: Invoke Custom Resource Event (Create/Update)
+    Provider->>Lambda: Trigger handler()
+    
+    loop Loop over each thingName
+        Lambda->>IoT: 1. Create Thing (CreateThing)
+        Lambda->>IoT: 2. Generate Credentials (CreateKeysAndCertificate)
+        Lambda->>IoT: 3. Bind IoT Policy (CreatePolicy & AttachThingPrincipal)
+        Lambda->>S3: 4. Export private key & certificate files
+    end
+
+    Lambda-->>Provider: Report success with file storage URLs
+    Provider-->>CFN: Report SUCCESS state
+    CFN-->>Developer: Stack Deployed Successfully

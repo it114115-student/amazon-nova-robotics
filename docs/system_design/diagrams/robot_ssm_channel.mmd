@@ -1,0 +1,23 @@
+graph TD
+    %% Node Definitions %%
+    WebCtrl["Management Portal / Operator UI"]
+    SsmUser["IAM User: SsmRunCommandUser <br> (AmazonNovaRoboticsSsmUser)"]
+    SsmService["AWS Systems Manager (SSM)"]
+    RobotDevice["Physical Raspberry Pi Robot <br> (RaspberryPiRobot1...N)"]
+
+    %% Connections %%
+    WebCtrl -->|1. Authenticate with credentials| SsmUser
+    SsmUser -->|2. ssm:SendCommand - Shell Execution| SsmService
+    SsmService -->|3. Deliver payload via outbound tunnel| RobotDevice
+    RobotDevice -->|4. Maintain outbound HTTPS tunnel| SsmService
+
+    %% Style Application %%
+    class WebCtrl Client;
+    class SsmUser Security;
+    class SsmService Shared;
+    class RobotDevice Client;
+
+    %% Style Class Definitions %%
+    classDef Client fill:#4A4E69,stroke:#22223B,stroke-width:2px,color:#FFFFFF;
+    classDef Security fill:#7B2CBF,stroke:#5A189A,stroke-width:2px,color:#FFFFFF;
+    classDef Shared fill:#2E8B57,stroke:#1E5631,stroke-width:2px,color:#FFFFFF;

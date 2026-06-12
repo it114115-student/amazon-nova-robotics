@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    actor User as Operator / Engineer
+    participant Web as Web Control UI (Vite)
+    participant Cognito as Cognito User Pool
+    participant STS as Cognito Identity Pool & STS
+    participant Gateway as Bedrock AgentCore Secure Gateway
+
+    User->>Web: Enter Email & Password
+    Web->>Cognito: Request Authentication (SRP Flow)
+    Cognito-->>Web: Return ID Token & Access Token
+
+    Web->>STS: Present ID Token (GetCredentialsForIdentity)
+    STS-->>Web: Return Temp AWS Credentials (AccessKey, SecretKey, SessionToken)
+
+    User->>Web: Click "Trigger Robot Wave"
+    Note over Web, Gateway: Web client signs HTTP request using AWS Signature Version 4 (SigV4)
+    Web->>Gateway: POST /mcp (SigV4 Signed Payload)
+    Note over Gateway: Gateway verifies signature validity and IAM policy bounds
+    Gateway-->>Web: Access Authorized, Execute Action, Return Response
