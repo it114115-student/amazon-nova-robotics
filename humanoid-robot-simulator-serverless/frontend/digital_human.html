@@ -1309,11 +1309,6 @@
               const audioUrl = data.audio_url;
               logSystem(`Digital Human speech received.`);
               speakText(msg, audioUrl);
-            } else if (type === 'speech' && (data.robot_id === 'xiaoice_1' || data.robot_id === 'all')) {
-              const msg = data.text;
-              const audioUrl = data.audio_url;
-              logSystem(`Broadcasting general speech message.`);
-              speakText(msg, audioUrl);
             }
           } catch (e) {
             console.error("Failed to parse websocket frame:", e);

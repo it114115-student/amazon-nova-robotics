@@ -10,7 +10,10 @@ from botocore.exceptions import ClientError
 
 s3_client = boto3.client(
     "s3",
-    config=Config(retries={"max_attempts": 3, "mode": "standard"}),
+    config=Config(
+        retries={"max_attempts": 3, "mode": "standard"},
+        signature_version="s3v4"
+    ),
 )
 
 IMAGE_BUCKET_NAME = os.environ.get("IMAGE_BUCKET_NAME", "")

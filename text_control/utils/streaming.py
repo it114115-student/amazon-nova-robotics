@@ -3,6 +3,7 @@ Streaming utilities for handling text streams and filtering
 """
 
 import json
+import re
 import sys
 import time
 from typing import AsyncGenerator, Dict
@@ -77,6 +78,75 @@ class ThinkingTagFilter:
         return ""
 
 
+class CitationFilter:
+    """Filter to remove citation brackets and reference sections from streaming text"""
+    
+    def __init__(self):
+        self.buffer = ""
+        self.blocked = False
+        self.citation_pattern = re.compile(r'\[[a-zA-Z0-9]+\]')
+        
+    def process(self, text: str) -> str:
+        if self.blocked:
+            return ""
+            
+        self.buffer += text
+        
+        ref_idx = self.buffer.find("**引用来源**")
+        if ref_idx != -1:
+            self.buffer = self.buffer[:ref_idx]
+            self.blocked = True
+            
+        self.buffer = self.citation_pattern.sub('', self.buffer)
+        
+        if self.blocked:
+            output = self.buffer
+            self.buffer = ""
+            return output
+            
+        reference_str = "**引用来源**"
+        
+        last_bracket = self.buffer.rfind('[')
+        if last_bracket != -1:
+            last_close = self.buffer.find(']', last_bracket)
+            if last_close == -1 and (len(self.buffer) - last_bracket < 15):
+                output = self.buffer[:last_bracket]
+                for i in range(1, len(reference_str)):
+                    if output.endswith(reference_str[:i]):
+                        self.buffer = output[-i:] + self.buffer[last_bracket:]
+                        return output[:-i]
+                self.buffer = self.buffer[last_bracket:]
+                return output
+                
+        for i in range(1, len(reference_str)):
+            if self.buffer.endswith(reference_str[:i]):
+                output = self.buffer[:-i]
+                self.buffer = self.buffer[-i:]
+                return output
+                
+        output = self.buffer
+        self.buffer = ""
+        return output
+        
+    def flush(self) -> str:
+        output = self.buffer
+        self.buffer = ""
+        return output
+
+
+class MarkdownFilter:
+    """Filter to remove markdown characters that are not TTS-friendly"""
+    
+    def process(self, text: str) -> str:
+        # Remove bold/italic asterisks
+        text = text.replace("**", "").replace("*", "")
+        # Remove headers (### )
+        text = text.replace("### ", "").replace("## ", "").replace("# ", "")
+        # Remove bullet points
+        text = text.replace("- ", "")
+        # Replace newlines with spaces or pauses? TTS usually handles newlines okay.
+        return text
+
 async def stream_agent_response(
     agent,
     ask_text: str,
@@ -101,6 +171,8 @@ async def stream_agent_response(
     logger = get_lambda_logger(__name__)
     
     filter_obj = ThinkingTagFilter()
+    citation_filter = CitationFilter()
+    markdown_filter = MarkdownFilter()
     chunk_count = 0
     
     try:
@@ -125,6 +197,8 @@ async def stream_agent_response(
             
             # Filter thinking tags
             filtered_text = filter_obj.process(event_data)
+            filtered_text = citation_filter.process(filtered_text)
+            filtered_text = markdown_filter.process(filtered_text)
             
             if filtered_text:
                 chunk_count += 1
@@ -144,6 +218,10 @@ async def stream_agent_response(
         
         # Send final buffered content
         remaining = filter_obj.flush()
+        if remaining:
+            remaining = citation_filter.process(remaining)
+        remaining += citation_filter.flush()
+        
         if remaining:
             chunk_count += 1
             chunk = {

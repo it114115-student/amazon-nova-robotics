@@ -352,7 +352,7 @@ background: {background}
         def stream_response():
             try:
                 async def async_stream():
-                    agent = await create_robot_agent_mcp(session_id, background)
+                    agent = await create_robot_agent_mcp(session_id, background, enable_grounding=True)
                     async for chunk in stream_agent_response(
                         agent, ask_text, session_id, trace_id, extra
                     ):

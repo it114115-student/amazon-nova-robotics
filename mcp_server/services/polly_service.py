@@ -23,7 +23,10 @@ polly_client = boto3.client(
 
 s3_client = boto3.client(
     "s3",
-    config=Config(retries={"max_attempts": 3, "mode": "standard"}),
+    config=Config(
+        retries={"max_attempts": 3, "mode": "standard"},
+        signature_version="s3v4"
+    ),
 )
 
 

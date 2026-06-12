@@ -256,8 +256,8 @@ def require_web_auth(f):
             # For web routes, redirect to login page
             # Check if we're running behind API Gateway with a stage
             if (hasattr(request, "environ") and
-                    "lambda.event" in request.environ):
-                event = request.environ["lambda.event"]
+                    "awsgi.event" in request.environ):
+                event = request.environ["awsgi.event"]
                 request_context = event.get("requestContext", {})
                 stage = request_context.get("stage", "")
 

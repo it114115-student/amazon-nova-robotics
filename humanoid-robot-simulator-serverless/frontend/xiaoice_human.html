@@ -836,11 +836,7 @@
             
             console.log(`📥 Received WS message: ${type}`, data);
 
-            if (type === 'digital_human_speech') {
-              const msg = data.message;
-              const audioUrl = data.audio_url;
-              speakText(msg, audioUrl);
-            } else if (type === 'speech' && (data.robot_id === 'xiaoice_1' || data.robot_id === 'all')) {
+            if (type === 'speech' && (data.robot_id === 'xiaoice_1' || data.robot_id === 'all')) {
               const msg = data.text;
               const audioUrl = data.audio_url;
               speakText(msg, audioUrl);

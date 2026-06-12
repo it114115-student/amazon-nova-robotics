@@ -26,13 +26,7 @@ def execute_digital_human_speech(message: str) -> str:
         presenter_id=CURRENT_PRESENTER,
     )
 
-    # Publish to IoT
-    success = execute_xiaoice_speech(
-        xiaoice_id=DIGITAL_HUMAN_ID,
-        message=message.strip(),
-        presenter_id=CURRENT_PRESENTER,
-        metadata={"speech_record_id": saved_item.get("id", "")},
-    )
+    # Removed publish to IoT to prevent duplicate speech triggering across all pages
 
     # Synthesize with Amazon Polly
     polly_result = None

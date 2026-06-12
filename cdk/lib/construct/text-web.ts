@@ -66,6 +66,7 @@ export class TextControlWebConstruct extends Construct {
       index: "app.py",
       handler: "handler",
       timeout: Duration.seconds(30),
+      memorySize: 512,
       environment: {
         AWS_BEDROCK_REGION: "us-east-1",
         RobotTable: props.database.robotTable.tableName,
@@ -132,6 +133,7 @@ export class TextControlWebConstruct extends Construct {
         actions: [
           "bedrock:InvokeModel",
           "bedrock:InvokeModelWithResponseStream",
+          "bedrock:InvokeTool",
         ],
         resources: ["*"],
       })

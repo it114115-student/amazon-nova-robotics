@@ -929,6 +929,11 @@ class HumanoidSimulator {
             return;
         }
 
+        if (robotId !== 'all' && !this.robots.has(robotId)) {
+            console.log(`🔊 Ignoring speech for ${robotId} as it is not in the current scene.`);
+            return;
+        }
+
         console.log(`🔊 Playing speech for ${robotId}: "${text}"`);
 
         if (window.speechPlayer) {

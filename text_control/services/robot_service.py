@@ -333,7 +333,10 @@ class RobotService:
             return {"success": False, "error": "Image bucket not configured"}
 
         s3_client = boto3.client(
-            "s3", config=Config(retries={"max_attempts": 3, "mode": "standard"})
+            "s3", config=Config(
+                retries={"max_attempts": 3, "mode": "standard"},
+                signature_version="s3v4"
+            )
         )
         iot_client = boto3.client(
             "iot-data", config=Config(retries={"max_attempts": 3, "mode": "standard"})
