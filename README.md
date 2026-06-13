@@ -280,6 +280,7 @@ Features:
 - Session management with authentication
 - Database-backed history
 - 2-4 second performance improvement for simple commands
+- **Multiple Xiaoice Project Webhooks**: Deterministic `generate_keys.py` tool for managing `XIAOICE_PROJECT_CREDENTIALS` via AWS Secrets Manager.
 
 ### 4. Domain Expansion AR Game
 

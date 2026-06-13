@@ -7,8 +7,31 @@ import os
 
 from flask import request
 from utils.lambda_logger import get_lambda_logger
+import boto3
+from botocore.exceptions import ClientError
+import json
 
 logger = get_lambda_logger(__name__)
+
+def get_secret(secret_name: str, region_name: str = "us-east-1") -> dict:
+    """Fetch secret from AWS Secrets Manager"""
+    session = boto3.session.Session()
+    client = session.client(service_name='secretsmanager', region_name=region_name)
+
+    try:
+        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+    except ClientError as e:
+        logger.error(f"Error retrieving secret {secret_name}: {e}")
+        return None
+
+    secret = get_secret_value_response.get('SecretString')
+    if secret:
+        try:
+            return json.loads(secret)
+        except json.JSONDecodeError:
+            logger.error(f"Secret {secret_name} is not valid JSON")
+            return None
+    return None
 
 
 def calculate_signature(secret_key: str, timestamp: str, body_string: str) -> str:
@@ -76,7 +99,7 @@ def validate_authentication(use_v2=True):
         use_v2: If True, use calculate_signature_v2, otherwise use calculate_signature
 
     Returns:
-        None if authentication is successful, error_response tuple otherwise
+        Tuple of (project_id, error_response). If authentication is successful, error_response is None.
     """
     from utils.response_utils import error_response
     
@@ -89,17 +112,46 @@ def validate_authentication(use_v2=True):
         stored_secret_key = os.getenv("XiaoiceChatSecretKey")
         valid_access_key = os.getenv("XiaoiceChatAccessKey")
 
-        if not all([stored_secret_key, valid_access_key]):
-            logger.error("Server configuration error: Missing environment variables")
-            return error_response(500, "Server configuration error")
-
         if not all([timestamp, signature, access_key]):
             logger.warning("Authentication failed: Missing authentication headers")
-            return error_response(401, "Missing authentication headers")
+            return None, error_response(401, "Missing authentication headers")
 
-        if access_key != valid_access_key:
+        project_id = None
+        stored_secret_key = None
+        
+        # 1. Try to load from AWS Secrets Manager first
+        secret_name = os.getenv("XIAOICE_SECRET_NAME", "XiaoiceProjectCredentials")
+        credentials_map = get_secret(secret_name)
+        
+        # 2. Fallback to Environment Variable mapping if Secret Manager fails
+        if not credentials_map:
+            creds_json = os.getenv("XIAOICE_PROJECT_CREDENTIALS")
+            if creds_json:
+                try:
+                    credentials_map = json.loads(creds_json)
+                except Exception as e:
+                    logger.error(f"Failed to parse XIAOICE_PROJECT_CREDENTIALS env var: {e}")
+                    
+        # Extract keys from mapping
+        if credentials_map:
+            project_config = credentials_map.get(access_key)
+            if project_config:
+                stored_secret_key = project_config.get("secret_key")
+                project_id = project_config.get("project_id")
+                
+        # 3. Fallback to old global keys
+        if not stored_secret_key:
+            global_secret_key = os.getenv("XiaoiceChatSecretKey")
+            global_access_key = os.getenv("XiaoiceChatAccessKey")
+            
+            if access_key == global_access_key:
+                stored_secret_key = global_secret_key
+                # Default fallback project_id
+                project_id = "Summer"
+
+        if not stored_secret_key:
             logger.warning(f"Authentication failed: Invalid access key received: {access_key}")
-            return error_response(401, "Invalid access key")
+            return None, error_response(401, "Invalid access key or missing configuration")
 
         body_string = request.data.decode("utf-8")
 
@@ -110,11 +162,11 @@ def validate_authentication(use_v2=True):
 
         if calculated_signature != signature:
             logger.warning("Authentication failed: Invalid signature")
-            return error_response(401, "Invalid signature")
+            return None, error_response(401, "Invalid signature")
 
         logger.info("Authentication successful")
-        return None
+        return project_id, None
 
     except Exception as e:
         logger.error(f"Authentication failed: {e}", exc_info=True)
-        return error_response(401, f"Authentication failed: {e}")
+        return None, error_response(401, f"Authentication failed: {e}")

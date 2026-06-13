@@ -55,6 +55,33 @@ SIMPLE_COMMANDS = {
 }
 ```
 
+## 🔐 Xiaoice Credentials Management
+
+The system uses an AWS Secrets Manager secret (`XiaoiceProjectCredentials`) to securely store per-project Access Keys and Secret Keys. This allows mapping a single deployment to multiple Xiaoice project identities without exposing keys in plaintext.
+
+### Generating Keys for a Project
+
+Use the `generate_keys.py` tool to create secure 64-character hexadecimal keys compatible with the Xiaoice platform:
+
+```bash
+cd text_control/
+python3 generate_keys.py [optional_secret_seed] <project_name>
+# Example: python3 generate_keys.py Summer
+# Example with seed: python3 generate_keys.py my_secret_seed_123 Summer
+```
+
+This script will output:
+1. An **Access Key** (to configure in the Xiaoice developer portal).
+2. A **Secret Key** (to configure in the Xiaoice developer portal).
+3. A **JSON Snippet** mapping the Access Key to the Secret Key and Project ID.
+
+### Storing the Credentials
+
+1. The generated JSON mapping should be appended to `text_control/xiaoice_credentials.json`.
+2. Ensure `xiaoice_credentials.json` is added to `.gitignore` to prevent leaking keys.
+3. During deployment, the CDK stack automatically reads this local JSON file and uploads it securely to AWS Secrets Manager (`XiaoiceProjectCredentials`).
+4. The Lambda functions then read directly from AWS Secrets Manager at runtime to validate incoming Xiaoice requests and determine the target `project_id`.
+
 ## 🔄 Auto-Update System
 
 ### How It Works

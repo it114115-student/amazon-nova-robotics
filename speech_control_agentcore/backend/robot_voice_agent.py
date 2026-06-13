@@ -27,7 +27,7 @@ from tools import cleanup_tools, get_all_tools, warmup_tools
 
 # Configure Logger
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("robot_voice_agent")
@@ -35,9 +35,10 @@ logger = logging.getLogger("robot_voice_agent")
 # Filter out continuous AWS AgentCore health check logs (GET /ping) to keep agent logs clean
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        # Uvicorn access logs contain request arguments where arg[2] is the URL path
+        # Check if this log record contains arguments representing the HTTP request
         if record.args and len(record.args) >= 3:
             path = record.args[2]
+            # Drop the log if the path is a health check endpoint
             if path == "/ping" or path == "/":
                 return False
         return True

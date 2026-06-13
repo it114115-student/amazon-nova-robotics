@@ -58,7 +58,7 @@ def talk_stream():
     logger.info(f"Talk stream request from {request.remote_addr}")
 
     # 1. Authentication check
-    auth_error = validate_authentication(use_v2=True)
+    project_id, auth_error = validate_authentication(use_v2=True)
     if auth_error:
         return auth_error
 
@@ -76,7 +76,8 @@ def talk_stream():
     user_params = params["user_params"]
 
     logger.info(f"Talk stream request details - Session: {session_id}, Trace: {trace_id}, User Params: {user_params}")
-    context = get_robot(user_params)
+    # Use dynamically mapped project_id
+    context = get_robot(project_id)
     background = ""
     if context:
         name = context.get("robot_name")
@@ -145,7 +146,7 @@ def welcome():
     logger.info(f"Welcome request from {request.remote_addr}")
 
     # 1. Authentication check
-    auth_error = validate_authentication(use_v2=True)
+    project_id, auth_error = validate_authentication(use_v2=True)
     if auth_error:
         return auth_error
 
@@ -194,7 +195,7 @@ def goodbye():
     logger.info(f"Goodbye request from {request.remote_addr}")
 
     # 1. Authentication check
-    auth_error = validate_authentication(use_v2=True)
+    project_id, auth_error = validate_authentication(use_v2=True)
     if auth_error:
         return auth_error
 
@@ -225,7 +226,7 @@ def recquestions():
     logger.info(f"Recommended questions request from {request.remote_addr}")
 
     # 1. Authentication check
-    auth_error = validate_authentication(use_v2=True)
+    project_id, auth_error = validate_authentication(use_v2=True)
     if auth_error:
         return auth_error
 
@@ -259,7 +260,7 @@ def chat_api_strands():
     logger.info(f"Strands chat API request from {request.remote_addr}")
 
     # Authentication check (using legacy signature method)
-    auth_error = validate_authentication(use_v2=False)
+    project_id, auth_error = validate_authentication(use_v2=False)
     if auth_error:
         return auth_error
 
@@ -270,7 +271,7 @@ def chat_api_strands():
     if parse_error:
         return parse_error
     
-    context = get_robot("Summer")
+    context = get_robot(project_id)
     background = ""
     if context:
         name = context.get("robot_name")
@@ -320,7 +321,7 @@ def chat_api_strands_stream():
     logger.info(f"Strands streaming chat API request from {request.remote_addr}")
 
     # 1. Authentication check (using legacy signature method)
-    auth_error = validate_authentication(use_v2=False)
+    project_id, auth_error = validate_authentication(use_v2=False)
     if auth_error:
         return auth_error
 
@@ -336,7 +337,7 @@ def chat_api_strands_stream():
     trace_id = params["trace_id"]
     extra = params.get("extra", {})
 
-    context = get_robot("Summer")
+    context = get_robot(project_id)
 
     background = ""
     if context:

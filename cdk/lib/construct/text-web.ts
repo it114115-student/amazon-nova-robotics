@@ -1,7 +1,9 @@
 import { RestApi, LambdaIntegration } from "aws-cdk-lib/aws-apigateway";
-import { CfnOutput, Duration, DockerImage } from "aws-cdk-lib";
+import { CfnOutput, Duration, DockerImage, SecretValue } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as fs from "fs";
 
 import { Construct } from "constructs";
 import path = require("path");
@@ -60,6 +62,20 @@ export class TextControlWebConstruct extends Construct {
       .update(hash + "chat-access-key")
       .digest("hex");
 
+    let xiaoiceSecretValue = '{}';
+    try {
+      const secretPath = path.join(__dirname, "../../../text_control/xiaoice_credentials.json");
+      xiaoiceSecretValue = fs.readFileSync(secretPath, "utf8");
+    } catch (e) {
+      console.warn("xiaoice_credentials.json not found, using empty object");
+    }
+
+    const xiaoiceCredentialsSecret = new secretsmanager.Secret(this, "XiaoiceProjectCredentials", {
+      secretName: "XiaoiceProjectCredentials",
+      description: "Access keys and secret keys mapping for Xiaoice projects",
+      secretStringValue: SecretValue.unsafePlainText(xiaoiceSecretValue),
+    });
+
     const flaskLambda = new PythonFunction(this, "TextControlLambda", {
       entry: path.join(__dirname, "../../../text_control"),
       runtime: SHARED_PYTHON_RUNTIME,
@@ -76,6 +92,7 @@ export class TextControlWebConstruct extends Construct {
         FlaskSecretKey: hash,
         XiaoiceChatSecretKey: chatSecretKey,
         XiaoiceChatAccessKey: chatAccessKey,
+        XIAOICE_SECRET_NAME: xiaoiceCredentialsSecret.secretName,
         SpeechTable: props.mcpServerConstruct.speechTable.tableName,
         RobotDataBucketName: props.roboticBucket.bucketName,
       },
@@ -86,6 +103,7 @@ export class TextControlWebConstruct extends Construct {
           "create_virtual_env.sh",
           ".dockerignore",
           "Dockerfile",
+          "xiaoice_credentials.json",
         ],
         // Pre-build commands to run before packaging
         commandHooks: {
@@ -114,6 +132,9 @@ export class TextControlWebConstruct extends Construct {
 
     // Grant read/write access to robotic bucket
     props.roboticBucket.grantReadWrite(flaskLambda);
+
+    // Grant read access to the Xiaoice Credentials secret
+    xiaoiceCredentialsSecret.grantRead(flaskLambda);
 
     flaskLambda.addToRolePolicy(
       new iam.PolicyStatement({
