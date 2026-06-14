@@ -99,3 +99,85 @@ If the serverless backend is unavailable (or the game is running in static local
 - **CDK Configuration**: Implemented parameter support both programmatically via `AuthenticatorProps` and dynamically via command-line context variables (`idTokenValidityHours`, `accessTokenValidityHours`, `refreshTokenValidityDays`). This allows operators to easily adjust session policies during deployments without modifying stack codebase files.
 
 
+---
+
+## 7. Architecture Refactoring & MCP Server Streamlining (June 13-14, 2026)
+
+To streamline resources and optimize our serverless footprint, a major architectural refactoring of the Model Context Protocol (MCP) server integration, storage buckets, and text processing pipelines has been completed:
+
+### A. Streamlined CDK Architecture & De-Cluttering
+- **MCP Server Consolidation**: Removed the legacy, dedicated `LambdaMcpServerConstruct` (`cdk/lib/construct/mcp-server.ts` and `mcp_server/index.py`) in favor of direct tool integrations, reducing cold start latencies and AWS Lambda compute bloat.
+- **Direct Database Coupling**: Modified the `TextControlWebConstruct` to bypass the intermediate MCP server stack and reference the DynamoDB `speechTable` directly.
+- **Unified Media Storage**: Refactored the `RobotToolGatewayConstruct` and corresponding backend endpoints to use a centralized `mediaBucket` (under environment variable `MEDIA_BUCKET_NAME`) instead of the separate, isolated `imageBucket`. This simplifies permission models and asset lifecycles.
+
+### B. Intelligent TTS Markdown Sanitization
+- **Issue**: Standard AI-generated commentaries frequently contain markdown syntax (e.g. `**bold text**`, headings `#`, or bullets `-`), which raw Text-to-Speech (Polly) services would try to pronounce literally, resulting in robotic and jarring audio.
+- **Solution**: Enhanced `commentary_tts.py` to parse text through a BeautifulSoup HTML extractor and a Markdown compiler to strip all markdown tags and format symbols before sending text to AWS Polly, ensuring clean and human-sounding voice delivery.
+- **Dependencies**: Added `markdown` and `beautifulsoup4` packages to the Lambda `requirements.txt`.
+
+### C. Standardized Gateways & Real-Time Monitoring
+- **Centralized Tool Invocation**: Introduced a standardized helper function `invoke_agentcore_gateway_tool` in `lambda_function.py` for routing tool execution seamlessly through the AgentCore Gateway.
+- **Robot Camera Viewer**: Deployed a dedicated web portal (`robot-media-website/index.html`) specifically tailored for real-time monitoring and streaming of physical/simulated robot camera viewfeeds.
+- **Offline Gateway Testing**: Added a local developer test script (`scratch/test_mcp.py`) to verify tool routing and API Gateway compatibility before deployment.
+
+
+---
+
+## 8. Secure Xiaoice Credentials & Project-Specific API Key Management (June 13, 2026)
+
+To secure multi-project Xiaoice conversational AI deployments and prevent exposure of critical upstream partner developer keys, a complete credentials isolation and verification system was implemented:
+
+### A. AWS Secrets Manager Key Vault
+- **Construct Isolation**: Configured `TextControlWebConstruct` to provision an AWS Secrets Manager secret (`XiaoiceProjectCredentials`) containing the access key and secret key mappings for various active projects.
+- **Client Metadata Seeding**: Reads local developer credentials (`text_control/xiaoice_credentials.json`) during CDK synth to seed the initial cloud secret values.
+- **Granular IAM Policies**: Granted strict read-only permissions (`grantRead`) to the Lambda Flask backend, keeping the master database credentials hidden from all other client roles.
+
+### B. Project-Specific HMAC V2 Signatures
+- **HMAC Signatures Calculation (`auth.py`)**: Rebuilt the request signature verification engine to implement a rigorous sorting and hashing method:
+  1. Build a key-value parameter map: `{"bodyString": body_data, "secretKey": secret_key, "timestamp": timestamp_header}`.
+  2. Sort parameters alphabetically by key name in ascending order, then concatenate into an ampersand-delimited query string (`bodyString=...&secretKey=...&timestamp=...`).
+  3. Hash the resulting string using `SHA-512` and convert it into an uppercase hexadecimal string.
+- **Zero-Trust Validation**: When an incoming webhook/API request is received, the backend queries the database mapping using the provided `X-Key` header. If a matching secret key is found, it evaluates the calculated signature against the `X-Sign` header, rejecting unauthorized requests before they consume compute/TTS resources.
+
+### C. Deterministic Key Generator Tool
+- **Utility Script (`generate_keys.py`)**: Introduced an automated command-line tool for developers to generate new project-specific credentials safely.
+- **Flexible Modes**: Supports both standard high-entropy random key generation (`secrets.token_hex`) and seed-based deterministic HMAC-SHA256 generation. This guarantees that developers can reproduce key pairs deterministically across multi-region offline clusters using a master seed.
+
+
+---
+
+## 9. Comprehensive Git Commit History Log (June 13 - June 14, 2026)
+
+This log catalogues all Git commits made over the last 24 hours, tracking the progression from credential management to architectural streamlining, image-handling optimizations, and dynamic session parameters.
+
+### Commit 1: `3b536b1` (June 13, 2026)
+- **Author**: Cyrus <cywong@vtc.edu.hk>
+- **Subject**: `feat: implement Xiaoice credentials management with AWS Secrets Manager; add key generation tool and update API authentication to support project-specific keys`
+- **Impact & Architectural Context**:
+  - Implemented the master `XiaoiceProjectCredentials` CDK secrets mapping and Flask-based authentication verification.
+  - Added [generate_keys.py](../text_control/generate_keys.py) to manage dynamic access control credentials.
+  - Added documentation files [speech_control_agentcore/README.md](../speech_control_agentcore/README.md) and [text_control/README.md](../text_control/README.md).
+
+### Commit 2: `480fb2d` (June 14, 2026)
+- **Author**: Cyrus <cywong@vtc.edu.hk>
+- **Subject**: `Refactor MCP Server and related constructs to improve media handling and integrate markdown processing`
+- **Impact & Architectural Context**:
+  - Decoupled the old MCP Server architecture by completely removing [mcp-server.ts](../cdk/lib/construct/mcp-server.ts) and [mcp_server/index.py](../mcp_server/index.py) to reduce compute overhead and cold starts.
+  - Unified file upload lifecycles into a single `MEDIA_BUCKET_NAME` storage.
+  - Added BeautifulSoup and Markdown filtering to [commentary_tts.py](../domain-expansion-ar-game-serverless/backend/commentary_tts.py) to strip formatting notation from synthesizers.
+  - Deployed the real-time robot video monitoring web portal [robot-media-website/index.html](../robot-media-website/index.html).
+
+### Commit 3: `2557aa1` (June 14, 2026)
+- **Author**: Cyrus <cywong@vtc.edu.hk>
+- **Subject**: `feat: enhance image handling and XML tag extraction in commentary and lambda functions; update requirements for langdetect`
+- **Impact & Architectural Context**:
+  - Resolved OpenClaw proxy stripping limitations by developing an XML-based prompt payload packaging scheme (`<p1_webcam_base64_jpeg>` and `<p2_webcam_base64_jpeg>`) in [commentary.py](../domain-expansion-ar-game-serverless/backend/commentary.py).
+  - Programmed regex-based parsing and extraction of the inline XML image bodies inside [commentator_agent.py](../domain-expansion-commentator-agentcore/commentator_agent.py), converting them to multimodal parts and feeding them cleanly into Bedrock.
+  - Localized character techniques and domain expansions for active game screens and comments.
+
+### Commit 4: `b98d3f3` (June 14, 2026)
+- **Author**: Cyrus <cywong@vtc.edu.hk>
+- **Subject**: `feat: add configurable session expiration for Cognito tokens; update AuthenticatorProps to support dynamic token lifetimes`
+- **Impact & Architectural Context**:
+  - Configured Cognito access and identity tokens to enforce standard **1-hour** expirations by default.
+  - Refactored [authenticator.ts](../cdk/lib/construct/authenticator.ts) to accept deployment-time context variables (`idTokenValidityHours`, `accessTokenValidityHours`, `refreshTokenValidityDays`) to make expirations configurable without altering stack source code.
