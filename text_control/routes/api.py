@@ -592,7 +592,7 @@ def get_image_url(object_key):
     import boto3
     from botocore.config import Config
 
-    bucket = os.environ.get("IMAGE_BUCKET_NAME", "")
+    bucket = os.environ.get("MEDIA_BUCKET_NAME", "")
     if not bucket:
         return jsonify({"error": "Image bucket not configured"}), 500
 

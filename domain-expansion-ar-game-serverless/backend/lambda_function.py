@@ -8,6 +8,52 @@ import boto3
 from decimal import Decimal
 from boto3.dynamodb.conditions import Key
 from PIL import Image
+from typing import Dict, Any, Optional
+
+def invoke_agentcore_gateway_tool(tool_name: str, arguments: dict):
+    """Invoke a tool exposed by the Bedrock AgentCore Gateway using AWS SigV4."""
+    gateway_url = os.environ.get("McpServerGatewayUrl", "").strip()
+    if not gateway_url:
+        return
+        
+    try:
+        import requests
+        import urllib.parse
+        from botocore.auth import SigV4Auth
+        from botocore.awsrequest import AWSRequest
+        from botocore.session import Session
+        
+        session = Session()
+        credentials = session.get_credentials().get_frozen_credentials()
+        region = session.get_config_variable('region') or os.environ.get("AWS_REGION", "us-east-1")
+        
+        payload = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": arguments
+            }
+        }).encode('utf-8')
+        
+        post_request = AWSRequest(method="POST", url=gateway_url, data=payload)
+        SigV4Auth(credentials, "bedrock-agentcore", region).add_auth(post_request)
+        
+        headers = dict(post_request.headers)
+        headers['Content-Type'] = 'application/json'
+        headers['Accept'] = 'application/json'
+        
+        post_response = requests.post(gateway_url, data=payload, headers=headers, timeout=15)
+        
+        if post_response.status_code == 200:
+            logger.info(f"AgentCore gateway invocation successful for tool: {tool_name}")
+            return post_response.text
+        else:
+            logger.error(f"AgentCore gateway tool call failed: {post_response.status_code} {post_response.text}")
+            
+    except Exception as e:
+        logger.error(f"Failed to invoke AgentCore gateway tool {tool_name}: {e}")
 
 # Configure Logger
 logger = logging.getLogger()
@@ -441,7 +487,8 @@ def handle_http(event):
             try:
                 # Direct check if object exists in S3
                 s3_client.head_object(Bucket=photos_bucket, Key=s3_key)
-                img_url = f"https://{photos_bucket}.s3.amazonaws.com/{s3_key}"
+                photos_domain = os.environ.get('PHOTOS_S3_DOMAIN', f"{photos_bucket}.s3.amazonaws.com")
+                img_url = f"https://{photos_domain}/{s3_key}"
                 return {
                     "statusCode": 200,
                     "headers": headers,
@@ -517,7 +564,8 @@ def handle_http(event):
                 Body=img_data,
                 ContentType="image/jpeg"
             )
-            img_url = f"https://{photos_bucket}.s3.amazonaws.com/{s3_key}"
+            photos_domain = os.environ.get('PHOTOS_S3_DOMAIN', f"{photos_bucket}.s3.amazonaws.com")
+            img_url = f"https://{photos_domain}/{s3_key}"
             logger.info(f"Successfully saved webcam frame directly to S3 (no DynamoDB storage): {img_url}")
 
             # Keep DynamoDB record thin - only update the updated_at timestamp!
@@ -568,7 +616,8 @@ def handle_http(event):
 
             # Check S3 directly!
             s3_client.head_object(Bucket=photos_bucket, Key=s3_key)
-            img_url = f"https://{photos_bucket}.s3.amazonaws.com/{s3_key}"
+            photos_domain = os.environ.get('PHOTOS_S3_DOMAIN', f"{photos_bucket}.s3.amazonaws.com")
+            img_url = f"https://{photos_domain}/{s3_key}"
             
             html_content = f"""
             <html>
@@ -756,6 +805,13 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             language=commentary_language
         )
 
+        # ALWAYS call digital human (xiaoice) speak for strand local, agentcore, and openclaw responses
+        if commentary_text and agent_engine in ("strands_local", "agentcore_runtime", "openclaw"):
+            invoke_agentcore_gateway_tool(
+                tool_name="digital-human-mcp-lambda___digital_human_speech",
+                arguments={"message": commentary_text, "language": user_language}
+            )
+
         audio_payload = None
         resolved_tts_mode = "browser"
         if requested_tts_mode == "aws":
@@ -798,7 +854,6 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
 
     # Endpoint: /api/trigger-technique
     elif path == "/api/trigger-technique" and method == "POST":
-        import urllib.request
         technique = body.get("technique", "")
         robot_id = body.get("robotId", "robot_1")
         role = body.get("role", "none")
@@ -823,7 +878,6 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
 
         # 3. Trigger physical action and AWS Polly voice concurrently for all targets
         triggered_targets = []
-        mcp_func = os.environ.get("MCP_SERVER_FUNCTION_NAME")
 
         # Map JJK technique directly to the exact existing MCP tool API
         technique_to_mcp_tool = {
@@ -844,76 +898,26 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             # Resolve the specific existing MCP tool name directly from the technique
             mcp_tool_name = technique_to_mcp_tool.get(technique, f"robot_{technique}")
 
-            # A. Trigger Robot Action via MCP Server (which will trigger IoT and the simulator)
-            if mcp_func:
-                mcp_payload = {
-                    "body": json.dumps({
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "tools/call",
-                        "params": {
-                            "name": mcp_tool_name,
-                            "arguments": {
-                                "robot_id": target
-                            }
-                        }
-                    }),
-                    "headers": {
-                        "content-type": "application/json"
-                    },
-                    "requestContext": {
-                        "http": {
-                            "method": "POST"
-                        }
+            # B. Trigger Speak/Polly synthesizer via AgentCore Gateway
+            if speech:
+                invoke_agentcore_gateway_tool(
+                    tool_name="robot-only-mcp-lambda___robot_speak",
+                    arguments={
+                        "robot_id": target,
+                        "text": speech,
+                        "language": language
                     }
-                }
-                try:
-                    boto3.client("lambda").invoke(
-                        FunctionName=mcp_func,
-                        InvocationType="Event", # Asynchronous invocation like speech case
-                        Payload=json.dumps(mcp_payload)
-                    )
-                    logger.info(f"Asynchronously triggered MCP tool {mcp_tool_name} for {target}")
-                    triggered_targets.append(target)
-                except Exception as e:
-                    logger.error(f"Failed to invoke MCP lambda tool {mcp_tool_name} for {target}: {e}")
-            else:
-                logger.warning("MCP_SERVER_FUNCTION_NAME is not configured. Skipping robot action trigger.")
+                )
 
-            # B. Trigger Speak/Polly synthesizer via direct Lambda call to MCP Server
-            if speech and mcp_func:
-                mcp_payload = {
-                    "body": json.dumps({
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "tools/call",
-                        "params": {
-                            "name": "robot_speak",
-                            "arguments": {
-                                "robot_id": target,
-                                "text": speech,
-                                "language": language
-                            }
-                        }
-                    }),
-                    "headers": {
-                        "content-type": "application/json"
-                    },
-                    "requestContext": {
-                        "http": {
-                            "method": "POST"
-                        }
+            # A. Trigger Robot Action via AgentCore Gateway
+            if mcp_tool_name:
+                invoke_agentcore_gateway_tool(
+                    tool_name=f"robot-only-mcp-lambda___{mcp_tool_name}",
+                    arguments={
+                        "robot_id": target
                     }
-                }
-                try:
-                    boto3.client("lambda").invoke(
-                        FunctionName=mcp_func,
-                        InvocationType="Event", # Asynchronous invocation so speaking doesn't delay action trigger
-                        Payload=json.dumps(mcp_payload)
-                    )
-                    logger.info(f"Asynchronously triggered MCP robot_speak for {target}")
-                except Exception as e:
-                    logger.error(f"Failed to invoke MCP lambda for {target}: {e}")
+                )
+                triggered_targets.append(target)
 
         return {
             "statusCode": 200,

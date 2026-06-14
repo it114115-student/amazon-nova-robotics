@@ -288,7 +288,8 @@ def handle_sqs_image_gen(record):
             ContentType="image/jpeg"
         )
         # Construct public URL (S3 bucket allows public reads via lifecycle policy)
-        public_url = f"https://{photos_bucket}.s3.amazonaws.com/{s3_key}"
+        photos_domain = os.environ.get('PHOTOS_S3_DOMAIN', f"{photos_bucket}.s3.amazonaws.com")
+        public_url = f"https://{photos_domain}/{s3_key}"
         logger.info(f"Uploaded enhanced portrait to S3: {public_url}")
         
         # 7. Update session enhanced_image_url with public URL in DynamoDB

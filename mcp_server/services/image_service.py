@@ -3,6 +3,7 @@
 import os
 import time
 import uuid
+from datetime import datetime
 
 import boto3
 from botocore.config import Config
@@ -16,7 +17,7 @@ s3_client = boto3.client(
     ),
 )
 
-IMAGE_BUCKET_NAME = os.environ.get("IMAGE_BUCKET_NAME", "")
+MEDIA_BUCKET_NAME = os.environ.get("MEDIA_BUCKET_NAME", "")
 PRESIGNED_URL_EXPIRY = 300  # 5 minutes
 
 
@@ -25,11 +26,12 @@ def generate_presigned_put_url(robot_id: str) -> dict:
 
     Returns dict with 'upload_url' and 'object_key'.
     """
-    object_key = f"robot-images/{robot_id}/{uuid.uuid4()}.jpg"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    object_key = f"robot-images/{robot_id}/{robot_id}_{timestamp}_{uuid.uuid4().hex[:8]}.jpg"
     upload_url = s3_client.generate_presigned_url(
         "put_object",
         Params={
-            "Bucket": IMAGE_BUCKET_NAME,
+            "Bucket": MEDIA_BUCKET_NAME,
             "Key": object_key,
             "ContentType": "image/jpeg",
         },
@@ -42,7 +44,7 @@ def generate_presigned_get_url(object_key: str) -> str:
     """Generate a presigned GET URL to read an uploaded image."""
     return s3_client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": IMAGE_BUCKET_NAME, "Key": object_key},
+        Params={"Bucket": MEDIA_BUCKET_NAME, "Key": object_key},
         ExpiresIn=PRESIGNED_URL_EXPIRY,
     )
 
@@ -63,7 +65,7 @@ def wait_for_image_upload(
     elapsed = 0.0
     while elapsed < timeout:
         try:
-            s3_client.head_object(Bucket=IMAGE_BUCKET_NAME, Key=object_key)
+            s3_client.head_object(Bucket=MEDIA_BUCKET_NAME, Key=object_key)
             return True
         except ClientError as e:
             # 404 means not uploaded yet, anything else is a real error
@@ -73,3 +75,15 @@ def wait_for_image_upload(
             else:
                 raise
     return False
+
+def copy_to_latest(object_key: str, robot_id: str) -> None:
+    """Copy the newly uploaded image to a 'latest.jpg' key for easier querying."""
+    latest_key = f"robot-images/{robot_id}/latest.jpg"
+    try:
+        s3_client.copy_object(
+            Bucket=MEDIA_BUCKET_NAME,
+            CopySource={"Bucket": MEDIA_BUCKET_NAME, "Key": object_key},
+            Key=latest_key,
+        )
+    except ClientError as e:
+        print(f"Failed to copy image to latest: {e}")

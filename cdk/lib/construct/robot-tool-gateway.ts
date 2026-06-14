@@ -24,7 +24,7 @@ type RobotToolSchemaDefinition = {
 
 export interface RobotToolGatewayConstructProps {
   readonly simulatorEndpoint?: string;
-  readonly imageBucket: s3.IBucket;
+  readonly mediaBucket: s3.IBucket;
   readonly speechTable: TableV2;
 }
 
@@ -132,11 +132,11 @@ export class RobotToolGatewayConstruct extends Construct {
       bundling: SHARED_PYTHON_BUNDLING,
       environment: {
         SIMULATOR_ENDPOINT: props.simulatorEndpoint || "",
-        IMAGE_BUCKET_NAME: props.imageBucket.bucketName,
+        MEDIA_BUCKET_NAME: props.mediaBucket.bucketName,
       },
     });
 
-    props.imageBucket.grantReadWrite(this.robotToolFunction);
+    props.mediaBucket.grantReadWrite(this.robotToolFunction);
 
     this.robotToolFunction.addToRolePolicy(
       new iam.PolicyStatement({
@@ -164,12 +164,12 @@ export class RobotToolGatewayConstruct extends Construct {
       bundling: SHARED_PYTHON_BUNDLING,
       environment: {
         SIMULATOR_ENDPOINT: props.simulatorEndpoint || "",
-        IMAGE_BUCKET_NAME: props.imageBucket.bucketName,
+        MEDIA_BUCKET_NAME: props.mediaBucket.bucketName,
         SpeechTable: props.speechTable.tableName,
       },
     });
 
-    props.imageBucket.grantReadWrite(this.digitalHumanToolFunction);
+    props.mediaBucket.grantReadWrite(this.digitalHumanToolFunction);
     props.speechTable.grantReadWriteData(this.digitalHumanToolFunction);
 
     this.digitalHumanToolFunction.addToRolePolicy(

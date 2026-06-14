@@ -12,8 +12,10 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from mutagen.mp3 import MP3
 from mutagen.oggvorbis import OggVorbis
+import markdown
+from bs4 import BeautifulSoup
 
-IMAGE_BUCKET_NAME = os.environ.get("IMAGE_BUCKET_NAME", "")
+MEDIA_BUCKET_NAME = os.environ.get("MEDIA_BUCKET_NAME", "")
 PRESIGNED_URL_EXPIRY = 600  # 10 minutes
 
 polly_client = boto3.client(
@@ -33,7 +35,10 @@ s3_client = boto3.client(
 # Polly voice mapping by language code
 VOICE_MAP = {
     "yue": {"voice_id": "Hiujin", "engine": "neural", "language_code": "yue-CN"},
+    "zh-hk": {"voice_id": "Hiujin", "engine": "neural", "language_code": "yue-CN"},
     "cmn": {"voice_id": "Zhiyu", "engine": "neural", "language_code": "cmn-CN"},
+    "zh-tw": {"voice_id": "Zhiyu", "engine": "neural", "language_code": "cmn-CN"},
+    "zh-cn": {"voice_id": "Zhiyu", "engine": "neural", "language_code": "cmn-CN"},
     "en": {"voice_id": "Joanna", "engine": "neural", "language_code": "en-US"},
     "ja": {"voice_id": "Kazuha", "engine": "neural", "language_code": "ja-JP"},
     "ko": {"voice_id": "Seoyeon", "engine": "neural", "language_code": "ko-KR"},
@@ -54,7 +59,7 @@ def _build_object_key(text: str, language: str, output_format: str) -> str:
 def _generate_presigned_get_url(object_key: str) -> str:
     return s3_client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": IMAGE_BUCKET_NAME, "Key": object_key},
+        Params={"Bucket": MEDIA_BUCKET_NAME, "Key": object_key},
         ExpiresIn=PRESIGNED_URL_EXPIRY,
     )
 
@@ -75,12 +80,22 @@ def synthesize_and_upload(
         dict with keys: url, object_key, language, voice_id, duration
         or None on failure.
     """
-    voice_cfg = VOICE_MAP.get(language, VOICE_MAP[DEFAULT_LANGUAGE])
-    object_key = _build_object_key(text=text, language=language, output_format=output_format)
+    normalized_lang = (language or DEFAULT_LANGUAGE).strip().lower()
+    voice_cfg = VOICE_MAP.get(normalized_lang, VOICE_MAP[DEFAULT_LANGUAGE])
+
+    # Convert markdown to plain text
+    try:
+        html = markdown.markdown(text)
+        plain_text = BeautifulSoup(html, "html.parser").get_text()
+    except Exception as e:
+        print(f"Failed to strip markdown: {e}")
+        plain_text = text
+
+    object_key = _build_object_key(text=plain_text, language=normalized_lang, output_format=output_format)
 
     # Reuse cached audio when the same text/language/format was synthesized before.
     try:
-        head = s3_client.head_object(Bucket=IMAGE_BUCKET_NAME, Key=object_key)
+        head = s3_client.head_object(Bucket=MEDIA_BUCKET_NAME, Key=object_key)
         duration = float(head.get("Metadata", {}).get("duration", 0.0))
         url = _generate_presigned_get_url(object_key)
         print(f"Using cached speech audio from S3: key={object_key}")
@@ -97,11 +112,11 @@ def synthesize_and_upload(
             print(f"S3 cache lookup failed: {e}")
             return None
 
-    print(f"Synthesizing speech: '{text[:50]}' [lang={language}, voice={voice_cfg['voice_id']}, engine={voice_cfg['engine']}]")
+    print(f"Synthesizing speech: '{plain_text[:50]}' [lang={language}, voice={voice_cfg['voice_id']}, engine={voice_cfg['engine']}]")
 
     try:
         response = polly_client.synthesize_speech(
-            Text=text,
+            Text=plain_text,
             OutputFormat=output_format,
             VoiceId=voice_cfg["voice_id"],
             Engine=voice_cfg["engine"],
@@ -136,7 +151,7 @@ def synthesize_and_upload(
 
     try:
         s3_client.put_object(
-            Bucket=IMAGE_BUCKET_NAME,
+            Bucket=MEDIA_BUCKET_NAME,
             Key=object_key,
             Body=audio_bytes,
             ContentType=content_type,

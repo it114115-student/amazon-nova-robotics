@@ -8,6 +8,7 @@ from services.image_service import (
     generate_presigned_get_url,
     generate_presigned_put_url,
     wait_for_image_upload,
+    copy_to_latest,
 )
 from services.iot_service import iot_client
 
@@ -39,6 +40,7 @@ def execute_get_image(rid: str) -> str:
     uploaded = wait_for_image_upload(object_key, timeout=15.0, interval=0.5)
 
     if uploaded:
+        copy_to_latest(object_key, rid)
         read_url = generate_presigned_get_url(object_key)
         return f"Image captured successfully. image_url={read_url}"
     else:

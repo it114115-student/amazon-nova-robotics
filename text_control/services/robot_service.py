@@ -327,9 +327,9 @@ class RobotService:
         Returns:
             Dict with 'success', 'image_url' (presigned GET URL) or 'error'.
         """
-        bucket = os.environ.get("IMAGE_BUCKET_NAME", "")
+        bucket = os.environ.get("MEDIA_BUCKET_NAME", "")
         if not bucket:
-            logger.error("IMAGE_BUCKET_NAME not configured")
+            logger.error("MEDIA_BUCKET_NAME not configured")
             return {"success": False, "error": "Image bucket not configured"}
 
         s3_client = boto3.client(

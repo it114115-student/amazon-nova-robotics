@@ -10,7 +10,7 @@ import path = require("path");
 import * as iam from "aws-cdk-lib/aws-iam";
 import { DatabaseConstruct } from "./datebase";
 import { UserPool, UserPoolClient } from "aws-cdk-lib/aws-cognito";
-import { LambdaMcpServerConstruct } from "./mcp-server";
+import { TableV2 } from "aws-cdk-lib/aws-dynamodb";
 import * as crypto from "crypto";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import * as ssm from "aws-cdk-lib/aws-ssm";
@@ -22,7 +22,7 @@ interface AgentCoreGatewayAccess {
 
 export interface TextControlWebConstructProps {
   readonly database: DatabaseConstruct;
-  readonly mcpServerConstruct: LambdaMcpServerConstruct;
+  readonly speechTable: TableV2;
   readonly robotGatewayConstruct: AgentCoreGatewayAccess;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
@@ -93,7 +93,7 @@ export class TextControlWebConstruct extends Construct {
         XiaoiceChatSecretKey: chatSecretKey,
         XiaoiceChatAccessKey: chatAccessKey,
         XIAOICE_SECRET_NAME: xiaoiceCredentialsSecret.secretName,
-        SpeechTable: props.mcpServerConstruct.speechTable.tableName,
+        SpeechTable: props.speechTable.tableName,
         RobotDataBucketName: props.roboticBucket.bucketName,
       },
       bundling: {
@@ -128,7 +128,7 @@ export class TextControlWebConstruct extends Construct {
     props.database.robotTable.grantFullAccess(flaskLambda);
 
     // Grant read/write access to the speech table for xiaoice welcome flow
-    props.mcpServerConstruct.speechTable.grantReadWriteData(flaskLambda);
+    props.speechTable.grantReadWriteData(flaskLambda);
 
     // Grant read/write access to robotic bucket
     props.roboticBucket.grantReadWrite(flaskLambda);

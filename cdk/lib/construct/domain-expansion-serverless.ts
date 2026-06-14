@@ -49,14 +49,14 @@ function parseDotEnv(filePath: string): Record<string, string> {
   return env;
 }
 
-import { LambdaMcpServerConstruct } from "./mcp-server";
+
 
 export interface DomainExpansionServerlessConstructProps {
   readonly database: DatabaseConstruct;
   readonly robotSimulatorServerlessConstruct: RobotSimulatorServerlessConstruct;
   readonly userPool: UserPool;
   readonly userPoolClient: UserPoolClient;
-  readonly mcpServerConstruct: LambdaMcpServerConstruct;
+  readonly robotGatewayConstruct: import("./robot-tool-gateway").RobotToolGatewayConstruct;
 }
 
 export class DomainExpansionServerlessConstruct extends Construct {
@@ -220,6 +220,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
         BEDROCK_MODEL_ID: "moonshotai.kimi-k2.5",
         BEDROCK_REGION: Stack.of(this).region,
         PHOTOS_S3_BUCKET: photosBucket.bucketName,
+        PHOTOS_S3_DOMAIN: photosBucket.bucketRegionalDomainName,
         COMMENTARY_AUDIO_PREFIX: "commentary-audio",
         COMMENTARY_AUDIO_URL_EXPIRY: "600",
         COGNITO_USER_POOL_ID: props.userPool.userPoolId,
@@ -227,12 +228,11 @@ export class DomainExpansionServerlessConstruct extends Construct {
         COGNITO_REGION: Stack.of(this).region,
         ROBOT_API_ENDPOINT: "https://" + props.robotSimulatorServerlessConstruct.serviceUrl,
         DEFAULT_SESSION_KEY: "mcpserver",
-        MCP_SERVER_FUNCTION_NAME: props.mcpServerConstruct.mcpFunction.functionName,
+        McpServerGatewayUrl: props.robotGatewayConstruct.gatewayUrl,
       },
     });
 
-    // Grant direct invoke permission on MCP Lambda
-    props.mcpServerConstruct.mcpFunction.grantInvoke(lambdaFunction);
+    props.robotGatewayConstruct.grantInvokeGateway(lambdaFunction.role!);
 
     // Grant DynamoDB & S3 access to Lambda
     connectionsTable.grantReadWriteData(lambdaFunction);

@@ -1,5 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
+import * as path from "path";
 import { Construct } from "constructs";
 import { RoboticConstruct } from "./construct/robot-iot";
 import { SpeechControlAgentcoreConstruct } from "./construct/speech-web-agentcore";
@@ -7,8 +9,9 @@ import { TextControlWebConstruct } from "./construct/text-web";
 import { RobotSsmConstruct } from "./construct/robot-ssm";
 import { SsmUserConstruct } from "./construct/ssm-user";
 import { DatabaseConstruct } from "./construct/datebase";
-import { LambdaMcpServerConstruct } from "./construct/mcp-server";
 import { RobotSimulatorServerlessConstruct } from "./construct/robot-simulator-serverless";
+import { AttributeType, Billing, TableV2 } from "aws-cdk-lib/aws-dynamodb";
+import * as s3 from "aws-cdk-lib/aws-s3";
 import { Authenticator } from "./construct/authenticator";
 import { DomainExpansionServerlessConstruct } from "./construct/domain-expansion-serverless";
 import { RobotToolGatewayConstruct } from "./construct/robot-tool-gateway";
@@ -48,22 +51,60 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       }
     );
 
-    const mcpServerConstruct = new LambdaMcpServerConstruct(
-      this,
-      "LambdaMcpServerConstruct",
-      {
-        database: databaseConstruct,
-        simulatorEndpoint: humanoidRobotSimulatorServerlessConstruct.serviceUrl,
-      }
+    const speechTable = new TableV2(this, "SpeechTable", {
+      partitionKey: {
+        name: "id",
+        type: AttributeType.STRING,
+      },
+      billing: Billing.onDemand(),
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: false,
+      },
+    });
+
+    new cdk.CfnOutput(this, "SpeechTableName", {
+      key: "SpeechTable",
+      value: speechTable.tableName,
+      description: "The name of the DynamoDB table for xiaoice speech messages",
+    });
+
+    const mediaBucket = new s3.Bucket(this, "RobotMediaBucket", {
+      websiteIndexDocument: "index.html",
+      versioned: false,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      publicReadAccess: true,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS_ONLY,
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
+          allowedOrigins: ["*"],
+          allowedHeaders: ["*"],
+        },
+      ],
+    });
+
+    mediaBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:GetObject"],
+        resources: [mediaBucket.arnForObjects("*")],
+        principals: [new iam.AnyPrincipal()],
+      })
     );
+
+    new s3deploy.BucketDeployment(this, "DeployMediaWebsite", {
+      sources: [s3deploy.Source.asset(path.join(__dirname, "../../robot-media-website"))],
+      destinationBucket: mediaBucket,
+    });
 
     const robotToolGatewayConstruct = new RobotToolGatewayConstruct(
       this,
       "RobotToolGatewayConstruct",
       {
         simulatorEndpoint: humanoidRobotSimulatorServerlessConstruct.serviceUrl,
-        imageBucket: mcpServerConstruct.imageBucket,
-        speechTable: mcpServerConstruct.speechTable,
+        mediaBucket: mediaBucket,
+        speechTable: speechTable,
       }
     );
 
@@ -132,7 +173,7 @@ const textControlWebConstruct = new TextControlWebConstruct(
   "TextControlWebConstruct",
   {
     database: databaseConstruct,
-    mcpServerConstruct: mcpServerConstruct,
+    speechTable: speechTable,
     robotGatewayConstruct: robotToolGatewayConstruct,
     userPool: authenticator.userPool,
     userPoolClient: authenticator.userPoolClient,
@@ -202,7 +243,7 @@ const textControlWebConstruct = new TextControlWebConstruct(
         robotSimulatorServerlessConstruct: humanoidRobotSimulatorServerlessConstruct,
         userPool: authenticator.userPool,
         userPoolClient: authenticator.userPoolClient,
-        mcpServerConstruct: mcpServerConstruct,
+        robotGatewayConstruct: robotToolGatewayConstruct,
       }
     );
 
@@ -283,9 +324,9 @@ const textControlWebConstruct = new TextControlWebConstruct(
       description: "Secret Access Key for the skill user to invoke Bedrock AgentCore Secure Gateway",
     });
 
-    new cdk.CfnOutput(this, "RobotImageBucketName", {
-      value: mcpServerConstruct.imageBucket.bucketName,
-      description: "The name of the S3 bucket for robot captured images",
+    new cdk.CfnOutput(this, "RobotMediaBucketWebsiteUrl", {
+      value: mediaBucket.bucketWebsiteUrl,
+      description: "The URL of the Robot Media S3 Website",
     });
 
     new cdk.CfnOutput(this, "CognitoUserPoolId", {

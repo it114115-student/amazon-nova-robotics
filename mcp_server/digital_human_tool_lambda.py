@@ -128,8 +128,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
         if tool_name == "digital_human_speech":
             message = payload.get("message", "")
-            logger.info("Dispatching digital_human_speech tool. message=%s", message)
-            result_str = execute_digital_human_speech(message)
+            language = payload.get("language", "en")
+            logger.info("Dispatching digital_human_speech tool. message=%s, language=%s", message, language)
+            result_str = execute_digital_human_speech(message, language)
             return _response(200, result_str)
 
         return _response(400, {"error": f"Unknown digital human tool: {tool_name}"})

@@ -286,6 +286,8 @@
       font-weight: 400;
       color: rgba(240, 244, 258, 0.85);
       min-height: 56px;
+      max-height: 150px;
+      overflow-y: auto;
     }
 
     .dialogue-footer {
@@ -319,6 +321,7 @@
 
     /* Diagnostics Sidebar panel */
     .diag-panel {
+      display: none;
       position: absolute;
       top: 120px;
       right: 24px;
@@ -387,6 +390,7 @@
 
     /* Interactive Speak Test Control */
     .test-trigger {
+      display: none;
       position: absolute;
       top: 120px;
       left: 24px;
@@ -444,6 +448,7 @@
 
     /* Face Tracking Panel */
     .tracking-panel {
+      display: none;
       position: absolute;
       top: 270px;
       left: 24px;
@@ -819,6 +824,9 @@
           <img src="./img/hkiit-logo.png" alt="HKIIT Logo" style="height: 36px; object-fit: contain; filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.1));">
           <img src="./img/it114115-logo.png" alt="IT114115 Logo" style="height: 36px; object-fit: contain; filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.1));">
         </div>
+        <button onclick="togglePanel('panel-manual-test', 'flex')" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.3); color: var(--accent-cyan); padding: 6px 12px; border-radius: 6px; font-family: 'Share Tech Mono'; font-size: 11px; cursor: pointer; transition: all 0.2s;">🎙️ Override</button>
+        <button onclick="togglePanel('panel-face-tracking', 'flex')" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.3); color: var(--accent-cyan); padding: 6px 12px; border-radius: 6px; font-family: 'Share Tech Mono'; font-size: 11px; cursor: pointer; transition: all 0.2s;">👁️ Tracking</button>
+        <button onclick="togglePanel('panel-diagnostics', 'block')" style="background: rgba(255, 183, 0, 0.1); border: 1px solid rgba(255, 183, 0, 0.3); color: var(--accent-gold); padding: 6px 12px; border-radius: 6px; font-family: 'Share Tech Mono'; font-size: 11px; cursor: pointer; transition: all 0.2s;">⚙️ Diagnostics</button>
         <button onclick="handleLogout()" style="background: rgba(255, 0, 122, 0.1); border: 1px solid rgba(255, 0, 122, 0.3); color: #ff3b9a; padding: 6px 12px; border-radius: 6px; font-family: 'Share Tech Mono'; font-size: 11px; cursor: pointer; margin-right: 12px; transition: all 0.2s;">Log Out</button>
         <div class="status-badge">
           <div id="ws-dot" class="status-dot"></div>
@@ -828,14 +836,14 @@
     </header>
 
     <!-- Interactive Test Control -->
-    <div class="test-trigger">
+    <div id="panel-manual-test" class="test-trigger">
       <div style="font-size: 12px; font-weight: 600; color: var(--accent-cyan); margin-bottom: 4px; text-transform: uppercase; font-family: 'Share Tech Mono';">🎙️ Manual Override Test</div>
       <input type="text" id="manual-text" class="test-input" placeholder="Type message..." value="Hello, I am Shizuku. Ready to assist.">
       <button class="btn" onclick="testManualSpeech()">Speak Now</button>
     </div>
 
     <!-- Face Tracking Control -->
-    <div class="tracking-panel">
+    <div id="panel-face-tracking" class="tracking-panel">
       <div class="tracking-panel-title">
         <span>👁️ Face Tracking</span>
       </div>
@@ -867,7 +875,7 @@
     </div>
 
     <!-- Diagnostics Panel -->
-    <div class="diag-panel">
+    <div id="panel-diagnostics" class="diag-panel">
       <div class="diag-title">
         <span>System Diagnostics</span>
         <span style="color: var(--accent-gold);">v2.0</span>
@@ -1752,15 +1760,6 @@
       startSessionGuard();
       initLive2DAvatar();
       initWebSocket();
-
-      // Auto-restore saved face tracking configuration
-      const savedEnabled = localStorage.getItem('face_tracking_enabled') === 'true';
-      if (savedEnabled) {
-        document.getElementById('tracking-toggle').checked = true;
-        setTimeout(() => {
-          toggleFaceTracking(true);
-        }, 1500);
-      }
     }
 
     window.addEventListener('DOMContentLoaded', initAuthFlow);
@@ -1921,6 +1920,18 @@
     // Add logout handler
     function handleLogout() {
       forceSessionLogout();
+    }
+
+    // Toggle panel visibility
+    function togglePanel(panelId, displayStyle = 'block') {
+      const panel = document.getElementById(panelId);
+      if (panel) {
+        if (panel.style.display === 'none' || window.getComputedStyle(panel).display === 'none') {
+          panel.style.display = displayStyle;
+        } else {
+          panel.style.display = 'none';
+        }
+      }
     }
 
   </script>

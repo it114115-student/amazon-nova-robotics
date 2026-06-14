@@ -3,6 +3,8 @@ import logging
 import os
 import re
 import uuid
+import markdown
+from bs4 import BeautifulSoup
 
 import boto3
 from botocore.config import Config
@@ -107,8 +109,15 @@ def synthesize_commentary_audio(text: str, session_id: str, language: str) -> di
     if not normalized_text or not COMMENTARY_AUDIO_BUCKET:
         return None
 
+    try:
+        html = markdown.markdown(normalized_text)
+        plain_text = BeautifulSoup(html, "html.parser").get_text()
+    except Exception as e:
+        logger.error(f"Failed to strip markdown: {e}")
+        plain_text = normalized_text
+
     voice_config = get_voice_for_language(language)
-    audio_bytes = _synthesize_speech_bytes(normalized_text, voice_config)
+    audio_bytes = _synthesize_speech_bytes(plain_text, voice_config)
     if not audio_bytes:
         return None
     duration = _calculate_mp3_duration(audio_bytes)

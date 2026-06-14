@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Camera View</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        .card img {
+            width: 100%;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+            display: block;
+            background-color: #000;
+        }
+        .card h3 {
+            margin: 15px 0;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Robot Latest Views</h1>
+    <div class="grid" id="grid">
+    </div>
+
+    <script>
+        const robots = ['robot_1', 'robot_2', 'robot_3', 'robot_4', 'robot_5', 'robot_6'];
+        const grid = document.getElementById('grid');
+
+        function render() {
+            grid.innerHTML = '';
+            const timestamp = new Date().getTime();
+            robots.forEach(robot => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <img src="robot-images/${robot}/latest.jpg?t=${timestamp}" alt="${robot} view" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iIzY2NiIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjRweCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg=='">
+                    <h3>${robot.replace('_', ' ').toUpperCase()}</h3>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        render();
+        // Refresh every 5 seconds
+        setInterval(render, 5000);
+    </script>
+</body>
+</html>

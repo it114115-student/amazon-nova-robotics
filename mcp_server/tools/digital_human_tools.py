@@ -5,6 +5,8 @@ import requests
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
 from services.iot_service import execute_xiaoice_speech
 from services.speech_service import save_speech_message
+import markdown
+from bs4 import BeautifulSoup
 
 # Only one digital human device exists
 DIGITAL_HUMAN_ID = "xiaoice_1"
@@ -12,17 +14,25 @@ DIGITAL_HUMAN_ID = "xiaoice_1"
 CURRENT_PRESENTER = "current_presenter"
 
 
-def execute_digital_human_speech(message: str) -> str:
+def execute_digital_human_speech(message: str, language: str = "en") -> str:
     """Make the digital human speak a message aloud.
     Saves to DynamoDB and publishes to IoT Core.
     """
     if not message or not message.strip():
         return "Error: message cannot be empty."
 
+    # Convert markdown to plain text for both frontend display and TTS
+    try:
+        html = markdown.markdown(message.strip())
+        plain_message = BeautifulSoup(html, "html.parser").get_text()
+    except Exception as e:
+        print(f"Failed to strip markdown in digital human speech: {e}")
+        plain_message = message.strip()
+
     # Save to DynamoDB with fixed presenter key
     saved_item = save_speech_message(
         xiaoice_id=DIGITAL_HUMAN_ID,
-        message=message.strip(),
+        message=plain_message,
         presenter_id=CURRENT_PRESENTER,
     )
 
@@ -32,7 +42,7 @@ def execute_digital_human_speech(message: str) -> str:
     polly_result = None
     try:
         from services.polly_service import synthesize_and_upload
-        polly_result = synthesize_and_upload(text=message.strip(), language="en")
+        polly_result = synthesize_and_upload(text=plain_message, language=language)
     except Exception as e:
         print(f"Warning: Polly synthesis failed for digital human: {e}")
 
@@ -47,7 +57,7 @@ def execute_digital_human_speech(message: str) -> str:
         url = f"https://{clean_endpoint}/api/digital-human/speak?session_key=mcpserver"
         try:
             payload = {
-                "message": message.strip()
+                "message": plain_message
             }
             if polly_result and polly_result.get("url"):
                 payload["audio_url"] = polly_result["url"]
@@ -58,17 +68,14 @@ def execute_digital_human_speech(message: str) -> str:
         except Exception as e:
             print(f"Warning: Exception while calling simulator endpoint speech broadcast: {e}")
 
-    if success:
-        return f'Digital Human is now speaking: "{message.strip()}"'
-    else:
-        return "Failed to send speech command to Digital Human."
+    return f'Digital Human is now speaking: "{plain_message}"'
 
 
 def register_digital_human_tools(mcp: MCPLambdaHandler):
     """Register all Digital Human speech tools with the MCP handler."""
 
     @mcp.tool()
-    def digital_human_speech(message: str) -> str:
+    def digital_human_speech(message: str, language: str = "en") -> str:
         """Command the Digital Human to speak a message aloud.
 
         This tool saves the speech message to DynamoDB for retrieval,
