@@ -215,7 +215,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
         CONNECTIONS_TABLE: connectionsTable.tableName,
         SESSIONS_TABLE: sessionsTable.tableName,
         AGENT_TYPE: "agentcore_runtime",
-        AGENTCORE_RUNTIME_ARN: openclawRuntimeArn,
+        AGENTCORE_RUNTIME_ARN: runtime.agentRuntimeArn,
         OPENCLAW_SESSION_ID: openclawSessionId,
         BEDROCK_MODEL_ID: "moonshotai.kimi-k2.5",
         BEDROCK_REGION: Stack.of(this).region,

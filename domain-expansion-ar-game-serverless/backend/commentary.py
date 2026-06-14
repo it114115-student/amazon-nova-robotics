@@ -274,6 +274,26 @@ def generate_ai_commentary(
         image_format_p1 = "jpeg"
     if image_format_p2 == "jpg":
         image_format_p2 = "jpeg"
+
+    # Build base64 if missing but bytes are present
+    if not image_base64_p1 and image_bytes_p1:
+        import base64
+        image_base64_p1 = base64.b64encode(image_bytes_p1).decode("utf-8")
+    if not image_base64_p2 and image_bytes_p2:
+        import base64
+        image_base64_p2 = base64.b64encode(image_bytes_p2).decode("utf-8")
+
+    # Embed XML tags in content_block for agent container to bypass OpenClaw proxy stripping/flattening
+    if agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
+        tags = []
+        if image_base64_p1:
+            tags.append(f"<p1_webcam_base64_jpeg>{image_base64_p1}</p1_webcam_base64_jpeg>")
+        if image_base64_p2:
+            tags.append(f"<p2_webcam_base64_jpeg>{image_base64_p2}</p2_webcam_base64_jpeg>")
+        if tags:
+            content_block = f"{content_block}\n" + "\n".join(tags)
+            logger.info("Embedded base64 snapshots in content_block XML tags")
+
     env_session_id = os.environ.get("OPENCLAW_SESSION_ID")
     if env_session_id and agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
         session_id = env_session_id

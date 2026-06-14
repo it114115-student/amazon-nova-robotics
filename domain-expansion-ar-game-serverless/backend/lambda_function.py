@@ -545,6 +545,8 @@ def handle_http(event):
         image_base64 = body.get("image", "")
 
         try:
+            if "," in image_base64:
+                _, image_base64 = image_base64.split(",", 1)
             img_data = base64.b64decode(image_base64)
             logger.info("Decoded webcam upload for session=%s role=%s size=%d bytes", session_id, role, len(img_data))
             
@@ -657,7 +659,7 @@ def handle_http(event):
         room_code = body.get("roomCode", "BTL1")
         p1_score = body.get("p1Score", 0)
         p2_score = body.get("p2Score", 0)
-        text_event = body.get("text", "")
+        text_event = body.get("text") or body.get("detail") or ""
         event_type = body.get("eventType", "")
         agent_image_policy = body.get("agentImagePolicy", "always")
         foul_language = bool(body.get("foulLanguage", False))
@@ -768,21 +770,23 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
                     try:
                         s3_obj = s3_client.get_object(Bucket=photos_bucket, Key=f"webcam_snapshots/{session_id}/player1.jpg")
                         image_bytes_p1 = s3_obj["Body"].read()
-                        image_bytes_p1 = optimize_commentary_image(image_bytes_p1)
-                        image_base64_p1 = base64.b64encode(image_bytes_p1).decode("utf-8")
-                        logger.info("Successfully fetched Player 1 frame directly from S3 for Bedrock!")
-                    except s3_client.exceptions.NoSuchKey:
-                        logger.info("No Player 1 snapshot in S3 yet.")
+                        if image_bytes_p1:
+                            image_bytes_p1 = optimize_commentary_image(image_bytes_p1)
+                            image_base64_p1 = base64.b64encode(image_bytes_p1).decode("utf-8")
+                            logger.info("Successfully fetched Player 1 frame directly from S3 for Bedrock!")
+                    except Exception as e:
+                        logger.info(f"Could not fetch Player 1 snapshot: {e}")
 
                     # Fetch Player 2 frame directly from S3
                     try:
                         s3_obj = s3_client.get_object(Bucket=photos_bucket, Key=f"webcam_snapshots/{session_id}/player2.jpg")
                         image_bytes_p2 = s3_obj["Body"].read()
-                        image_bytes_p2 = optimize_commentary_image(image_bytes_p2)
-                        image_base64_p2 = base64.b64encode(image_bytes_p2).decode("utf-8")
-                        logger.info("Successfully fetched Player 2 frame directly from S3 for Bedrock!")
-                    except s3_client.exceptions.NoSuchKey:
-                        logger.info("No Player 2 snapshot in S3 yet.")
+                        if image_bytes_p2:
+                            image_bytes_p2 = optimize_commentary_image(image_bytes_p2)
+                            image_base64_p2 = base64.b64encode(image_bytes_p2).decode("utf-8")
+                            logger.info("Successfully fetched Player 2 frame directly from S3 for Bedrock!")
+                    except Exception as e:
+                        logger.info(f"Could not fetch Player 2 snapshot: {e}")
                 else:
                     logger.warning("PHOTOS_S3_BUCKET is missing! Cannot attach images to commentary.")
             except Exception as e:
@@ -809,7 +813,7 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
         if commentary_text and agent_engine in ("strands_local", "agentcore_runtime", "openclaw"):
             invoke_agentcore_gateway_tool(
                 tool_name="digital-human-mcp-lambda___digital_human_speech",
-                arguments={"message": commentary_text, "language": user_language}
+                arguments={"message": commentary_text}
             )
 
         audio_payload = None

@@ -153,6 +153,30 @@ async def invoke_agent(request: Request):
         image_b64_p2 = body.get("image_p2", "")
         image_format_p2 = body.get("image_format_p2", "jpeg")
 
+        # Extract and strip base64 snapshots from XML tags if present in prompt_text (bypassing gateway stripping/flattening)
+        import re
+        p1_pattern = re.compile(r"<p1_webcam_base64_jpeg>(.*?)</p1_webcam_base64_jpeg>", re.DOTALL)
+        p2_pattern = re.compile(r"<p2_webcam_base64_jpeg>(.*?)</p2_webcam_base64_jpeg>", re.DOTALL)
+        
+        p1_xml_extracted = False
+        p1_match = p1_pattern.search(prompt_text)
+        if p1_match:
+            image_b64_p1 = p1_match.group(1).strip()
+            image_format_p1 = "jpeg"
+            prompt_text = p1_pattern.sub("", prompt_text).strip()
+            p1_xml_extracted = True
+            
+        p2_xml_extracted = False
+        p2_match = p2_pattern.search(prompt_text)
+        if p2_match:
+            image_b64_p2 = p2_match.group(1).strip()
+            image_format_p2 = "jpeg"
+            prompt_text = p2_pattern.sub("", prompt_text).strip()
+            p2_xml_extracted = True
+            
+        if p1_xml_extracted or p2_xml_extracted:
+            logger.info(f"Successfully extracted snapshots from XML tags: p1={p1_xml_extracted}, p2={p2_xml_extracted}")
+
         # Extract images from OpenAI/OpenClaw-style messages/message if not present in root
         if not image_b64_p1 or not image_b64_p2:
             extracted_images = [] # list of (b64_str, format)

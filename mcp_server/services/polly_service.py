@@ -36,8 +36,8 @@ s3_client = boto3.client(
 VOICE_MAP = {
     "yue": {"voice_id": "Hiujin", "engine": "neural", "language_code": "yue-CN"},
     "zh-hk": {"voice_id": "Hiujin", "engine": "neural", "language_code": "yue-CN"},
+    "zh-tw": {"voice_id": "Hiujin", "engine": "neural", "language_code": "yue-CN"},
     "cmn": {"voice_id": "Zhiyu", "engine": "neural", "language_code": "cmn-CN"},
-    "zh-tw": {"voice_id": "Zhiyu", "engine": "neural", "language_code": "cmn-CN"},
     "zh-cn": {"voice_id": "Zhiyu", "engine": "neural", "language_code": "cmn-CN"},
     "en": {"voice_id": "Joanna", "engine": "neural", "language_code": "en-US"},
     "ja": {"voice_id": "Kazuha", "engine": "neural", "language_code": "ja-JP"},
@@ -81,7 +81,6 @@ def synthesize_and_upload(
         or None on failure.
     """
     normalized_lang = (language or DEFAULT_LANGUAGE).strip().lower()
-    voice_cfg = VOICE_MAP.get(normalized_lang, VOICE_MAP[DEFAULT_LANGUAGE])
 
     # Convert markdown to plain text
     try:
@@ -90,6 +89,12 @@ def synthesize_and_upload(
     except Exception as e:
         print(f"Failed to strip markdown: {e}")
         plain_text = text
+
+    # Always use the Cantonese voice ('yue') for English, as it handles both well
+    if normalized_lang == "en":
+        normalized_lang = "yue"
+
+    voice_cfg = VOICE_MAP.get(normalized_lang, VOICE_MAP[DEFAULT_LANGUAGE])
 
     object_key = _build_object_key(text=plain_text, language=normalized_lang, output_format=output_format)
 

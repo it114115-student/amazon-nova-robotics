@@ -5,3 +5,4 @@ mutagen
 boto3
 markdown
 beautifulsoup4
+langdetect
