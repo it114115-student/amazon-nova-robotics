@@ -7,10 +7,13 @@ import {
   CfnIdentityPoolRoleAttachment,
 } from "aws-cdk-lib/aws-cognito";
 import * as iam from "aws-cdk-lib/aws-iam";
-import { RemovalPolicy } from "aws-cdk-lib";
+import { RemovalPolicy, Duration } from "aws-cdk-lib";
 
 export interface AuthenticatorProps {
   readonly userPoolName?: string;
+  readonly idTokenValidityHours?: number;
+  readonly accessTokenValidityHours?: number;
+  readonly refreshTokenValidityDays?: number;
 }
 
 export class Authenticator extends Construct {
@@ -35,6 +38,14 @@ export class Authenticator extends Construct {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
+    const contextIdTokenHours = this.node.tryGetContext("idTokenValidityHours");
+    const contextAccessTokenHours = this.node.tryGetContext("accessTokenValidityHours");
+    const contextRefreshTokenDays = this.node.tryGetContext("refreshTokenValidityDays");
+
+    const idHours = contextIdTokenHours !== undefined ? Number(contextIdTokenHours) : (props?.idTokenValidityHours ?? 1);
+    const accessHours = contextAccessTokenHours !== undefined ? Number(contextAccessTokenHours) : (props?.accessTokenValidityHours ?? 1);
+    const refreshDays = contextRefreshTokenDays !== undefined ? Number(contextRefreshTokenDays) : (props?.refreshTokenValidityDays ?? 30);
+
     this.userPoolClient = new UserPoolClient(this, "UserPoolClient", {
       userPool: this.userPool,
       generateSecret: false,
@@ -43,6 +54,9 @@ export class Authenticator extends Construct {
         adminUserPassword: true,
         userSrp: true,
       },
+      idTokenValidity: Duration.hours(idHours),
+      accessTokenValidity: Duration.hours(accessHours),
+      refreshTokenValidity: Duration.days(refreshDays),
     });
 
     // Create the Cognito Identity Pool

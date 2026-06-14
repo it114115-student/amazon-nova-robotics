@@ -78,3 +78,24 @@ To centralize and optimize robot control and audio synthesis, the game orchestra
 If the serverless backend is unavailable (or the game is running in static local mode), the client browser automatically catches the failure and falls back to direct client-side direct calling:
 - Directly triggers `/run_action/{robot_id}` on the local robot simulator endpoint configured in the Settings Panel, guaranteeing offline/local compatibility and preserving existing hardware integration workflows.
 
+
+---
+
+## 6. Multi-Modal Snapshots & Configurable Session Expiration (June 14, 2026)
+
+### A. Robust OpenClaw Gateway XML Snapshot Bypass
+- **Problem**: When playing matches behind the intermediate OpenClaw proxy gateway, custom payload root attributes (e.g., `"image"`, `"image_p2"`) were stripped, and multimodal nested block arrays inside `"messages"` were flattened into single plain-text prompt strings. This dropped the player webcam snapshots entirely, preventing the Kugisaki Nobara AI commentator from trash-talking or hyping player appearances.
+- **Solution**: 
+  - **Sender packaging (`commentary.py`)**: Before dispatching payloads to the agent runtime, the backend Lambda embeds the base64-encoded JPEGs inside structured plain-text tags (`<p1_webcam_base64_jpeg>...</p1_webcam_base64_jpeg>` and `<p2_webcam_base64_jpeg>...</p2_webcam_base64_jpeg>`) appended directly to the text of the prompt.
+  - **Receiver extraction (`commentator_agent.py`)**: Inside our custom container-backed agent, a regex-based parser extracts and decodes the base64 image strings from the XML tags, converts them back to Bedrock binary multimodal parts, and completely strips the XML tags from the final text prompt.
+  - **Benefit**: Retains 100% token efficiency and ensures webcam image context survives any proxy gateway flattening, while preserving normal direct/local JSON file-based snapshot operations when no tags are present.
+
+### B. Technique/Domain Translation Tracker Keys mapping
+- **Problem**: Raw gesture outputs from the hand-tracker model (e.g., `"Authentic Mutual Love"` and `"Yuji Itadori"`) did not perfectly align with regional translation dictionary keys inside `battle.js`, causing the player's active HUD and generated commentary details to default to English even when Cantonese (`zh-HK`), Taiwanese (`zh-TW`), or Japanese (`ja`) were selected.
+- **Solution**: Updated `TECHNIQUE_TRANSLATIONS` to add direct tracker alias keys (`"Authentic Mutual Love"` and `"Yuji Itadori"`) mapping to their correct localized versions for all languages. They now display perfectly in Chinese characters and are sent to the AI commentator correctly localized (e.g. `真贋相愛` or `虎杖悠仁的領域`).
+
+### C. Configurable Cognito Session Token Expirations
+- **Session Durations**: Explicitly set `idTokenValidity` and `accessTokenValidity` to **1 hour** by default on the User Pool Client to match security expectations, with `refreshTokenValidity` defaulting to **30 days**.
+- **CDK Configuration**: Implemented parameter support both programmatically via `AuthenticatorProps` and dynamically via command-line context variables (`idTokenValidityHours`, `accessTokenValidityHours`, `refreshTokenValidityDays`). This allows operators to easily adjust session policies during deployments without modifying stack codebase files.
+
+

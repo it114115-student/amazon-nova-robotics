@@ -23,6 +23,11 @@ The `Authenticator` Construct is built using the following L1/L2 AWS CDK resourc
 * **Configuration Highlights**:
   * `generateSecret: false`: As browser single-page apps (React/Vite) cannot securely store static secrets, client secrets are omitted to prevent leakage.
   * `authFlows`: Enables secure password SRP flow (`userSrp`), password flow (`userPassword`), and admin flow (`adminUserPassword`) to support multiple runtime clients.
+  * **Session Durations**: Enforces structured session limits with the following default values:
+    * `idTokenValidity`: **1 hour** (the primary session credential lifespan).
+    * `accessTokenValidity`: **1 hour**.
+    * `refreshTokenValidity`: **30 days**.
+  * **CDK Configuration**: Exposes dynamic token parameters in `AuthenticatorProps` (`idTokenValidityHours`, `accessTokenValidityHours`, `refreshTokenValidityDays`) and maps them directly to CDK CLI context, enabling operators to customize token lifetimes dynamically at deployment.
 
 ### C. Cognito Identity Pool
 * **Purpose**: Translates authenticated Cognito IDs into short-lived AWS IAM credentials.
