@@ -128,6 +128,46 @@ _ROBOT_TOOL_CONFIG: dict[str, dict[str, str]] = {
         "action": "stop",
         "message": "The robot has stopped.",
     },
+    "robot_dance_one": {
+        "action": "dance_one",
+        "message": "The robot is performing dance one.",
+    },
+    "robot_dance_two": {
+        "action": "dance_two",
+        "message": "The robot is performing dance two.",
+    },
+    "robot_dance_three": {
+        "action": "dance_three",
+        "message": "The robot is performing dance three.",
+    },
+    "robot_dance_four": {
+        "action": "dance_four",
+        "message": "The robot is performing dance four.",
+    },
+    "robot_dance_five": {
+        "action": "dance_five",
+        "message": "The robot is performing dance five.",
+    },
+    "robot_dance_six": {
+        "action": "dance_six",
+        "message": "The robot is performing dance six.",
+    },
+    "robot_dance_seven": {
+        "action": "dance_seven",
+        "message": "The robot is performing dance seven.",
+    },
+    "robot_dance_eight": {
+        "action": "dance_eight",
+        "message": "The robot is performing dance eight.",
+    },
+    "robot_dance_nine": {
+        "action": "dance_nine",
+        "message": "The robot is performing dance nine.",
+    },
+    "robot_dance_ten": {
+        "action": "dance_ten",
+        "message": "The robot is performing dance ten.",
+    },
 }
 
 

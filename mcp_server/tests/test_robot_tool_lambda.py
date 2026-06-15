@@ -17,18 +17,18 @@ mutagen_mp3_module.MP3 = object
 sys.modules.setdefault("mutagen", mutagen_module)
 sys.modules.setdefault("mutagen.mp3", mutagen_mp3_module)
 
-services_module = types.ModuleType("services")
-services_module.__path__ = []
+import services
 iot_service_module = types.ModuleType("services.iot_service")
 iot_service_module.execute_robot_action = lambda *args, **kwargs: True
-iot_service_module.execute_dog_action = lambda *args, **kwargs: True
-iot_service_module.execute_drone_action = lambda *args, **kwargs: True
-iot_service_module.execute_xiaoice_speech = lambda *args, **kwargs: True
+iot_service_module.iot_client = SimpleNamespace(publish=lambda *args, **kwargs: None)
 polly_service_module = types.ModuleType("services.polly_service")
 polly_service_module.synthesize_and_upload = lambda *args, **kwargs: None
-sys.modules.setdefault("services", services_module)
-sys.modules.setdefault("services.iot_service", iot_service_module)
-sys.modules.setdefault("services.polly_service", polly_service_module)
+polly_service_module.VOICE_MAP = {
+    "yue": {"voice_id": "Hiujin", "engine": "neural", "language_code": "yue-CN"},
+    "en": {"voice_id": "Joanna", "engine": "neural", "language_code": "en-US"},
+}
+sys.modules["services.iot_service"] = iot_service_module
+sys.modules["services.polly_service"] = polly_service_module
 
 import robot_tool_lambda
 
@@ -131,3 +131,14 @@ class RobotToolLambdaTests(unittest.TestCase):
                 "error": "Gateway request is missing a supported tool name. candidate_locations=[]",
             },
         )
+
+    @patch.object(robot_tool_lambda.robot_executor, "execute_action", return_value=True)
+    def test_dispatches_robot_dance_one(self, execute_action):
+        response = robot_tool_lambda.lambda_handler(
+            {"robot_id": "robot_1"},
+            _context("robot_dance_one"),
+        )
+
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(json.loads(response["body"]), "The robot is performing dance one.")
+        execute_action.assert_called_once_with("robot_1", "dance_one")

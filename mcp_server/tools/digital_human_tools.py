@@ -3,8 +3,8 @@
 import os
 import requests
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
-from services.iot_service import execute_xiaoice_speech
 from services.speech_service import save_speech_message
+from services.iot_service import execute_xiaoice_speech
 import markdown
 from bs4 import BeautifulSoup
 
@@ -36,7 +36,16 @@ def execute_digital_human_speech(message: str, language: str = "en") -> str:
         presenter_id=CURRENT_PRESENTER,
     )
 
-    # Removed publish to IoT to prevent duplicate speech triggering across all pages
+    # Publish to IoT so the Digital Human can speak it
+    try:
+        execute_xiaoice_speech(
+            xiaoice_id=DIGITAL_HUMAN_ID,
+            message=plain_message,
+            presenter_id=CURRENT_PRESENTER,
+            metadata={"speech_record_id": saved_item.get("id", "")},
+        )
+    except Exception as e:
+        print(f"Warning: Failed to publish digital human speech to IoT: {e}")
 
     # Synthesize with Amazon Polly
     polly_result = None
