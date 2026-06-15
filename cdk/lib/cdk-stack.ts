@@ -110,8 +110,6 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
 
     // Device configuration
     const numberOfRobots = 6; // Number of robots
-    const numberOfDrones = 2; // Number of drones
-    const numberOfDogs = 3; // Number of dogs
     const numberOfXiaoice = 1; // Number of xiaoice Digital Humans
 
     // Generate device names
@@ -119,20 +117,10 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       { length: numberOfRobots },
       (_, i) => `robot_${i + 1}`
     );
-    const droneNames = Array.from(
-      { length: numberOfDrones },
-      (_, i) => `drone_${i + 1}`
-    );
-    const dogNames = Array.from(
-      { length: numberOfDogs },
-      (_, i) => `dog_${i + 1}`
-    );
     const xiaoiceNames = Array.from(
       { length: numberOfXiaoice },
       (_, i) => `xiaoice_${i + 1}`
     );
-    thingNames.push(...droneNames);
-    thingNames.push(...dogNames);
     thingNames.push(...xiaoiceNames);
 
     // BATCH PROCESSING: Single construct creates all IoT devices with 1 Lambda function
@@ -222,16 +210,6 @@ const textControlWebConstruct = new TextControlWebConstruct(
     new RobotSsmConstruct(this, "RobotSsmConstruct", {
       prefix: "humanoid",
       thingNames: ssmRobotNames,
-      ssmUserConstruct: ssmUserConstruct,
-    });
-
-    const ssmDogNames = Array.from(
-      { length: numberOfDogs },
-      (_, i) => `RaspberryPiDog${i + 1}`
-    );
-    new RobotSsmConstruct(this, "RobotDogSsmConstruct", {
-      prefix: "dog",
-      thingNames: ssmDogNames,
       ssmUserConstruct: ssmUserConstruct,
     });
 

@@ -142,8 +142,6 @@ export class TextControlWebConstruct extends Construct {
         actions: ["iot:Publish", "iot-data:Publish"],
         resources: [
           "arn:aws:iot:*:*:topic/robot_*/topic",
-          "arn:aws:iot:*:*:topic/drone_*/topic",
-          "arn:aws:iot:*:*:topic/dog_*/topic",
           "arn:aws:iot:*:*:topic/xiaoice_*/topic",
         ],
       })
