@@ -12,8 +12,8 @@ Self-contained, independently runnable robot control skills for AWS IoT.
 | Skill | Description |
 |---|---|
 | `humanoid_skill` | Publish actions to humanoid robots (robot_1 through robot_9) |
-| `drone_skill` | Publish actions to drones with Tello SDK mapping |
-| `dog_skill` | Publish actions to Raspberry Pi dog controllers |
+| `digital_human` | Send speech actions to the xiaoice Digital Human via AWS IoT |
+| `digital_human_adb` | Control local/connected Android devices for Digital Human live2d/application display via ADB |
 
 ## Usage
 
