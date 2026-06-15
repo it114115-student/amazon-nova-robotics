@@ -680,7 +680,7 @@ def handle_http(event):
             "Swearing / trash-talk mode is ACTIVE. You may use sharp Cantonese vulgarities or hard roasts if it fits Nobara's voice."
             if foul_language else
             "Swearing is OFF. Keep the commentary fierce, arrogant, and high-energy, but strictly clean and PG-rated. "
-            "Do not use vulgarities or profanity such as 仆街, 屌, 戇尻, or any equivalent curse words."
+            "Do not use vulgarities or profanity such as 仆街, 屌, 戗尻, or any equivalent curse words 粗俗字眼."
         )
 
         # Build prompt content block
@@ -693,13 +693,13 @@ Final Match Results:
 Summary description of final action: {translated_event}
 Tone rule: {tone_directive}
 
-Give a spectacular, sass-filled, high-octane commentary conclusion. Declare the victor or roast them both if it's a draw. Be Kugisaki Nobara, feisty and fashionable! Keep it to 2 sentences!
+If player snapshots are attached, do NOT explain, analyze, or describe the images first. Do NOT output any introductory description of what you see in the images. Incorporate any visual details or roasts silently and naturally into your final commentary dialogue. Give a spectacular, sass-filled, high-octane commentary conclusion. Declare the victor or roast them both if it's a draw. Be Kugisaki Nobara, feisty and fashionable! Keep it to 2 sentences!
 """
         elif is_reset:
             content_block = f"""
 [MATCH INITIAL GREETING]
 Tone rule: {tone_directive}
-Introduce yourself as the supreme JJK Commentator (Kugisaki Nobara). Give a high-energy, confident greeting to the competitors starting their duel in Room {room_code}. The match has NOT started yet, so make this a pre-battle hype introduction before the countdown begins. If player snapshots are attached, inspect both images first and naturally incorporate one or two specific visible details about each player's expression, stance, outfit, or readiness into your taunt or hype. Only mention details that are clearly visible; do not invent hidden facts. Tell them to prepare their cursed energy. Sassy, feisty, stylish! Keep it to 2 short sentences!
+Introduce yourself as the supreme JJK Commentator (Kugisaki Nobara). Give a high-energy, confident greeting to the competitors starting their duel in Room {room_code}. The match has NOT started yet, so make this a pre-battle hype introduction before the countdown begins. If player snapshots are attached, do NOT explain, analyze, or describe the images first. Do NOT output any scaffolding (such as 'I can see the snapshots' or 'From P1's image'). Naturally and silently incorporate one or two specific visible details about each player's expression, stance, outfit, or readiness directly into your roleplay introduction dialogue. Tell them to prepare their cursed energy. Sassy, feisty, stylish! Keep it to 2 short sentences!
 """
         else:
             content_block = f"""
@@ -710,7 +710,7 @@ Current Scores:
 Latest Match Action: {translated_event}
 Tone rule: {tone_directive}
 
-React instantly to this specific action! Give sassy, feisty sorcerer trash-talk or hype up the battle with extreme energy. Speak directly to them like an arrogant fashion-lover. Keep it to 2 short, punchy sentences max!
+If player snapshots are attached, do NOT explain, analyze, or describe the images first. Do NOT output any introductory text or scaffolding about what you see in the images. React instantly to this specific action! Give sassy, feisty sorcerer trash-talk or hype up the battle with extreme energy. Speak directly to them like an arrogant fashion-lover. Keep it to 2 short, punchy sentences max!
 """
 
         # Select language directive
@@ -743,7 +743,13 @@ React instantly to this specific action! Give sassy, feisty sorcerer trash-talk 
             else:
                 lang_directive = lang_directives["en"]
                 
-        content_block = content_block.strip() + f"\n\n{lang_directive}"
+        formatting_directive = (
+            "CRITICAL FORMATTING CONSTRAINT: Output ONLY the direct match commentary dialogue "
+            "as Kugisaki Nobara. Do NOT write any introductory analysis, do NOT explain what you "
+            "see in the snapshots, do NOT think out loud, and do NOT output any conversational scaffolding "
+            "(such as 'Now let me provide...' or 'From the images...'). Start directly with the commentary."
+        )
+        content_block = content_block.strip() + f"\n\n{lang_directive}\n\n{formatting_directive}"
 
         # Try to retrieve the latest webcam frames for multimodal analysis
         image_bytes_p1 = None

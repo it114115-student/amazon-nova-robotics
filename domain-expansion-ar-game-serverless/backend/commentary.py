@@ -15,6 +15,7 @@ OPENCLAW_AGENT_ID = os.environ.get("OPENCLAW_AGENT_ID", "domain-commentator")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "moonshotai.kimi-k2.5")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 AGENTCORE_RUNTIME_ARN = os.environ.get("AGENTCORE_RUNTIME_ARN", "")
+OPENCLAW_RUNTIME_ARN = os.environ.get("OPENCLAW_RUNTIME_ARN", "")
 
 
 def _build_openclaw_content_block(
@@ -183,6 +184,8 @@ Maintain her personality:
 - Default to clean language unless the request explicitly says Swearing / Trash-talk Mode is active.
 - When swearing is OFF, never use vulgarities or profanity such as 仆街, 屌, 戇尻, or equivalent curse words.
 - Deliver all commentary in a highly intense, sassy, and dramatic style.
+- NEVER write any introductory analysis, explanation, or scaffolding describing the images, snapshots, or any base64 data.
+- NEVER start your response with phrases like "I can see the snapshots" or "From P1's snapshot". Start directly with the commentary.
 - {lang_rule}
 - Keep responses extremely punchy and short (strictly under 2 sentences)."""
 
@@ -257,6 +260,29 @@ def direct_bedrock_fallback(
         return "領域干擾！Cursed Energy connection unstable. Give me a moment to gather my nails!"
 
 
+def resolve_agentcore_identity(session_id: str, runtime_arn: str) -> tuple[str, str, str]:
+    """
+    Resolve the AgentCore/OpenClaw identity (actor_id, user_id, session_id) 
+    to match the fixed, stable fallbacks of the openclaw-character-dashboard,
+    ignoring dynamic session formats like mcpserver_timestamp.
+    """
+    import hashlib
+    
+    # Securely retrieve from environment variables configured by CDK, with safe non-sensitive fallback
+    actor_id = os.environ.get("AGENTCORE_ACTOR_ID") or os.environ.get("OPENCLAW_SESSION_ID") or "telegram:default"
+        
+    sha1_hash = hashlib.sha1(actor_id.encode("utf-8")).hexdigest()
+    
+    # Establish defaults matching dashboard's defaultAgentCoreUserId/defaultAgentCoreRuntimeSessionId
+    user_id = f"dashboard-user-{sha1_hash[:12]}"
+    compliant_session_id = f"dashboard_session_{sha1_hash[:24]}"
+    
+    logger.info(f"Resolved stable identity: actor_id={actor_id}, user_id={user_id}, compliant_session_id={compliant_session_id}")
+    return actor_id, user_id, compliant_session_id
+
+
+
+
 def generate_ai_commentary(
     agent_engine: str,
     content_block: str,
@@ -284,7 +310,10 @@ def generate_ai_commentary(
         image_base64_p2 = base64.b64encode(image_bytes_p2).decode("utf-8")
 
     # Embed XML tags in content_block for agent container to bypass OpenClaw proxy stripping/flattening
-    if agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
+    runtime_arn_for_check = os.environ.get("OPENCLAW_RUNTIME_ARN") or OPENCLAW_RUNTIME_ARN or os.environ.get("AGENTCORE_RUNTIME_ARN") or AGENTCORE_RUNTIME_ARN
+    is_openclaw_for_tags = agent_engine == "openclaw" or (runtime_arn_for_check and "openclaw" in runtime_arn_for_check.lower())
+
+    if is_openclaw_for_tags:
         tags = []
         if image_base64_p1:
             tags.append(f"<p1_webcam_base64_jpeg>{image_base64_p1}</p1_webcam_base64_jpeg>")
@@ -292,10 +321,10 @@ def generate_ai_commentary(
             tags.append(f"<p2_webcam_base64_jpeg>{image_base64_p2}</p2_webcam_base64_jpeg>")
         if tags:
             content_block = f"{content_block}\n" + "\n".join(tags)
-            logger.info("Embedded base64 snapshots in content_block XML tags")
+            logger.info("Embedded base64 snapshots in content_block XML tags for OpenClaw")
 
     env_session_id = os.environ.get("OPENCLAW_SESSION_ID")
-    if env_session_id and agent_engine in ("agentcore_runtime", "standard_commentator_runtime", "openclaw"):
+    if env_session_id and agent_engine in ("agentcore_runtime", "openclaw"):
         session_id = env_session_id
 
     commentary_text = ""
@@ -365,12 +394,29 @@ def generate_ai_commentary(
                 language=language,
             )
 
-    elif agent_engine in ("agentcore_runtime", "standard_commentator_runtime") or (agent_engine == "openclaw" and (os.environ.get("AGENTCORE_RUNTIME_ARN") or AGENTCORE_RUNTIME_ARN)):
+    elif agent_engine == "agentcore_runtime" or (
+        agent_engine == "openclaw"
+        and (
+            os.environ.get("OPENCLAW_RUNTIME_ARN")
+            or OPENCLAW_RUNTIME_ARN
+            or os.environ.get("AGENTCORE_RUNTIME_ARN")
+            or AGENTCORE_RUNTIME_ARN
+        )
+    ):
         try:
-            if agent_engine == "standard_commentator_runtime":
-                runtime_arn = "arn:aws:bedrock-agentcore:us-east-1:111964674713:runtime/domain_commentator_agentcore-XTgv50C4B1"
+            # For openclaw engine, prioritize OPENCLAW_RUNTIME_ARN over AGENTCORE_RUNTIME_ARN
+            if agent_engine == "openclaw":
+                runtime_arn = (
+                    os.environ.get("OPENCLAW_RUNTIME_ARN")
+                    or OPENCLAW_RUNTIME_ARN
+                    or os.environ.get("AGENTCORE_RUNTIME_ARN")
+                    or AGENTCORE_RUNTIME_ARN
+                )
             else:
-                runtime_arn = os.environ.get("AGENTCORE_RUNTIME_ARN") or AGENTCORE_RUNTIME_ARN
+                runtime_arn = (
+                    os.environ.get("AGENTCORE_RUNTIME_ARN")
+                    or AGENTCORE_RUNTIME_ARN
+                )
                 
             if not runtime_arn:
                 raise ValueError(
@@ -380,23 +426,22 @@ def generate_ai_commentary(
 
             agent_client = boto3.client("bedrock-agentcore", region_name=BEDROCK_REGION)
 
-            # Check if this is the OpenClaw Runtime
-            is_openclaw = "openclaw" in runtime_arn.lower()
+            # Check if this is the OpenClaw Runtime (either from the engine type or the ARN name)
+            is_openclaw = agent_engine == "openclaw" or "openclaw" in runtime_arn.lower()
 
-            import hashlib
-
-            if session_id.startswith("telegram:"):
-                # Match openclaw-character-dashboard fallback SHA-1 session ID format
-                sha1_hash = hashlib.sha1(session_id.encode("utf-8")).hexdigest()[:24]
-                compliant_session_id = f"dashboard_session_{sha1_hash}"
-                actor_id = session_id
-                user_id = session_id.split(":")[1] if ":" in session_id else session_id
+            if is_openclaw:
+                # OpenClaw case: use fixed, stable session and user IDs matching the dashboard
+                actor_id, user_id, compliant_session_id = resolve_agentcore_identity(
+                    session_id, runtime_arn
+                )
             else:
+                # Standard AgentCore / other AI cases: use standard compliant session ID, do not mix up with dashboard format
+                import hashlib
                 compliant_session_id = hashlib.sha256(
                     session_id.encode("utf-8")
-                ).hexdigest()
-                actor_id = f"telegram:{compliant_session_id[:16]}"
-                user_id = compliant_session_id
+                ).hexdigest()[:36]
+                actor_id = ""
+                user_id = ""
 
 
             if is_openclaw:

@@ -216,6 +216,7 @@ export class DomainExpansionServerlessConstruct extends Construct {
         SESSIONS_TABLE: sessionsTable.tableName,
         AGENT_TYPE: "agentcore_runtime",
         AGENTCORE_RUNTIME_ARN: runtime.agentRuntimeArn,
+        OPENCLAW_RUNTIME_ARN: openclawRuntimeArn,
         OPENCLAW_SESSION_ID: openclawSessionId,
         BEDROCK_MODEL_ID: "moonshotai.kimi-k2.5",
         BEDROCK_REGION: Stack.of(this).region,
@@ -306,6 +307,36 @@ export class DomainExpansionServerlessConstruct extends Construct {
       authorizationType: apigateway.AuthorizationType.NONE,
     });
 
+    const webcamUploadResource = apiResource.addResource("webcam-upload");
+    webcamUploadResource.addMethod("POST", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: restAuthorizer,
+    });
+
+    const logResource = apiResource.addResource("log");
+    logResource.addMethod("POST", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: restAuthorizer,
+    });
+
+    const registerRoomResource = apiResource.addResource("register-room");
+    registerRoomResource.addMethod("POST", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: restAuthorizer,
+    });
+
+    const enhancePortraitResource = apiResource.addResource("enhance-portrait");
+    enhancePortraitResource.addMethod("POST", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: restAuthorizer,
+    });
+
+    const checkEnhancementResource = apiResource.addResource("check-enhancement");
+    checkEnhancementResource.addMethod("GET", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: restAuthorizer,
+    });
+
     const liveStatusResource = apiResource.addResource("live-status");
     liveStatusResource.addMethod("POST", lambdaIntegration, {
       authorizationType: apigateway.AuthorizationType.COGNITO,
@@ -322,6 +353,11 @@ export class DomainExpansionServerlessConstruct extends Construct {
     triggerTechniqueResource.addMethod("POST", lambdaIntegration, {
       authorizationType: apigateway.AuthorizationType.COGNITO,
       authorizer: restAuthorizer,
+    });
+
+    const healthResource = restApi.root.addResource("health");
+    healthResource.addMethod("GET", lambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.NONE,
     });
 
     // Fallback catch-all proxy routes remain securely protected by Cognito Authorization
