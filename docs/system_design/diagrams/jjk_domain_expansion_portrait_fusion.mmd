@@ -1,0 +1,24 @@
+flowchart LR
+    A[Browser Client] -->|1. Request Portrait| B(API Gateway REST)
+    B -->|2. HTTP POST| C[Monolithic Lambda]
+    C -->|3. Save Webcam Snaps| D[(S3 Photos Bucket)]
+    C -->|4. Push Task Payload| E[Amazon SQS Queue]
+    E -->|5. Trigger Event| F[Lambda Worker]
+    F -->|6. Detect Face & Crop| G[Amazon Rekognition]
+    F -->|7. Composite Image| H[Pillow Library]
+    F -->|8. Style Fusion| I[Bedrock Nova Canvas]
+    I -->|9. Output Enhanced Scroll| D
+    F -->|10. Update Status| J[(DynamoDB Sessions)]
+
+    %% Style Class Definitions %%
+    classDef Compute fill:#FF9900,stroke:#D68100,stroke-width:2px,color:#FFFFFF;   %% Orange
+    classDef Storage fill:#1A5F7A,stroke:#103F54,stroke-width:2px,color:#FFFFFF;   %% Blue
+    classDef Security fill:#7B2CBF,stroke:#5A189A,stroke-width:2px,color:#FFFFFF;  %% Purple
+    classDef Gateway fill:#008B8B,stroke:#006666,stroke-width:2px,color:#FFFFFF;  %% Teal
+    classDef Client fill:#4A4E69,stroke:#22223B,stroke-width:2px,color:#FFFFFF;   %% Grey
+    classDef Shared fill:#2E8B57,stroke:#1E5631,stroke-width:2px,color:#FFFFFF;   %% Green
+
+    class A Client;
+    class B Gateway;
+    class C,F,G,H,I Compute;
+    class D,E,J Storage;

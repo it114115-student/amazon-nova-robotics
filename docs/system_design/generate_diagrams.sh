@@ -33,6 +33,9 @@ DIAGRAMS=(
   "iot_things_batch_vs_legacy"
   "iot_things_lifecycle"
   "robot_ssm_channel"
+  "jjk_domain_expansion_architecture"
+  "jjk_domain_expansion_flow"
+  "jjk_domain_expansion_portrait_fusion"
 )
 
 # Run compilation for each diagram
