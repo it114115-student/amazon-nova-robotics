@@ -632,6 +632,35 @@ def handle_rest_request(event):
                 "control": "/api/video/control"
             }
         })
+
+    # 13. GET /api/video/preload_list
+    if path == "/api/video/preload_list" and method == "GET":
+        import os
+        import boto3
+        available_videos = []
+        
+        bucket_name = os.environ.get("VIDEO_BUCKET_NAME")
+        if bucket_name:
+            try:
+                s3 = boto3.client('s3')
+                # Assumes videos are stored under the "video/" prefix in the bucket
+                response = s3.list_objects_v2(Bucket=bucket_name, Prefix="video/")
+                if 'Contents' in response:
+                    for obj in response['Contents']:
+                        key = obj['Key']
+                        if key.endswith('.mp4'):
+                            filename = key.split('/')[-1]
+                            available_videos.append(filename)
+            except Exception as e:
+                print(f"Error listing videos from S3: {e}")
+        else:
+            print("VIDEO_BUCKET_NAME environment variable is not set")
+
+        return make_rest_response(200, {
+            "success": True,
+            "session_key": session_key,
+            "available_videos": available_videos
+        })
         
     return make_rest_response(404, {"success": False, "error": f"Endpoint {path} not found"})
 

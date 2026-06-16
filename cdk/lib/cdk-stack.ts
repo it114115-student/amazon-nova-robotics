@@ -307,6 +307,11 @@ const textControlWebConstruct = new TextControlWebConstruct(
       description: "The URL of the Robot Media S3 Website",
     });
 
+    new cdk.CfnOutput(this, "MediaBucketName", {
+      value: mediaBucket.bucketName,
+      description: "The name of the Robot Media S3 Bucket",
+    });
+
     new cdk.CfnOutput(this, "CognitoUserPoolId", {
       value: authenticator.userPool.userPoolId,
       description: "Cognito User Pool ID for authentication",

@@ -92,6 +92,7 @@ export class RobotSimulatorServerlessConstruct extends Construct {
         AWS_BEDROCK_REGION: "us-east-1",
         CONNECTIONS_TABLE: connectionsTable.tableName,
         SESSIONS_TABLE: sessionsTable.tableName,
+        VIDEO_BUCKET_NAME: this.websiteBucket.bucketName,
         XIAOICE_APP_SECRET: process.env.XIAOICE_APP_SECRET || "",
         XIAOICE_COMPANY_ID: process.env.XIAOICE_COMPANY_ID || "",
         XIAOICE_PROJECT_ID: process.env.XIAOICE_PROJECT_ID || "",
@@ -102,6 +103,7 @@ export class RobotSimulatorServerlessConstruct extends Construct {
     // Grant DynamoDB access to Lambda
     connectionsTable.grantReadWriteData(lambdaFunction);
     sessionsTable.grantReadWriteData(lambdaFunction);
+    this.websiteBucket.grantRead(lambdaFunction);
 
     // Grant permission to read SSM parameters for service discovery
     lambdaFunction.addToRolePolicy(

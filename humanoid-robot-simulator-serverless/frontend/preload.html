@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Preloader</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2rem;
+            background: #121212;
+            color: #f1f1f1;
+        }
+
+        h1 {
+            margin-bottom: 0.5rem;
+        }
+
+        .status {
+            margin: 1rem 0 0.5rem;
+            padding: 1rem;
+            border-radius: 10px;
+            background: #1f1f1f;
+            box-shadow: 0 0 20px rgba(0, 0, 0, .4);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 18px;
+            border-radius: 9px;
+            overflow: hidden;
+            background: #333;
+            margin-top: 0.75rem;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            transition: width 0.3s ease;
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+        }
+
+        .video-list {
+            margin-top: 1rem;
+            padding: 0;
+            list-style: none;
+        }
+
+        .video-list li {
+            margin: 0.25rem 0;
+            font-size: 0.95rem;
+        }
+
+        .video-list li.complete {
+            color: #a5d6a7;
+        }
+
+        .video-list li.error {
+            color: #ef9a9a;
+        }
+
+        .video-list li .file-detail {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 0.88rem;
+            color: #b0bec5;
+        }
+
+        .hidden-videos {
+            display: none;
+        }
+
+        a.button {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.8rem 1.2rem;
+            border-radius: 999px;
+            text-decoration: none;
+            color: #121212;
+            background: #ffca28;
+            font-weight: 700;
+        }
+        
+        #loading-text {
+            color: #ffca28;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Video Preloader</h1>
+    <p>Load all videos once so the browser can cache them for later playback.</p>
+
+    <div id="loading-text">Fetching video list...</div>
+
+    <div class="status" id="status-container" style="display: none;">
+        <div>Progress: <strong id="progress-text">0 / 0</strong></div>
+        <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <div id="summary" style="margin-top:0.75rem; font-size:0.95rem; color:#cfd8dc;"></div>
+    </div>
+
+    <ul id="video-list" class="video-list"></ul>
+
+    <div class="hidden-videos" id="hidden-videos"></div>
+
+    <a class="button" href="#" id="start-button" style="display: none;">Start Preload</a>
+
+    <script>
+        const baseUrl = './video/';
+        let videos = [];
+
+        const videoListEl = document.getElementById('video-list');
+        const progressText = document.getElementById('progress-text');
+        const progressFill = document.getElementById('progress-fill');
+        const summaryEl = document.getElementById('summary');
+        const hiddenVideos = document.getElementById('hidden-videos');
+        const startButton = document.getElementById('start-button');
+        const loadingText = document.getElementById('loading-text');
+        const statusContainer = document.getElementById('status-container');
+
+        const state = {
+            loaded: 0,
+            errors: 0,
+            total: 0,
+            started: false,
+        };
+        
+        async function init() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const apiUrlPrefix = urlParams.get('api_url') || '';
+                
+                // You can add session_key if needed, similar to the simulator
+                const sessionKey = urlParams.get('session_key') || 'preload_session';
+                
+                const response = await fetch(`${apiUrlPrefix}/api/video/preload_list?session_key=${sessionKey}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                if (data.success && data.available_videos) {
+                    videos = data.available_videos;
+                    
+                    // Filter out paths if they contain the full path or just keep the filename
+                    videos = videos.map(v => {
+                        const parts = v.split('/');
+                        return parts[parts.length - 1];
+                    });
+                    
+                    state.total = videos.length;
+                    
+                    videos.forEach((fileName) => {
+                        const li = document.createElement('li');
+                        li.textContent = fileName;
+                        li.dataset.filename = fileName;
+                        videoListEl.appendChild(li);
+                    });
+                    
+                    loadingText.style.display = 'none';
+                    statusContainer.style.display = 'block';
+                    startButton.style.display = 'inline-block';
+                    updateProgress();
+                } else {
+                    throw new Error("Failed to parse video list from API");
+                }
+            } catch (error) {
+                console.error("Error fetching video list:", error);
+                loadingText.textContent = `Error fetching video list: ${error.message}`;
+                loadingText.style.color = '#ef9a9a';
+            }
+        }
+
+        function updateProgress() {
+            progressText.textContent = `${state.loaded} / ${state.total}`;
+            const ratio = state.total === 0 ? 0 : (state.loaded / state.total);
+            progressFill.style.width = `${ratio * 100}%`;
+            const percent = Math.round(ratio * 100);
+            summaryEl.textContent = `Loaded ${state.loaded} videos, ${state.errors} errors, ${percent}% complete.`;
+        }
+
+        function setItemDetails(listItem, text) {
+            let detailSpan = listItem.querySelector('.file-detail');
+            if (!detailSpan) {
+                detailSpan = document.createElement('span');
+                detailSpan.className = 'file-detail';
+                listItem.appendChild(detailSpan);
+            }
+            detailSpan.textContent = text;
+        }
+
+        async function preloadVideo(fileName) {
+            const url = baseUrl + encodeURIComponent(fileName);
+            const listItem = videoListEl.querySelector(`li[data-filename="${fileName}"]`);
+            if (!listItem) return;
+
+            setItemDetails(listItem, 'waiting for preload...');
+
+            return new Promise((resolve) => {
+                const video = document.createElement('video');
+                video.preload = 'auto';
+                video.muted = true;
+                video.playsInline = true;
+                video.src = url;
+                hiddenVideos.appendChild(video);
+
+                const cleanup = () => {
+                    video.removeEventListener('canplaythrough', onSuccess);
+                    video.removeEventListener('loadeddata', onSuccess);
+                    video.removeEventListener('error', onError);
+                };
+
+                function markResult(success, message, metadata = '') {
+                    cleanup();
+                    if (success) {
+                        listItem.classList.add('complete');
+                        listItem.textContent = `${fileName} — ${message}`;
+                    } else {
+                        listItem.classList.add('error');
+                        listItem.textContent = `${fileName} — failed to load (${message})`;
+                    }
+                    if (metadata) {
+                        setItemDetails(listItem, metadata);
+                    }
+                    resolve({ fileName, success });
+                }
+
+                function onSuccess() {
+                    markResult(true, 'cached');
+                }
+
+                async function onError() {
+                    const err = video.error;
+                    const reason = err ? `code ${err.code}` : 'unknown error';
+                    listItem.textContent = `${fileName} — video load error (${reason}); trying fetch fallback...`;
+
+                    try {
+                        const response = await fetch(url, { method: 'HEAD', mode: 'cors' });
+                        if (response.ok) {
+                            const size = response.headers.get('content-length');
+                            const cacheControl = response.headers.get('cache-control');
+                            const expires = response.headers.get('expires');
+                            const details = [];
+                            if (size) details.push(`size ${formatBytes(+size)}`);
+                            if (cacheControl) details.push(`cache-control: ${cacheControl}`);
+                            if (expires) details.push(`expires: ${expires}`);
+                            markResult(true, 'fetched headers', details.join(' • '));
+                        } else {
+                            markResult(false, `fetch status ${response.status}`);
+                        }
+                    } catch (fetchError) {
+                        markResult(false, fetchError.message || reason);
+                    }
+                }
+
+                video.addEventListener('canplaythrough', onSuccess, { once: true });
+                video.addEventListener('loadeddata', onSuccess, { once: true });
+                video.addEventListener('error', onError, { once: true });
+
+                video.load();
+            });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const idx = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${(bytes / Math.pow(1024, idx)).toFixed(1)} ${units[idx]}`;
+        }
+
+        async function startPreload() {
+            if (state.started) return;
+            state.started = true;
+            startButton.textContent = 'Preloading...';
+            startButton.style.pointerEvents = 'none';
+            summaryEl.textContent = 'Starting preload. This may take a few minutes depending on your connection.';
+
+            for (const fileName of videos) {
+                const result = await preloadVideo(fileName);
+                if (result.success) state.loaded += 1;
+                else state.errors += 1;
+                updateProgress();
+            }
+
+            summaryEl.textContent = `Preload finished. ${state.loaded} loaded, ${state.errors} errors.`;
+            startButton.textContent = 'Preload Complete';
+        }
+
+        startButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            startPreload();
+        });
+        
+        // Initialize by fetching the video list
+        init();
+    </script>
+</body>
+
+</html>
