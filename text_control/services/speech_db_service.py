@@ -20,12 +20,8 @@ def get_pending_speech_message(presenter_id: str = None):
     """
     Get the latest pending speech message from the SpeechTable.
 
-    The presenter_id parameter is accepted for interface compatibility but
-    the query always uses "current_presenter" as the lookup key, since all
-    speech messages are saved under that fixed key.
-
     Args:
-        presenter_id: Ignored — always queries "current_presenter"
+        presenter_id: Optional presenter ID to filter by. Defaults to "current_presenter"
 
     Returns:
         The speech message item dict, or None if not found
@@ -37,9 +33,11 @@ def get_pending_speech_message(presenter_id: str = None):
     try:
         table = dynamodb.Table(SPEECH_TABLE)
 
-        # Always query with the fixed presenter key
+        target_presenter = presenter_id if presenter_id else CURRENT_PRESENTER
+
+        # Filter by status and presenter_id
         filter_expr = Attr("status").eq("pending") & Attr("presenter_id").eq(
-            CURRENT_PRESENTER
+            target_presenter
         )
 
         response = table.scan(FilterExpression=filter_expr)
@@ -48,12 +46,37 @@ def get_pending_speech_message(presenter_id: str = None):
         if not items:
             return None
 
-        # Return the most recent message by timestamp
-        items.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
-        return items[0]
+        # Robust helper to extract timestamp safely as integer for sorting and filtering
+        def get_timestamp_val(x):
+            ts = x.get("timestamp", 0)
+            if ts is None:
+                return 0
+            try:
+                return int(ts)
+            except (ValueError, TypeError):
+                try:
+                    return int(float(ts))
+                except (ValueError, TypeError):
+                    return 0
+
+        # Filter out items that are older than 5 minutes (300,000 milliseconds)
+        import time
+        current_time_ms = int(time.time() * 1000)
+        valid_items = [
+            item for item in items
+            if (current_time_ms - get_timestamp_val(item)) <= 300000
+        ]
+
+        if not valid_items:
+            logger.info("Scanned speech messages were found, but all have expired (> 5 minutes old)")
+            return None
+
+        # Return the most recent message by timestamp from the valid ones
+        valid_items.sort(key=get_timestamp_val, reverse=True)
+        return valid_items[0]
 
     except Exception as e:
-        logger.error(f"Error fetching speech message: {e}")
+        logger.error(f"Error fetching speech message: {e}", exc_info=True)
         return None
 
 

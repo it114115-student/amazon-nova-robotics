@@ -182,7 +182,7 @@ def validate_authentication(use_v2=True, enforce_expiry=False):
             logger.warning("Authentication failed: Invalid signature")
             return None, error_response(401, "Invalid signature")
 
-        logger.info("Authentication successful")
+        logger.info("Authentication successful: " + project_id)
         return project_id, None
 
     except Exception as e:

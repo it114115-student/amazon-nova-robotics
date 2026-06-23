@@ -45,13 +45,15 @@ def save_speech_message(
         return {}
 
     table = dynamodb.Table(SPEECH_TABLE)
+    current_time = int(time.time())
     item = {
         "id": str(uuid.uuid4()),
         "xiaoice_id": xiaoice_id,
         "message": message,
         "presenter_id": CURRENT_PRESENTER,
-        "timestamp": int(time.time() * 1000),
+        "timestamp": current_time * 1000,
         "status": "pending",
+        "ttl": current_time + 300,  # 5 minutes TTL for auto-deletion by DynamoDB
     }
     if session_id:
         item["session_id"] = session_id

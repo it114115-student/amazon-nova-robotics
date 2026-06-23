@@ -176,10 +176,60 @@ def welcome():
             )
             return jsonify(response)
 
-        # 5. Fallback: standard welcome message
-        welcome_text = get_message(WELCOME_MESSAGES, params["language_code"])
-        response = create_response_object(params, welcome_text)
+        # 5. Fallback: call LLM to generate greeting based on robot name and background
+        context = get_robot(project_id)
+        name = "Robot"
+        background = ""
+        if context:
+            name = context.get("robot_name", "Robot")
+            background = context.get("context", "")
 
+        lang_code = params.get("language_code", "zh")
+        is_chinese = lang_code in ["zh", "zh_CN", "zh-CN", "zh-TW", "zh-HK"]
+        lang_instruction = "Traditional Chinese" if is_chinese else "English"
+
+        system_prompt = f"""You are a friendly robot/presenter named {name}.
+Your background is: {background}
+
+Please generate a warm, friendly and brief greeting/welcome message to the user.
+The response should be suitable for a robot greeting a human user.
+
+IMPORTANT RULES:
+1. Respond in {lang_instruction}.
+2. Keep it concise (1-2 sentences).
+3. Your responses will be spoken aloud via Text-To-Speech (TTS). Write in a conversational tone that makes sense when spoken.
+4. ABSOLUTELY NO MARKDOWN: You MUST NOT use ANY Markdown formatting under any circumstances (e.g. no asterisks, no bullet points, no headers). Output only plain text.
+"""
+
+        try:
+            from strands import Agent
+            from strands.models import BedrockModel
+            import config
+
+            nova_model = BedrockModel(
+                model_id=config.NOVA_MODEL_ID,
+                temperature=0.7,
+                region_name=config.AWS_BEDROCK_REGION,
+            )
+
+            agent = Agent(
+                model=nova_model,
+                system_prompt=system_prompt,
+            )
+
+            async def get_greeting():
+                return await agent.invoke_async("Generate welcome greeting")
+
+            welcome_text = asyncio.run(get_greeting())
+            welcome_text = str(welcome_text).strip()
+
+            logger.info(f"LLM welcome generated for trace: {params['trace_id']}. Text: {welcome_text}")
+        except Exception as llm_err:
+            logger.error(f"Error calling LLM for welcome: {llm_err}", exc_info=True)
+            # Fallback to standard static welcome message if LLM fails
+            welcome_text = get_message(WELCOME_MESSAGES, params["language_code"])
+
+        response = create_response_object(params, welcome_text)
         logger.info(f"Welcome response generated for trace: {params['trace_id']}")
         return jsonify(response)
 

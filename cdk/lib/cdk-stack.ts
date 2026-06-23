@@ -61,6 +61,7 @@ export class AmazonNovaRoboticCdkStack extends cdk.Stack {
       pointInTimeRecoverySpecification: {
         pointInTimeRecoveryEnabled: false,
       },
+      timeToLiveAttribute: "ttl",
     });
 
     new cdk.CfnOutput(this, "SpeechTableName", {
