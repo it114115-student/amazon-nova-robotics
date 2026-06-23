@@ -91,17 +91,19 @@ def calculate_signature_v2(secret_key: str, timestamp: str, body_string: str) ->
     return hex_digest.replace("-", "").upper()
 
 
-def validate_authentication(use_v2=True):
+def validate_authentication(use_v2=True, enforce_expiry=False):
     """
     Validates authentication headers and returns error response if invalid.
 
     Args:
         use_v2: If True, use calculate_signature_v2, otherwise use calculate_signature
+        enforce_expiry: If True, check that request timestamp is within 5 minutes of current server time
 
     Returns:
         Tuple of (project_id, error_response). If authentication is successful, error_response is None.
     """
     from utils.response_utils import error_response
+    import time
     
     try:
         # Get headers (support both X- prefixed and non-prefixed)
@@ -115,6 +117,22 @@ def validate_authentication(use_v2=True):
         if not all([timestamp, signature, access_key]):
             logger.warning("Authentication failed: Missing authentication headers")
             return None, error_response(401, "Missing authentication headers")
+
+        is_machine_route = "/xiaoice-stream-machine" in request.path
+        should_enforce = enforce_expiry or is_machine_route
+
+        if should_enforce and timestamp:
+            try:
+                # Convert timestamp from milliseconds to seconds
+                request_ts = float(timestamp) / 1000.0
+                current_ts = time.time()
+                # 5 minutes = 300 seconds
+                if abs(current_ts - request_ts) > 300:
+                    logger.warning(f"Authentication failed: Request timestamp expired. Request: {request_ts}, Current: {current_ts}")
+                    return None, error_response(401, "Request timestamp expired")
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Authentication failed: Invalid timestamp format: {timestamp}")
+                return None, error_response(401, f"Invalid timestamp format: {e}")
 
         project_id = None
         stored_secret_key = None

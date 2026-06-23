@@ -135,6 +135,8 @@ background: {background}
 
 
 @api_bp.route("/welcome", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine/api/welcome", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine//api/welcome", methods=["POST"])
 def welcome():
     """
     Welcome message endpoint
@@ -187,6 +189,8 @@ def welcome():
 
 
 @api_bp.route("/goodbye", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine/api/goodbye", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine//api/goodbye", methods=["POST"])
 def goodbye():
     """
     Goodbye message endpoint
@@ -218,6 +222,8 @@ def goodbye():
 
 
 @api_bp.route("/recquestions", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine/api/recquestions", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine//api/recquestions", methods=["POST"])
 def recquestions():
     """
     Recommended questions endpoint
@@ -322,6 +328,93 @@ def chat_api_strands_stream():
 
     # 1. Authentication check (using legacy signature method)
     project_id, auth_error = validate_authentication(use_v2=False)
+    if auth_error:
+        return auth_error
+
+    # 2. Parse request
+    params, parse_error = parse_request_params(
+        required_params=["askText", "sessionId", "traceId"]
+    )
+    if parse_error:
+        return parse_error
+
+    ask_text = params["ask_text"]
+    session_id = params["session_id"]
+    trace_id = params["trace_id"]
+    extra = params.get("extra", {})
+
+    context = get_robot(project_id)
+
+    background = ""
+    if context:
+        name = context.get("robot_name")
+        background = context.get("context")
+        background = f"""
+<background>Your Name:{name}
+background: {background}
+</background>
+            """
+    # 3. Create Strands agent and stream response
+    try:
+        def stream_response():
+            try:
+                async def async_stream():
+                    agent = await create_robot_agent_mcp(session_id, background, enable_grounding=True)
+                    async for chunk in stream_agent_response(
+                        agent, ask_text, session_id, trace_id, extra
+                    ):
+                        yield chunk
+
+                # Yield from the async generator wrapper
+                for chunk in create_sync_stream_wrapper(async_stream()):
+                    yield chunk
+
+            except Exception as e:
+                logger.error(f"Error in stream_response: {e}", exc_info=True)
+                error_chunk = {
+                    "id": str(uuid.uuid4()),
+                    "askText": ask_text,
+                    "extra": extra,
+                    "traceId": trace_id,
+                    "replyPayload": None,
+                    "replyText": f"Error: {str(e)}",
+                    "replyType": "Error",
+                    "sessionId": session_id,
+                    "timestamp": int(datetime.now().timestamp() * 1000),
+                    "isFinal": True,
+                }
+                yield f"data: {json.dumps(error_chunk)}\n\n"
+
+        return Response(
+            stream_response(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Error creating agent or streaming: {e}", exc_info=True)
+        return error_response(500, f"Error processing request: {e}")
+
+
+@api_bp.route("/xiaoice-stream-machine", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine/", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine//", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine/api/talk", methods=["POST"])
+@api_bp.route("/xiaoice-stream-machine//api/talk", methods=["POST"])
+def xiaoice_stream_machine():
+    """
+    Streaming Strands endpoint using SSE (Server-Sent Events) - Machine (V2 authentication enabled)
+    流式接口 Machine (Streaming interface with V2 signature validation and 5-minute expiry)
+    Compatible with XiaoIce third-party chat API specification
+    """
+    logger.info(f"Strands streaming chat API Machine request from {request.remote_addr}")
+
+    # 1. Authentication check (using secure signature method with 5-minute expiry enforcement)
+    project_id, auth_error = validate_authentication(use_v2=True, enforce_expiry=True)
     if auth_error:
         return auth_error
 

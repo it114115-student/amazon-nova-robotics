@@ -236,6 +236,11 @@ export class TextControlWebConstruct extends Construct {
       value: restApi.url + "api/xiaoice-chat-api-strands-stream",
     });
 
+    new CfnOutput(this, "XiaoiceMachineStreamingApiUrl", {
+      key: "XiaoiceMachineStreamingApiUrl",
+      value: restApi.url + "api/xiaoice-stream-machine",
+    });
+
     new CfnOutput(this, "XiaoiceStreamingApiUrl", {
       key: "XiaoiceStreamingApiUrl",
       value: restApi.url.replace(/\/$/, ""),
