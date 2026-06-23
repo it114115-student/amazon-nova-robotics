@@ -96,3 +96,64 @@ def delete_speech_message(message_id: str):
         logger.info(f"Deleted speech message: {message_id}")
     except Exception as e:
         logger.error(f"Error deleting speech message {message_id}: {e}")
+
+
+def get_all_speech_messages():
+    """
+    Scan and return all speech messages from the SpeechTable.
+    """
+    if not SPEECH_TABLE:
+        logger.debug("SpeechTable not configured, returning empty list")
+        return []
+
+    try:
+        table = dynamodb.Table(SPEECH_TABLE)
+        response = table.scan()
+        items = response.get("Items", [])
+
+        # Sort by timestamp descending
+        def get_ts(x):
+            ts = x.get("timestamp", 0)
+            if ts is None:
+                return 0
+            try:
+                return int(ts)
+            except (ValueError, TypeError):
+                try:
+                    return int(float(ts))
+                except (ValueError, TypeError):
+                    return 0
+
+        items.sort(key=get_ts, reverse=True)
+        return items
+    except Exception as e:
+        logger.error(f"Error scanning speech messages: {e}", exc_info=True)
+        return []
+
+
+def delete_all_speech_messages():
+    """
+    Delete all speech messages from the SpeechTable.
+    """
+    if not SPEECH_TABLE:
+        return 0
+
+    try:
+        table = dynamodb.Table(SPEECH_TABLE)
+        response = table.scan()
+        items = response.get("Items", [])
+        if not items:
+            return 0
+
+        deleted_count = 0
+        with table.batch_writer() as batch:
+            for item in items:
+                if "id" in item:
+                    batch.delete_item(Key={"id": item["id"]})
+                    deleted_count += 1
+        logger.info(f"Successfully deleted {deleted_count} speech messages in batch from SpeechTable")
+        return deleted_count
+    except Exception as e:
+        logger.error(f"Error clearing speech messages: {e}", exc_info=True)
+        return 0
+

@@ -635,7 +635,6 @@ def handle_rest_request(event):
 
     # 13. GET /api/video/preload_list
     if path == "/api/video/preload_list" and method == "GET":
-        import os
         import boto3
         available_videos = []
         
