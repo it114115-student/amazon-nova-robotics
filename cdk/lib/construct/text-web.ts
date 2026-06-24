@@ -190,6 +190,14 @@ export class TextControlWebConstruct extends Construct {
     const robotResource = rootResource.addResource("robot");
     robotResource.addMethod("GET", new LambdaIntegration(flaskLambda));
 
+    // Add SpeechTable Cleanup routes
+    const cleanupResource = rootResource.addResource("cleanup");
+    cleanupResource.addMethod("GET", new LambdaIntegration(flaskLambda));
+    cleanupResource.addProxy({
+      defaultIntegration: new LambdaIntegration(flaskLambda),
+      anyMethod: true,
+    });
+
     // Add public routes (no authentication required)
     const loginResource = rootResource.addResource("login");
     loginResource.addMethod("GET", new LambdaIntegration(flaskLambda));
