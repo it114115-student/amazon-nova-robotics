@@ -13,8 +13,10 @@ import json
 
 logger = get_lambda_logger(__name__)
 
-def get_secret(secret_name: str, region_name: str = "us-east-1") -> dict:
+def get_secret(secret_name: str, region_name: str = None) -> dict:
     """Fetch secret from AWS Secrets Manager"""
+    if not region_name:
+        region_name = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
     session = boto3.session.Session()
     client = session.client(service_name='secretsmanager', region_name=region_name)
 
@@ -150,6 +152,17 @@ def validate_authentication(use_v2=True, enforce_expiry=False):
                 except Exception as e:
                     logger.error(f"Failed to parse XIAOICE_PROJECT_CREDENTIALS env var: {e}")
                     
+        # 2.5. Fallback to local file if Secret Manager and Env Var mapping fail (e.g., for local/offline testing)
+        if not credentials_map:
+            try:
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                local_path = os.path.join(base_dir, "xiaoice_credentials.json")
+                if os.path.exists(local_path):
+                    with open(local_path, "r") as f:
+                        credentials_map = json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load local xiaoice_credentials.json: {e}")
+
         # Extract keys from mapping
         if credentials_map:
             project_config = credentials_map.get(access_key)
