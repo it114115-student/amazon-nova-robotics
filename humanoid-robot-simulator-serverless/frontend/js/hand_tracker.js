@@ -189,16 +189,25 @@ class HandTracker {
     init() {
         console.log('🚀 Initializing HandTracker...');
         this.connectSocket();
-        this.camera.start();
+        
+        console.log('📹 Attempting to start webcam camera...');
+        this.camera.start()
+            .then(() => {
+                console.log('✅ Webcam camera started successfully and streaming frames!');
+            })
+            .catch(err => {
+                console.error('❌ Critical Error: Failed to start webcam camera. Please check camera permissions in your browser.', err);
+            });
+            
         this.updateUIMode();
         
         const trackingStatus = document.getElementById('tracking-status');
         const trackingDot = document.getElementById('tracking-dot');
-        trackingStatus.textContent = 'Active';
-        trackingDot.classList.add('active');
+        if (trackingStatus) trackingStatus.textContent = 'Active';
+        if (trackingDot) trackingDot.classList.add('active');
     }
     
-    connectSocket() {
+    async connectSocket() {
         const wsStatus = document.getElementById('ws-status');
         const wsDot = document.getElementById('ws-dot');
 
@@ -207,8 +216,24 @@ class HandTracker {
         if (urlParams.has('ws_url')) {
             wsUrl = urlParams.get('ws_url');
         } else {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            wsUrl = `${protocol}//${window.location.host}/ws?session_key=${this.sessionKey}`;
+            // Try to load serverless config.json
+            try {
+                const response = await fetch('/config.json');
+                if (response.ok) {
+                    const config = await response.json();
+                    if (config.webSocketUrl) {
+                        wsUrl = `${config.webSocketUrl}?session_key=${this.sessionKey}`;
+                        console.log(`📡 Loaded serverless WebSocket URL from config.json: ${wsUrl}`);
+                    }
+                }
+            } catch (configErr) {
+                console.warn('Could not load serverless config.json, falling back to relative routing:', configErr);
+            }
+
+            if (!wsUrl) {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsUrl = `${protocol}//${window.location.host}/ws?session_key=${this.sessionKey}`;
+            }
         }
 
         console.log(`🔌 Connecting to WebSocket session: ${this.sessionKey} at ${wsUrl}`);
@@ -245,6 +270,13 @@ class HandTracker {
             let stableDomain = null;
 
             if (results.multiHandLandmarks) {
+                // Log hand detection occasionally (e.g. every 1.5 seconds) to prevent console spamming
+                const now = Date.now();
+                if (!this.lastTrackingLogTime || now - this.lastTrackingLogTime > 1500) {
+                    console.log(`🖐️ MediaPipe Hand Tracking: Detected ${results.multiHandLandmarks.length} active hand(s) on-screen.`);
+                    this.lastTrackingLogTime = now;
+                }
+
                 // Determine skeleton color based on domain
                 let skeletonColor = '#00FF00'; // Default green
                 const currentDomain = this.domainGame.stableDomain;
@@ -500,12 +532,16 @@ class HandTracker {
     
     emitControl(type, params) {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            console.log(`📡 WebSocket TX: camera_control type="${type}"`, params);
             this.socket.send(JSON.stringify({
                 action: 'camera_control',
                 session_key: this.sessionKey,
                 type: type,
                 params: params
             }));
+        } else {
+            const state = this.socket ? this.socket.readyState : 'NOT_CREATED';
+            console.warn(`⚠️ Cannot transmit camera_control type="${type}" - WebSocket is not open (State: ${state})`);
         }
     }
 }
