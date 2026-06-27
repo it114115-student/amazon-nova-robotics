@@ -1,6 +1,6 @@
 # Robot Skills
 
-Self-contained, independently runnable robot control skills for AWS IoT.
+Self-contained, independently runnable skills for the Bedrock AgentCore gateway-backed robot and digital-human toolchain.
 
 ## Prerequisites
 
@@ -11,8 +11,8 @@ Self-contained, independently runnable robot control skills for AWS IoT.
 
 | Skill | Description |
 |---|---|
-| `humanoid_skill` | Publish actions to humanoid robots (robot_1 through robot_9) |
-| `digital_human` | Send speech actions to the xiaoice Digital Human via AWS IoT |
+| `humanoid_skill` | Invoke humanoid robot actions, speech, and image capture through the robot-only AgentCore gateway target |
+| `digital_human` | Send speech actions to the xiaoice Digital Human through the digital-human AgentCore gateway target |
 | `digital_human_adb` | Control local/connected Android devices for Digital Human live2d/application display via ADB |
 
 ## Usage
@@ -29,13 +29,13 @@ cd <skill_folder>
 
 ### CDK Environment Variables Integration (Recommended)
 
-Each python skill script automatically detects either `MCP_SERVER_URL` or `McpServerUrl` environment variables. If you have deployed your CDK stacks, you can load the environment variables directly from the CDK output before running any skill:
+Each Python skill script automatically detects either `MCP_SERVER_URL` or `McpServerUrl`. If you have deployed the CDK stack, `load_cdkstack_env.sh` exports the `McpServerUrl` output so the skills can talk to the AgentCore gateway without extra configuration:
 
 ```bash
 # From the project root directory
 source load_cdkstack_env.sh
 
-# Now run the skill directly, it will seamlessly route requests through the AWS Bedrock AgentCore Secure Gateway
+# Now run the skill directly; it will route requests through the Bedrock AgentCore gateway
 cd robot_skills/humanoid
 ./run.sh --robot-id robot_1 --action wave
 ```

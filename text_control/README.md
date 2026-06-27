@@ -1,255 +1,129 @@
-# Robot Command Optimization System
+# Text Control
 
-This system provides significant performance improvements for robot control by bypassing expensive LLM classification for simple commands through intelligent command normalization and auto-extraction from MCP server tools.
+Flask-based control plane for the web chat UI, robot knowledge-base editor, Xiaoice-compatible webhook endpoints, and direct AgentCore gateway tool execution.
 
-## 🚀 Performance Benefits
+## What this service does
 
-- **2-4 second speedup** for simple commands (bypasses AWS Bedrock API calls)
-- **5x faster execution** for multi-robot scenarios (parallel processing)
-- **43+ robot commands** automatically extracted from MCP server
-- **Flexible input formats** (camelCase, spaces, synonyms)
+- Serves the Cognito-protected web UI at `/index`, `/robot`, and `/cleanup`
+- Exposes Xiaoice-compatible API endpoints for `talk`, `welcome`, `goodbye`, and `recquestions`
+- Routes humanoid and digital-human actions through the Bedrock AgentCore gateway
+- Stores robot persona/context data in `RobotTable`
+- Stores pending digital-human speech messages in `SpeechTable`
+- Optimizes simple robot commands by bypassing the full LLM pipeline when possible
 
-## 📁 System Components
+## Main files
 
-### Core Files
+| File | Purpose |
+|---|---|
+| `app.py` | Flask app entry point and Lambda handler |
+| `routes/api.py` | API endpoints for chat, Xiaoice compatibility, robot CRUD, actions, image capture, and speech |
+| `routes/ui.py` | Web UI routes, including the new SpeechTable cleanup console |
+| `middleware.py` | Hybrid auth decorators for session, bearer token, API Gateway context, and internal secret flows |
+| `utils/auth.py` | Signature validation and Xiaoice credential resolution |
+| `services/speech_db_service.py` | SpeechTable read/delete helpers |
+| `scripts/backup_restore.py` | RobotTable backup and restore utility |
+| `scripts/sync_postures.py` | Syncs available Xiaoice postures into RobotTable |
 
-- `config/simple_commands.py` - Auto-generated command configuration
-- `utils/command_normalization.py` - Command parsing and normalization utilities
-- `routes/api.py` - Main API with optimization logic
+## Authentication model
 
-### Automation Scripts
+### Web and internal APIs
 
-- `update_simple_commands.py` - Extracts commands from MCP server tools
-- `pre_deploy_update_commands.sh` - CI/CD deployment script
+`@require_hybrid_auth` supports:
 
-### Documentation
+- Cognito-backed web session auth
+- Bearer token auth for direct API callers
+- API Gateway authorizer claims
+- `X-Internal-Secret` for trusted service-to-service calls such as simulator-triggered robot actions
 
-- This README covers the complete system
+### Xiaoice-compatible endpoints
 
-## 🛠 Command Normalization Features
+The service resolves project credentials in this order:
 
-### Input Format Flexibility
+1. AWS Secrets Manager secret `XiaoiceProjectCredentials`
+2. `XIAOICE_PROJECT_CREDENTIALS` environment variable
+3. Local `xiaoice_credentials.json` for offline/local testing
+4. Legacy global fallback keys from `XiaoiceChatAccessKey` and `XiaoiceChatSecretKey`
 
-- **CamelCase**: `moveForward` → `move_forward`
-- **Spaces**: `move forward` → `move_forward`
-- **Mixed Case**: `MOVE FORWARD` → `move_forward`
-- **Synonyms**: `forward` → `move_forward`, `exercise` → `push_ups`
-- **Cleanup**: `move__forward` → `move_forward`
+Signature modes:
 
-### Supported Command Categories
+- **V2 signature**: `/api/talk`, `/api/welcome`, `/api/goodbye`, `/api/recquestions`, `/api/xiaoice-stream-machine`
+- **Legacy signature**: `/api/xiaoice-chat-api-strands`, `/api/xiaoice-chat-api-strands-stream`
 
-```python
-# Currently extracted from MCP server:
-SIMPLE_COMMANDS = {
-    # Basic control (3 commands)
-    "activate", "hop", "stop",
+## Web UI routes
 
-    # Movement (18 commands)
-    "move_forward", "move_backward", "rotate_clockwise", "walk_mode", ...
+- `/login` — login page
+- `/index` — main chat UI
+- `/robot` — robot knowledge-base editor
+- `/cleanup` — SpeechTable cleanup console
+- `/cleanup/api/list` — list pending speech rows
+- `/cleanup/api/delete-all` — bulk delete SpeechTable rows
+- `/cleanup/api/delete/<message_id>` — delete a single SpeechTable row
 
-    # Look/Vision (8 commands)
-    "look_up", "look_down", "look_left", "look_upperleft", ...
+## Key API routes
 
-    # Advanced (14 commands)
-    "head_move", "body_cycle", "balance", "gait_uni", ...
-}
-```
+- `/api/chat` — hybrid-auth JSON chat endpoint
+- `/api/talk` — Xiaoice-compatible SSE endpoint using signature v2
+- `/api/welcome`, `/api/goodbye`, `/api/recquestions` — companion Xiaoice endpoints
+- `/api/xiaoice-chat-api-strands` — legacy non-streaming endpoint
+- `/api/xiaoice-chat-api-strands-stream` — legacy streaming endpoint
+- `/api/xiaoice-stream-machine` — machine route with signature v2 and timestamp-expiry enforcement
+- `/api/robots` and `/api/robots/<robot_id>` — robot persona CRUD
+- `/api/run_action/<robot_id>` — direct robot action execution
+- `/api/capture_image/<robot_id>` — camera capture helper
+- `/api/speech/<robot_id>` — speech trigger helper
+- `/api/image/<path:object_key>` — media proxy endpoint
 
-## 🔐 Xiaoice Credentials Management
+## Command optimization
 
-The system uses an AWS Secrets Manager secret (`XiaoiceProjectCredentials`) to securely store per-project Access Keys and Secret Keys. This allows mapping a single deployment to multiple Xiaoice project identities without exposing keys in plaintext.
+The service still keeps the simple-command fast path:
 
-### Generating Keys for a Project
+- command metadata is generated into `command_config/simple_commands.py`
+- `update_simple_commands.py` refreshes the command set from the current MCP/AgentCore tool surfaces
+- `pre_deploy_update_commands.sh` runs before bundling in the CDK text-control Lambda
 
-Use the `generate_keys.py` tool to create secure 64-character hexadecimal keys compatible with the Xiaoice platform:
+This keeps short robot commands on the low-latency path while preserving the LLM flow for complex requests.
 
-```bash
-cd text_control/
-python3 generate_keys.py [optional_secret_seed] <project_name>
-# Example: python3 generate_keys.py Summer
-# Example with seed: python3 generate_keys.py my_secret_seed_123 Summer
-```
+## Xiaoice credentials workflow
 
-This script will output:
-1. An **Access Key** (to configure in the Xiaoice developer portal).
-2. A **Secret Key** (to configure in the Xiaoice developer portal).
-3. A **JSON Snippet** mapping the Access Key to the Secret Key and Project ID.
-
-### Storing the Credentials
-
-1. The generated JSON mapping should be appended to `text_control/xiaoice_credentials.json`.
-2. Ensure `xiaoice_credentials.json` is added to `.gitignore` to prevent leaking keys.
-3. During deployment, the CDK stack automatically reads this local JSON file and uploads it securely to AWS Secrets Manager (`XiaoiceProjectCredentials`).
-4. The Lambda functions then read directly from AWS Secrets Manager at runtime to validate incoming Xiaoice requests and determine the target `project_id`.
-
-## 🔄 Auto-Update System
-
-### How It Works
-
-1. **MCP Analysis**: Scans `@mcp.tool()` decorated functions
-2. **Command Extraction**: Finds `execute_*_action("command")` calls
-3. **Categorization**: Groups by type (movement, vision, advanced)
-4. **Generation**: Updates `config/simple_commands.py`
-
-### Manual Update
+Generate per-project keys with:
 
 ```bash
-cd text_control/
-python3 update_simple_commands.py
+cd text_control
+python3 generate_keys.py [optional_seed] <project_name>
 ```
 
-### CI/CD Integration
+Store the generated JSON mapping in `text_control/xiaoice_credentials.json`. During CDK deployment, `TextControlWebConstruct` seeds the `XiaoiceProjectCredentials` secret from that file and grants the Lambda read access to it.
+
+## Operations scripts
+
+### Backup and restore RobotTable
 
 ```bash
-# Add to your deployment pipeline:
-./text_control/pre_deploy_update_commands.sh
-
-# This automatically:
-# 1. Extracts latest commands from MCP server
-# 2. Updates simple_commands.py
-# 3. Verifies syntax and imports
+cd text_control
+python3 scripts/backup_restore.py backup --table <table_name> --file robot_table_backup.json
+python3 scripts/backup_restore.py restore --table <table_name> --file robot_table_backup.json
 ```
 
-## 🧪 API Integration
-
-### Before Optimization
-
-```python
-# Every request required 2 AWS Bedrock API calls:
-user_input = "move forward"
-bot_response = await get_chat_response(user_input)      # 2-3 seconds
-actions = await extract_actions_from_response(bot_response)  # 1-2 seconds
-# Total: 3-5 seconds
-```
-
-### After Optimization
-
-```python
-# Simple commands bypass LLM entirely:
-user_input = "move forward"
-matched = find_matching_command(user_input, SIMPLE_COMMANDS)  # <50ms
-if matched:
-    actions = [matched]  # Direct execution
-    # Total: <100ms (50x faster!)
-```
-
-### Smart Classification Logic
-
-```python
-async def _chat(data):
-    user_message = data.get("message")
-
-    # Try simple command first (fast path)
-    matched_command = find_matching_command(user_message, SIMPLE_COMMANDS)
-    if matched_command:
-        actions_to_execute = [matched_command]
-    else:
-        # Fallback to LLM for complex requests (slow path)
-        actions_to_execute = await extract_actions_from_response(bot_response, user_message)
-
-    # Execute actions in parallel for multiple robots
-    tasks = [robot_service.process_actions(actions, robot) for robot in robots]
-    await asyncio.gather(*tasks)
-```
-
-## 🎯 Usage Examples
-
-### Direct Command Input
-
-```python
-from config.simple_commands import SIMPLE_COMMANDS
-from utils.command_normalization import find_matching_command
-
-# Various input formats work:
-inputs = ["moveForward", "move forward", "MOVE FORWARD", "forward"]
-for inp in inputs:
-    cmd = find_matching_command(inp, SIMPLE_COMMANDS)
-    print(f"'{inp}' → '{cmd}'")  # All return 'move_forward'
-```
-
-### API Request Examples
+### Sync available Xiaoice postures
 
 ```bash
-# These all execute instantly without LLM:
-curl -X POST /api/xiaoice-chat-api -d '{"askText": "moveForward", ...}'
-curl -X POST /api/xiaoice-chat-api -d '{"askText": "stand up", ...}'
-curl -X POST /api/xiaoice-chat-api -d '{"askText": "rotate clockwise", ...}'
-
-# Complex requests still use LLM:
-curl -X POST /api/xiaoice-chat-api -d '{"askText": "move forward while looking around carefully", ...}'
+cd text_control
+python3 scripts/sync_postures.py
 ```
 
-## 📊 Performance Metrics
-
-### Simple Command Optimization
-
-- **Coverage**: 43+ commands (expandable)
-- **Speed**: 2-4 second improvement per request
-- **Accuracy**: 100% (extracted from actual implementation)
-
-### Multi-Robot Parallel Processing
-
-- **Before**: Sequential execution (N × time per robot)
-- **After**: Parallel execution (constant time regardless of robot count)
-- **Improvement**: 5x faster for 5 robots, 10x faster for 10 robots
-
-### Overall System Impact
-
-- **API Response Time**: 50-80% reduction for simple commands
-- **AWS Costs**: Reduced Bedrock API calls by ~50%
-- **User Experience**: Near-instant response for common actions
-
-## 🔧 Development & Maintenance
-
-### Adding New Commands
-
-1. Add new `@mcp.tool()` function to MCP server
-2. Use `execute_*_action("new_command")` pattern
-3. Run `python3 update_simple_commands.py` to auto-detect
-4. Deploy with updated `simple_commands.py`
-
-### Testing Command Normalization
-
-```python
-# Test specific normalization
-from utils.command_normalization import normalize_command
-print(normalize_command("moveForward"))  # → "move_forward"
-
-# Test full matching
-from config.simple_commands import SIMPLE_COMMANDS
-from utils.command_normalization import find_matching_command
-result = find_matching_command("stand up", SIMPLE_COMMANDS)
-print(result)  # → "stand_up"
-```
-
-### Troubleshooting
+## Local development
 
 ```bash
-# Check command extraction
-python3 update_simple_commands.py
-
-# Verify imports work
-python3 -c "from config.simple_commands import SIMPLE_COMMANDS; print(len(SIMPLE_COMMANDS))"
-
-# Test API syntax
-python3 -m py_compile routes/api.py
+cd text_control
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
 ```
 
-## 🚀 Deployment Checklist
+## Tests
 
-1. **Pre-deployment**: Run `./pre_deploy_update_commands.sh`
-2. **Verify**: Check that latest MCP commands are extracted
-3. **Test**: Confirm API imports work correctly
-4. **Deploy**: Standard deployment process
-5. **Monitor**: Check performance improvements in logs
+Existing manual test scripts live in `text_control/tests/`:
 
-## 🔮 Future Enhancements
-
-- **Dynamic Learning**: Track user input patterns to expand command synonyms
-- **Multi-language**: Support command inputs in different languages
-- **Voice Integration**: Optimize for speech-to-text command variations
-- **Analytics**: Detailed metrics on optimization hit rates
-
----
-
-This system transforms robot control from slow, expensive LLM-dependent operations into fast, accurate, direct command execution while maintaining full backward compatibility for complex requests.
+- `tests/test_empty_asktext.py`
+- `tests/test_streaming.py`

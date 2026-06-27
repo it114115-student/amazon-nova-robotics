@@ -1,6 +1,6 @@
 # Project Documentation Index
 
-Generated: 2026-06-09 05:58 UTC
+Generated: 2026-06-27 01:11 UTC
 
 > This index links to original files across the repo. Source docs remain in their project folders.
 
@@ -40,13 +40,11 @@ Generated: 2026-06-09 05:58 UTC
 
 - [Readme](../robot_client/humanoid/README.md)
 
-### robot_skills (6)
+### robot_skills (4)
 
 - [Readme](../robot_skills/README.md)
 - [Skill](../robot_skills/digital_human/SKILL.md)
 - [Skill](../robot_skills/digital_human_adb/SKILL.md)
-- [Skill](../robot_skills/dog/SKILL.md)
-- [Skill](../robot_skills/drone/SKILL.md)
 - [Skill](../robot_skills/humanoid/SKILL.md)
 
 ### speech_control_agentcore (1)
@@ -59,4 +57,3 @@ Generated: 2026-06-09 05:58 UTC
 - [Readme](../text_control/README.md)
 - [Api Implementation](../text_control/docs/api_implementation.md)
 - [Readme](../text_control/tests/README.md)
-
