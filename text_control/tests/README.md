@@ -48,11 +48,13 @@ python test_streaming.py continuity # Conversation continuity
    python app.py
    ```
 
-2. **Set environment variables (strictly required; no fallback):**
+2. **Set credentials for the Xiaoice-compatible endpoints:**
    ```bash
    export XiaoiceChatSecretKey="your_secret_key"
    export XiaoiceChatAccessKey="your_access_key"
    ```
+
+   If you use project-specific credentials, make sure the same access key / secret key pair is available to the app through Secrets Manager, `XIAOICE_PROJECT_CREDENTIALS`, or `xiaoice_credentials.json`.
 
 ### Test Execution
 
@@ -86,8 +88,8 @@ python tests/test_streaming.py talk
    - Check firewall settings
 
 2. **Authentication Errors**
-   - Verify environment variables are set correctly
-   - Check signature calculation implementation
+   - Verify the access key and secret key pair matches what the app is using
+   - Check whether the endpoint expects signature v2 (`/api/talk`) or legacy signature (`/api/xiaoice-chat-api-strands*`)
 
 3. **Timeout Errors**
    - Increase timeout values for slow responses

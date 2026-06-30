@@ -392,7 +392,9 @@ class HumanoidSimulator {
 
                         case 'camera_control':
                             console.log('📷 Camera control received:', data);
-                            if (this.scene3d) {
+                            if (data && data.type !== undefined) {
+                                this.handleCameraControl(data);
+                            } else if (this.scene3d) {
                                 if (data.target_rotation_y !== undefined) {
                                     this.scene3d.targetRotationY = data.target_rotation_y;
                                 }

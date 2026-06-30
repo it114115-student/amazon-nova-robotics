@@ -460,6 +460,7 @@
                 <div id="viewport-controls">
                     <button id="toggle-panel" class="action-btn">📋 Show Panel</button>
                     <button id="reset-camera" class="action-btn">📷 Reset Camera</button>
+                    <button id="hand-control-btn" class="action-btn" style="background: #28a745;" onclick="openHandController()">🖐️ Hand Control</button>
                     <button id="reset" class="action-btn" style="background: #dc3545;">🔄 Reset</button>
                 </div>
             </div>
@@ -639,6 +640,17 @@
             }
             console.log('🔄 Video force reload ' + (enabled ? 'enabled' : 'disabled'));
         }
+
+        function openHandController() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionKey = urlParams.get('session_key') || 'default_session';
+            const videoBucketUrl = urlParams.get('video_bucket_url') || '';
+            let targetUrl = `/hand_controller.html?session_key=${encodeURIComponent(sessionKey)}`;
+            if (videoBucketUrl) {
+                targetUrl += `&video_bucket_url=${encodeURIComponent(videoBucketUrl)}`;
+            }
+            window.open(targetUrl, '_blank');
+        }
     </script>
     <script src="./js/robot_animations.js"></script>
     <script src="./js/robot3d.js"></script>
@@ -646,6 +658,7 @@
     <script src="./js/simulator.js"></script>
     <script src="./js/index.js"></script>
 
+    <script>
     // --- Cognito REST API Authentication Integration ---
     let cognitoConfig = {
       region: "us-east-1",
@@ -797,6 +810,7 @@
     function handleLogout() {
       forceSessionLogout();
     }
+    </script>
 
 </body>
 

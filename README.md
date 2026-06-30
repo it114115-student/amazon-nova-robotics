@@ -1,6 +1,6 @@
 # Amazon Nova Robotics
 
-A comprehensive voice-controlled robotics platform powered by AWS IoT, AWS Bedrock, and Amazon Nova. This project enables natural language control of humanoid robots and drones through voice commands, with real-time 3D visualization, simulation capabilities, and secure authentication.
+A comprehensive voice-controlled robotics platform powered by AWS IoT, AWS Bedrock, and Amazon Nova. This project enables natural language control of humanoid robots and digital-human presenters through voice and text interfaces, with real-time 3D visualization, simulation capabilities, and secure authentication.
 
 ## 📚 Documentation
 
@@ -11,7 +11,7 @@ See the consolidated documentation index in [docs/README.md](docs/README.md), re
 Amazon Nova Robotics is a multi-component system that combines:
 
 - **Voice Control**: Real-time speech-to-speech interaction using Amazon Nova Sonic
-- **Robot Control**: Physical humanoid robot and drone control via AWS IoT
+- **Robot & Presenter Control**: Physical humanoid robots and Xiaoice digital humans via AWS IoT and AgentCore gateway tools
 - **3D Simulation**: Browser-based 3D robot simulator with realistic animations
 - **Text Interface**: Web-based text control for robot commands
 - **MCP Integration**: Model Context Protocol support for extensibility
@@ -43,7 +43,7 @@ The system consists of several interconnected components:
 
    - Web-based text interface for robot control
    - Python Flask application with AWS Bedrock integration
-   - Database-backed session management
+   - Database-backed robot context and speech message management
    - AWS Cognito authentication integration
    - Command optimization system for faster response
 
@@ -51,13 +51,13 @@ The system consists of several interconnected components:
 
    - Physical robot control software
    - AWS IoT MQTT communication
-   - Support for humanoid robots and drones
+   - Support for humanoid robots and related physical client workflows
    - Python-based with action execution system
 
 5. **MCP Server** (`mcp_server/`)
 
    - Model Context Protocol server implementation
-   - Robot and drone command execution
+   - Humanoid robot and digital-human tool execution
    - AWS Lambda-based deployment
 
 6. **CDK Infrastructure** (`cdk/`)
@@ -246,15 +246,7 @@ Features:
 
 ### 2. Humanoid Robot Simulator
 
-Access the 3D robot simulator:
-
-```bash
-cd humanoid-robot-simulator
-pip install -r requirements.txt
-python app.py
-```
-
-Access at `http://localhost:5000?session_key=YOUR_SESSION`
+The active simulator lives in `humanoid-robot-simulator-serverless/` and is deployed as a static frontend with a Lambda/WebSocket backend. After `./deploy.sh`, open the `humanoidRobotSimulatorServerlessUrl` stack output.
 
 Features:
 
@@ -277,8 +269,9 @@ Features:
 
 - Text-based robot commands with intelligent optimization
 - AWS Bedrock integration for complex commands
-- Session management with authentication
-- Database-backed history
+- Cognito-backed web authentication and hybrid API auth
+- Robot knowledge-base management backed by DynamoDB
+- SpeechTable cleanup console for digital-human message operations
 - 2-4 second performance improvement for simple commands
 - **Multiple Xiaoice Project Webhooks**: Deterministic `generate_keys.py` tool for managing `XIAOICE_PROJECT_CREDENTIALS` via AWS Secrets Manager.
 
@@ -327,20 +320,20 @@ For physical robot hardware:
 
 ### Robot Configuration
 
-The system supports:
+The default cloud stack supports:
 
-- **Humanoid Robots**: `robot_1` through `robot_9`
-- **Drones**: `drone_1` and above
-- **Dogs**: `dog_1` through `dog_3` (Raspberry Pi Dog controllers)
-- **Group Control**: Use `"all"` to control all robots simultaneously
+- **Humanoid Robots**: `robot_1` through `robot_6`
+- **Digital Human**: `xiaoice_1`
+- **Group Control**: Use `"all"` where supported by the tool schema
 
 ### MCP Integration
 
-The serverless Bedrock AgentCore voice-agent architecture includes Model Context Protocol (MCP) support for serverless command routing:
-- **Serverless MCP Routing**: The voice assistant routes tools directly via AWS Lambda. When the Bedrock agent decides to invoke an action (such as `robot_kick` or `robot_dance`), the MCP Lambda converts the payload and POSTs it directly to your CloudFront-backed humanoid robot simulator REST endpoint.
-- **Zero-Touch Configuration**: All MCP tool schemas and routing targets are declared and wired natively inside your AWS CDK stack ([`cdk-stack.ts`](file:///home/developer/Documents/data-disk/amazon-nova-robotics/cdk/lib/cdk-stack.ts)), completely eliminating local file management for seamless, native serverless orchestrations!
+The serverless Bedrock AgentCore architecture uses an IAM-protected gateway for tool routing:
+- **Robot-only target**: humanoid movement, stance, speech, and image tools
+- **Digital-human target**: presenter speech tools isolated from physical robot tools
+- **CDK-managed schemas**: tool schemas and gateway targets are declared in `cdk/lib/construct/robot-tool-gateway.ts`
 
-The system supports AWS IAM authentication for secure MCP Lambda Function URLs.
+The gateway uses AWS IAM authentication for secure tool invocation.
 
 ## 📊 Monitoring and Management
 
@@ -348,7 +341,7 @@ The system supports AWS IAM authentication for secure MCP Lambda Function URLs.
 
 - **Speech Control**: `/api/mcp/status`, `/api/tools`, `/api/auth/config`, `/api/auth/login`
 - **Robot Simulator**: WebSocket API for real-time control
-- **Text Control**: RESTful API for command execution with authentication
+- **Text Control**: RESTful API for command execution, robot CRUD, and SpeechTable cleanup
 - **Authentication**: AWS Cognito integration for secure access
 
 ### Session Management
@@ -357,7 +350,7 @@ Each component supports session-based interaction with authentication:
 
 - Speech sessions with automatic cleanup and Cognito authentication
 - Simulator sessions with multi-user support and secure session keys
-- Text sessions with persistent history and JWT token authentication
+- Text sessions with Cognito-backed web access and hybrid API authentication
 
 ## 🔒 Security
 
@@ -367,7 +360,7 @@ Each component supports session-based interaction with authentication:
 - Session-based authentication with JWT tokens
 - Socket.IO authentication middleware
 - CORS configuration for web interfaces
-- MCP server AWS SigV4 authentication support
+- AgentCore gateway AWS IAM / SigV4 authentication support
 
 ## 🧩 Component Details
 
@@ -377,20 +370,20 @@ Each component supports session-based interaction with authentication:
 - **Features**: Real-time audio streaming, MCP integration, multi-robot control, authentication
 - **AI Model**: Amazon Nova Sonic for speech-to-speech processing
 - **Authentication**: AWS Cognito with JWT tokens
-- **MCP Support**: AWS SigV4 authentication for secure Lambda Function URLs
-- **Deployment**: AWS App Runner with auto-scaling
+- **MCP Support**: AWS SigV4 authentication for the AgentCore gateway
+- **Deployment**: AWS Bedrock AgentCore runtime with a static frontend on S3/CloudFront
 
 ### Humanoid Robot Simulator
 
 - **Technology**: Python Flask, Three.js, WebSocket
 - **Features**: 6 robots, 38 actions, 3D visualization, session management
-- **Actions**: Dance (9 styles), Combat, Exercise, Movement
-- **Deployment**: Docker-ready, Cloud Run compatible
+- **Actions**: Dance (10 styles), Combat, Exercise, Movement
+- **Deployment**: Static frontend plus Lambda/WebSocket backend deployed by CDK
 
 ### Text Control
 
 - **Technology**: Python Flask, AWS Bedrock
-- **Features**: Text-based commands, session history, database integration, command optimization
+- **Features**: Text-based commands, robot context management, SpeechTable cleanup UI, and command optimization
 - **Performance**: 2-4 second speedup for simple commands, 5x faster multi-robot execution
 - **Commands**: 43+ robot commands automatically extracted from MCP server
 - **Deployment**: AWS Lambda with API Gateway
@@ -406,29 +399,29 @@ Each component supports session-based interaction with authentication:
 
 - **Technology**: Python, AWS IoT SDK, MQTT
 - **Features**: Physical robot control, action execution, certificate-based auth
-- **Hardware**: Humanoid robots and drones
+- **Hardware**: Humanoid robots
 
 ### MCP Server
 
 - **Technology**: Python, AWS Lambda
-- **Features**: Model Context Protocol implementation, robot/drone commands
-- **Integration**: Extensible tool system
+- **Features**: AgentCore-compatible humanoid and digital-human tools with isolated gateway targets
+- **Integration**: Extensible tool schema published through the gateway
 
 ### Infrastructure (CDK)
 
-- **Services**: App Runner, Lambda, IoT Core, DynamoDB, S3, Cognito
+- **Services**: Bedrock AgentCore, Lambda, API Gateway, IoT Core, DynamoDB, S3, CloudFront, Cognito
 - **Features**: Auto-scaling, monitoring, secure networking, batch IoT processing
 - **Efficiency**: 92.3% reduction in Lambda functions through batch IoT device creation
-- **Devices**: Single Lambda handles all 13 IoT devices (9 robots + 1 drone + 3 dogs)
+- **Devices**: Default stack provisions 6 humanoid robots plus 1 xiaoice digital human
 - **Region**: Primary deployment in us-east-1
 
 ## 🎮 Available Actions
 
 ### Humanoid Robot Actions (38 total)
 
-#### Dance Actions (9 styles, 52-85 seconds each)
+#### Dance Actions (10 styles, 52-85 seconds each)
 
-- `dance_two` through `dance_ten` (note: dance_one not implemented)
+- `dance_one` through `dance_ten`
 - Professional choreographed sequences
 - Music-synchronized movements
 
@@ -454,22 +447,15 @@ Each component supports session-based interaction with authentication:
 - `wave`, `bow`, `twist`, `stand`, `stand_up_back`, `stand_up_front`
 - Basic interaction and positioning actions
 
-### Drone Actions
-
-- `takeoff`, `land`, `move_up`, `move_down`
-- `move_left`, `move_right`, `move_forward`, `move_back`
-- `rotate_clockwise`, `rotate_counter_clockwise`
-
 ## 🔗 Integration Points
 
 ### AWS Services
 
 - **Bedrock**: AI model inference and streaming with Amazon Nova Sonic
-- **IoT Core**: Device communication and management for robots and drones
+- **IoT Core**: Device communication and management for humanoid robots and digital humans
 - **Lambda**: Serverless compute for MCP and text control
 - **DynamoDB**: Session and robot state storage
 - **S3**: Certificate and asset storage
-- **App Runner**: Containerized web application hosting
 - **Cognito**: User authentication and session management
 
 ### Communication Protocols
@@ -511,9 +497,9 @@ Each component supports session-based interaction with authentication:
 ## 📈 Performance Considerations
 
 - **Concurrent Sessions**: Supports multiple simultaneous voice sessions with authentication
-- **Robot Capacity**: Up to 9 humanoid robots + 1 drone + 3 dogs per deployment (13 devices total)
+- **Robot Capacity**: Default stack supports 6 humanoid robots plus 1 digital human presenter
 - **Infrastructure Efficiency**: 92.3% reduction in Lambda functions through batch IoT processing
-- **Auto-scaling**: Automatic scaling based on demand for App Runner services
+- **Auto-scaling**: Managed scaling for the serverless runtime and gateway-backed components
 - **Session Cleanup**: Automatic cleanup of inactive sessions (5-minute timeout)
 - **Command Optimization**: Text control bypasses LLM for simple commands (2-4s speedup)
 - **Simulator Capacity**: 6 humanoid robots in 3D visualization with 38 available actions

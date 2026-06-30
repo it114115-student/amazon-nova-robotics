@@ -1,6 +1,6 @@
 # CDK Infrastructure
 
-This CDK app provisions the AWS infrastructure for the Amazon Nova Robotics project, including the **speech AgentCore runtime**, the **robot-only AgentCore MCP gateway**, the legacy/shared MCP surfaces, static websites, Cognito, and supporting data stores.
+This CDK app provisions the AWS infrastructure for the Amazon Nova Robotics project, including the **speech AgentCore runtime**, the **dual-target AgentCore gateway** for humanoid and digital-human tools, static websites, Cognito, and supporting data stores.
 
 ## Useful commands
 
@@ -10,16 +10,17 @@ This CDK app provisions the AWS infrastructure for the Amazon Nova Robotics proj
 - `npx cdk diff` — compare local changes with the deployed stack
 - `npx cdk deploy` — deploy the stack
 
-## Current speech + MCP deployment shape
+## Current speech + gateway deployment shape
 
-The voice cockpit no longer points at the shared mixed MCP surface.
+The voice cockpit no longer points at a shared mixed MCP surface.
 
-It now deploys and uses a **separate robot-only AgentCore gateway path**:
+It now deploys and uses a **single AgentCore gateway with isolated targets**:
 
 - `cdk/lib/construct/robot-tool-gateway.ts`
   - creates a dedicated Lambda target for robot-only tools
-  - publishes a robot-only tool schema asset
-  - sets the AgentCore gateway target name to `robot-only-mcp-lambda`
+  - creates a separate Lambda target for digital-human tools
+  - publishes filtered tool schema assets for both targets
+  - sets the AgentCore gateway target names to `robot-only-mcp-lambda` and `digital-human-mcp-lambda`
 - `cdk/lib/construct/speech-web-agentcore.ts`
   - points the speech runtime at that robot-only gateway
   - grants the speech runtime permission to invoke that gateway
@@ -49,13 +50,13 @@ Important implications:
 - For tool-call debugging, the most useful log stream is often the **BedrockAgentCoreGateway application log**, not only the speech runtime log stream.
 - `cdk.out/` can grow very large after repeated synth/deploy cycles and is safe to remove when cleaning local workspace disk usage.
 
-## OpenClaw MCP callers
+## OpenClaw gateway callers
 
-The MCP Lambda URL is granted to the current AWS account by default. That makes both OpenClaw `dev` and `prod` execution roles work in the same account, while the actual caller is still constrained by the identity-based policy attached on the OpenClaw side.
+The AgentCore gateway is granted to the current AWS account by default. That lets OpenClaw callers in the same account invoke the gateway while still relying on the caller-side IAM policy for the final allow/deny decision.
 
 You can override the allowed caller accounts with CDK context:
 
-- `openclawCallerAccountIds`: comma-separated string or array of AWS account IDs that should be allowed to invoke the MCP Lambda URL
+- `openclawCallerAccountIds`: comma-separated string or array of AWS account IDs that should be allowed to invoke the AgentCore gateway
 
 ## 👩 Xiaoice Digital Human Credentials & Dynamic Avatar Switching
 
@@ -110,4 +111,3 @@ https://djt9g9bto90gy.cloudfront.net/xiaoice_human.html?project_id=<TARGET_PROJE
    ./deploy.sh
    ```
    The CDK application automatically maps these values securely into the Lambda function's environment variables. If no `XIAOICE_SUBSCRIPTION_KEY` is supplied, the Lambda backend will recognize this and gracefully fallback to generating local signature handshakes using the app secret, keeping the console operational.
-
