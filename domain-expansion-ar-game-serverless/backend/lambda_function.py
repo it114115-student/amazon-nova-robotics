@@ -679,8 +679,13 @@ def handle_http(event):
         tone_directive = (
             "Swearing / trash-talk mode is ACTIVE. You may use sharp Cantonese vulgarities or hard roasts if it fits Nobara's voice."
             if foul_language else
-            "Swearing is OFF. Keep the commentary fierce, arrogant, and high-energy, but strictly clean and PG-rated. "
-            "Do not use vulgarities or profanity such as 仆街, 屌, 戗尻, or any equivalent curse words 粗俗字眼."
+            "Swearing / foul language is STRICTLY FORBIDDEN and OFF (FOUL PROTECTION IS ACTIVE). "
+            "You must keep the commentary completely clean, family-friendly, and strictly PG-rated. "
+            "You are absolutely prohibited from using any Cantonese vulgarities, swear words, profanities, or offensive slang "
+            "including but not limited to: 仆街 (puk gaai), 屌 (diu), 頂你個肺 (ding nei go fai), 戇尻/戇鳩/戇c (on gau), 柒/𨳍 (cat), 撚/𨶙 (lan), 閪/閪人 (hai), 冚家鏟, 廢柴, or any euphemisms/homophones of these words (such as 玩撚, 含撚, 傻西, 傻嗨, 小你, 頂你). "
+            "Do not use any English profanity or curse words (e.g., fuck, shit, bitch, damn, hell, crap, asshole). "
+            "Your roasts must be creative, humorous, and sassy without resorting to any vulgarity or abusive insults. "
+            "Perform a strict self-censorship check on your output to ensure 100% compliance."
         )
 
         # Build prompt content block
